@@ -29,6 +29,14 @@ const FreeBots = observer(() => {
     // Bot descriptions mapping
     const getBotDescription = (botName: string): string => {
         const descriptions: { [key: string]: string } = {
+            'POVERTY KILLER':
+                'High-performance digit trading bot with intelligent recovery and profit optimization.',
+            'POVERTY KILLER V2.1':
+                'Updated version of the Poverty Killer bot with enhanced performance and risk management.',
+            'BEST RISE FALL':
+                'Automated rise and fall strategy optimized for consistent returns in trending markets.',
+            'MAKOTI AUTOMATED RISE FALL':
+                'Premium rise and fall strategy featuring advanced entry points and recovery mechanisms.',
             'OVER1 R32 PRO':
                 'Professional Over 1 trading bot with R32 recovery strategy. Optimized for high win rates with intelligent recovery mechanisms and risk management.',
             'OVER2 R43 PRO':
@@ -61,6 +69,10 @@ const FreeBots = observer(() => {
     // Show selected bots from public/xml (explicit curated list)
     const getXmlFiles = () => {
         return [
+            'POVERTY_KILLER.xml',
+            'POVERTY_KILLER_V2.1.xml',
+            'BEST_RISE_FALL.xml',
+            'MAKOTI_AUTOMATED_RISE_FALL.xml',
             'THE CMV PRO.xml',
             'UNDER BLAST PRO.xml',
             'OVER1_R32 PRO.xml',
