@@ -376,7 +376,7 @@ const SpeedBot = observer(() => {
                                             lastOutcomeWasLossRef.current = false;
                                             lossStreak = 0;
                                             step = 0;
-                                            setStake(baseStake);
+                                            setStake(baseStake.toString());
                                         } else {
                                             lastOutcomeWasLossRef.current = true;
                                             lossStreak++;
