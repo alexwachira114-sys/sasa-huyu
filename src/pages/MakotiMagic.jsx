@@ -65,9 +65,9 @@ const MakotiMagic = () => {
                             const contract = res.proposal_open_contract;
                             isWaiting = false; 
                             
-                            // Recovery logic (Small 1.15x bump)
+                            // Recovery logic (Small 1x bump)
                             if (contract.status === 'lost') {
-                                currentStake = (currentStake * 1.15).toFixed(2);
+                                currentStake = (currentStake * 1).toFixed(2);
                             } else {
                                 currentStake = payload.stake;
                             }
