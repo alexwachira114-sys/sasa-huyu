@@ -6,8 +6,8 @@ import './over-under.scss';
 // Connection Statuses
 const STATUS_DISCONNECTED = 'Disconnected';
 const STATUS_CONNECTING = 'Connecting...';
+const STATUS_AUTHORIZING = 'Authorizing...';
 const STATUS_CONNECTED = 'Connected';
-const STATUS_AUTHORIZED = 'Authorized';
 
 const OverUnder = observer(() => {
     const { summary_card, journal, client } = useStore();
@@ -30,20 +30,43 @@ const OverUnder = observer(() => {
         { text: 'Volatility 10 (1s) Index', value: '1HZ10V' },
     ];
 
-    const reconnect = () => {
-        if (ws.current && ws.current.readyState < 2) { // < 2 means CONNECTING or OPEN
+    const subscribeToTicks = (symbol: string) => {
+        if (ws.current?.readyState !== 1) return;
+        ws.current.send(JSON.stringify({ forget_all: 'ticks' }));
+        
+        setDigitStats(Array(10).fill(0));
+        setLastDigit(null);
+        
+        ws.current.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+        journal.pushMessage({ message: `Subscribed to ${symbol}.`, type: 'info' });
+    };
+
+    // This useEffect hook is the core of the fix. It triggers on initial load 
+    // and whenever the user's loginid changes (i.e., they switch accounts).
+    useEffect(() => {
+        // Close any existing connection before creating a new one.
+        if (ws.current) {
+            ws.current.onclose = null; // prevent stale onclose handlers from running
             ws.current.close();
         }
+
+        // Do not attempt to connect if there is no active loginid.
+        if (!client.loginid) {
+            setConnectionStatus(STATUS_DISCONNECTED);
+            return;
+        }
+        
         setConnectionStatus(STATUS_CONNECTING);
         ws.current = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=80058');
 
         ws.current.onopen = () => {
-            setConnectionStatus(STATUS_CONNECTED);
+            setConnectionStatus(STATUS_AUTHORIZING);
             const token = localStorage.getItem('authToken');
             if (token) {
                 ws.current?.send(JSON.stringify({ authorize: token }));
             } else {
                 journal.pushMessage({ message: 'Authentication token not found.', type: 'error' });
+                setConnectionStatus(STATUS_DISCONNECTED);
             }
         };
 
@@ -52,17 +75,22 @@ const OverUnder = observer(() => {
 
             if (data.error) {
                 journal.pushMessage({ message: `Error: ${data.error.message}`, type: 'error' });
+                if (data.msg_type === 'authorize') {
+                    setConnectionStatus(STATUS_DISCONNECTED);
+                }
                 return;
             }
 
             if (data.msg_type === 'authorize') {
                 if (data.authorize) {
-                    setConnectionStatus(STATUS_AUTHORIZED);
                     subscribeToTicks(selectedSymbol);
                 }
             }
 
             if (data.msg_type === 'tick') {
+                if(connectionStatus !== STATUS_CONNECTED) {
+                    setConnectionStatus(STATUS_CONNECTED);
+                }
                 const quote = data.tick.quote.toString();
                 const digit = parseInt(quote.charAt(quote.length - 1));
                 
@@ -81,31 +109,22 @@ const OverUnder = observer(() => {
 
         ws.current.onclose = () => {
             setConnectionStatus(STATUS_DISCONNECTED);
-            // Optional: implement a retry mechanism
         };
-    };
-    
-    const subscribeToTicks = (symbol: string) => {
-        if (ws.current?.readyState !== 1) return;
-        ws.current.send(JSON.stringify({ forget_all: 'ticks' }));
-        
-        setDigitStats(Array(10).fill(0));
-        setLastDigit(null);
-        
-        ws.current.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-        journal.pushMessage({ message: `Subscribed to ${symbol}.`, type: 'info' });
-    };
+
+        // Cleanup on unmount or before the next run of this effect.
+        return () => {
+            if (ws.current) {
+                ws.current.onclose = null;
+                ws.current.close();
+            }
+        };
+    }, [client.loginid]); // <-- This dependency is critical. It ensures we reconnect on account switch.
 
     useEffect(() => {
-        reconnect();
-        return () => ws.current?.close();
-    }, []); // Initial connection
-
-    useEffect(() => {
-        if (connectionStatus === STATUS_AUTHORIZED) {
-            subscribeToTicks(selectedSymbol);
+        if (connectionStatus === STATUS_CONNECTED) {
+             subscribeToTicks(selectedSymbol);
         }
-    }, [selectedSymbol, connectionStatus]);
+    }, [selectedSymbol]);
 
     const executeMultiTrade = () => {
         if (ws.current?.readyState !== 1) return;
@@ -116,14 +135,14 @@ const OverUnder = observer(() => {
             symbol: selectedSymbol,
             duration: 1,
             duration_unit: 't',
+            buy: 1, // The buy parameter must be at the top level
         };
 
         journal.pushMessage({ message: `🎯 Trigger Hit: ${entryDigit}. Executing Dual Trade...`, type: 'info' });
         
-        ws.current.send(JSON.stringify({ buy: 1, ...common_params, contract_type: 'DIGITOVER', barrier: 5 }));
-        ws.current.send(JSON.stringify({ buy: 1, ...common_params, contract_type: 'DIGITUNDER', barrier: 4 }));
+        ws.current.send(JSON.stringify({ ...common_params, contract_type: 'DIGITOVER', barrier: 5 }));
+        ws.current.send(JSON.stringify({ ...common_params, contract_type: 'DIGITUNDER', barrier: 4 }));
         
-        // Note: We are not handling the buy response here, but we should
         if (!isTurbo) setIsAutoRunning(false);
     };
     
@@ -131,10 +150,10 @@ const OverUnder = observer(() => {
 
     const getStatusClassName = () => {
         switch(connectionStatus) {
-            case STATUS_AUTHORIZED:
-                return 'connected';
-            case STATUS_CONNECTING:
             case STATUS_CONNECTED:
+                return 'connected';
+            case STATUS_AUTHORIZING:
+            case STATUS_CONNECTING:
                 return 'authorizing';
             default:
                 return 'disconnected';
