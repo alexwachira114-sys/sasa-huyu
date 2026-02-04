@@ -1,10 +1,10 @@
 const WebSocket = require('ws');
 
 // CONFIGURATION
-const TOKEN = 'YOUR_API_TOKEN_HERE'; // Replace with your actual token
+const TOKEN = 'wPwDlHvQ3BEUvs8'; // Replace with your actual token
 const STAKE = 0.35;
 const SYMBOL = '1HZ100V'; // High-frequency 1s synthetic
-const APP_ID = 1089; // Default Deriv AppID or your own
+const APP_ID = 101585; // Default Deriv AppID or your own
 
 const ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
 
