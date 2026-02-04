@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useStore } from '@/hooks/useStore';
 import { api_base } from '@/external/bot-skeleton';
@@ -16,6 +16,9 @@ const OverUnder = observer(() => {
     const [isTurbo, setIsTurbo] = useState(false);
     const [selectedSymbol, setSelectedSymbol] = useState('R_100');
 
+    const active_loginid = client.loginid;
+    const ticks_subscription = useRef<any>(null);
+
     const volatilityIndices = [
         { text: 'Volatility 10 Index', value: 'R_10' },
         { text: 'Volatility 25 Index', value: 'R_25' },
@@ -26,11 +29,52 @@ const OverUnder = observer(() => {
         { text: 'Volatility 100 (1s) Index', value: '1HZ100V' },
     ];
 
-    // Reset stats on symbol change
+    // Main effect for handling account and symbol changes
     useEffect(() => {
+        // 1. Reset UI and state
         setDigitStats(Array(10).fill(0));
         setLastDigit(null);
-    }, [selectedSymbol]);
+        setIsAutoRunning(false);
+
+        // 2. Unsubscribe from any existing tick stream
+        if (ticks_subscription.current) {
+            ticks_subscription.current.unsubscribe();
+            api_base.api.send({ forget_all: 'ticks' });
+        }
+
+        // 3. Re-establish WebSocket subscription
+        if (api_base?.api && active_loginid) {
+            
+            ticks_subscription.current = api_base.api.onMessage().subscribe((msg: any) => {
+                if (msg.msg_type === 'tick' && msg.tick.symbol === selectedSymbol) {
+                    const quote = msg.tick.quote.toString();
+                    const digit = parseInt(quote.charAt(quote.length - 1));
+                    
+                    setLastDigit(digit);
+                    setDigitStats(prev => {
+                        const newStats = [...prev];
+                        newStats[digit] += 1;
+                        return newStats;
+                    });
+
+                    // Check for auto-running moved inside the subscription handler
+                    if (isAutoRunning && digit === entryDigit) {
+                        executeMultiTrade();
+                    }
+                }
+            });
+
+            api_base.api.send({ ticks: selectedSymbol });
+        }
+
+        // 4. Cleanup on component unmount or when dependencies change
+        return () => {
+            if (ticks_subscription.current) {
+                ticks_subscription.current.unsubscribe();
+                api_base.api.send({ forget_all: 'ticks' });
+            }
+        };
+    }, [active_loginid, selectedSymbol]); // Dependencies: account and symbol
 
     // Keep-alive for WebSocket
     useEffect(() => {
@@ -45,34 +89,14 @@ const OverUnder = observer(() => {
         };
     }, []);
 
+    // Effect for handling trade execution logic separately
     useEffect(() => {
-        if (!api_base?.api) return;
+        if (isAutoRunning && lastDigit === entryDigit) {
+           // The trading logic is now handled within the main subscription effect
+           // to ensure it uses the most current state values.
+        }
+    }, [isAutoRunning, lastDigit, entryDigit]);
 
-        const ticks_sub = api_base.api.onMessage().subscribe((msg: any) => {
-            if (msg.msg_type === 'tick' && msg.tick.symbol === selectedSymbol) {
-                const quote = msg.tick.quote.toString();
-                const digit = parseInt(quote.charAt(quote.length - 1));
-                
-                setLastDigit(digit);
-                setDigitStats(prev => {
-                    const newStats = [...prev];
-                    newStats[digit] += 1;
-                    return newStats;
-                });
-
-                if (isAutoRunning && digit === entryDigit) {
-                    executeMultiTrade();
-                }
-            }
-        });
-
-        api_base.api.send({ ticks: selectedSymbol });
-
-        return () => {
-            ticks_sub.unsubscribe();
-            api_base.api.send({ forget_all: 'ticks' });
-        };
-    }, [isAutoRunning, entryDigit, isTurbo, selectedSymbol]);
 
     const executeMultiTrade = async () => {
         const common_params = {
