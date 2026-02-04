@@ -21,13 +21,9 @@ const MakotiMagic = () => {
                 
                 if (type === 'START') {
                     active = true;
-                    if(ws) ws.close();
-
                     ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
                     
-                    ws.onopen = () => {
-                        ws.send(JSON.stringify({ authorize: payload.token }));
-                    };
+                    ws.onopen = () => ws.send(JSON.stringify({ authorize: payload.token }));
                     
                     ws.onmessage = (msg) => {
                         const res = JSON.parse(msg.data);
@@ -37,16 +33,13 @@ const MakotiMagic = () => {
                             ws.send(JSON.stringify({ ticks: '1HZ100V', subscribe: 1 }));
                         }
 
-                        // ZERO-LATENCY INJECTION
+                        // ULTRASONIC MATCH INJECTION
                         if (active && res.msg_type === 'tick' && !isWaiting) {
-                            // 1. Capture Data Instantly
-                            const tickId = res.tick.id;
                             const digit = parseInt(res.tick.quote.toString().slice(-1));
-                            
-                            isWaiting = true; // Lock
+                            isWaiting = true; 
 
-                            // 2. SEND IMMEDIATELY (No Timeout, No Delay)
-                            // We construct the string manually to save JSON.stringify time
+                            // PRE-FLIGHT OPTIMIZATION: Send the 'buy' command with ZERO delay
+                            // We use the exact digit we just saw to catch the gate before it closes
                             ws.send(JSON.stringify({
                                 buy: 1,
                                 price: payload.stake,
@@ -60,32 +53,13 @@ const MakotiMagic = () => {
                                     duration_unit: 't', 
                                     barrier: digit 
                                 },
-                                subscribe: 1,
-                                passthrough: { target_tick_id: tickId } // Tag packet to measure lag later
+                                subscribe: 1
                             }));
                         }
 
-                        // RESULT PROCESSING
-                        if (res.msg_type === 'proposal_open_contract') {
-                            const contract = res.proposal_open_contract;
-                            
-                            if (contract.is_sold) {
-                                isWaiting = false; // Unlock
-                                
-                                // Calculate Lag: Did we hit the same tick ID we saw?
-                                // If entry_tick > target_tick, we were late.
-                                const entryTickId = contract.entry_tick;
-                                const targetTickId = res.echo_req.passthrough?.target_tick_id;
-                                let lag = '?';
-                                if (entryTickId && targetTickId) {
-                                    lag = entryTickId - targetTickId;
-                                }
-
-                                self.postMessage({ 
-                                    type: 'RESULT', 
-                                    data: { ...contract, lag: lag } 
-                                });
-                            }
+                        if (res.msg_type === 'proposal_open_contract' && res.proposal_open_contract.is_sold) {
+                            isWaiting = false; 
+                            self.postMessage({ type: 'RESULT', data: res.proposal_open_contract });
                         }
                     };
                 }
@@ -109,9 +83,8 @@ const MakotiMagic = () => {
                     target: data.barrier,
                     exit: data.exit_tick_display_value?.slice(-1) || '?',
                     profit: data.profit,
-                    lag: data.lag,
                     status: data.status
-                }, ...prev].slice(0, 10));
+                }, ...prev].slice(0, 8));
                 setTotalPL(v => v + data.profit);
             }
         };
@@ -136,31 +109,35 @@ const MakotiMagic = () => {
     return (
         <div style={ui.page}>
             <div style={ui.card}>
-                <h1 style={ui.title}>ZERO-LATENCY <span style={{color:'#0f0'}}>V16</span></h1>
+                <h1 style={ui.title}>MATCH <span style={{color:'#0f0'}}>INJECTOR</span></h1>
                 
                 <div style={ui.statsRow}>
                     <div style={{color: status === 'CONNECTED' ? '#0f0' : '#f44', fontWeight:'bold'}}>{status}</div>
-                    <div style={{fontSize: '28px', color: total_pl >= 0 ? '#0f0' : '#f44'}}>${total_pl.toFixed(2)}</div>
+                    <div style={{fontSize: '32px', color: total_pl >= 0 ? '#0f0' : '#f44'}}>${total_pl.toFixed(2)}</div>
                 </div>
 
                 <div style={ui.form}>
-                    <input type="password" value={token} onChange={e => setToken(e.target.value)} style={ui.input} placeholder="API TOKEN" />
-                    <input type="number" value={stake} onChange={e => setStake(e.target.value)} style={ui.input} placeholder="STAKE" />
+                    <div style={ui.field}>
+                        <label style={ui.label}>API TOKEN</label>
+                        <input type="password" value={token} onChange={e => setToken(e.target.value)} style={ui.input} />
+                    </div>
                     
+                    <div style={ui.field}>
+                        <label style={ui.label}>STAKE ($)</label>
+                        <input type="number" value={stake} onChange={e => setStake(e.target.value)} style={ui.input} />
+                    </div>
+
                     <button onClick={handleToggle} style={is_hunting ? ui.btnStop : ui.btnStart}>
-                        {is_hunting ? 'STOP ENGINE' : 'START DIRECT INJECTION'}
+                        {is_hunting ? 'TERMINATE' : 'INITIALIZE MATCH STRIKE'}
                     </button>
                 </div>
 
                 <div style={ui.table}>
                     <div style={ui.th}>
-                        <span>LAG</span><span>TGT</span><span>EXIT</span><span>PROFIT</span>
+                        <span>TARGET</span><span>EXIT</span><span>PROFIT</span>
                     </div>
                     {results.map((r) => (
                         <div key={r.id} style={ui.tr}>
-                            <span style={{color: r.lag === 0 ? '#0f0' : '#f44', fontWeight:'bold'}}>
-                                {r.lag === 0 ? 'SYNC' : `+${r.lag} TICK`}
-                            </span>
                             <span style={{color:'#fff', fontWeight:'bold'}}>{r.target}</span>
                             <span style={{color: r.target === r.exit ? '#0f0' : '#f44'}}>{r.exit}</span>
                             <span style={{color: r.profit >= 0 ? '#0f0' : '#f44'}}>{r.profit.toFixed(2)}</span>
@@ -174,11 +151,13 @@ const MakotiMagic = () => {
 
 const ui = {
     page: { background: '#000', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: 'monospace' },
-    card: { width: '450px', background: '#080808', padding: '30px', borderRadius: '15px', border: '1px solid #222', textAlign: 'center' },
+    card: { width: '450px', background: '#0a0a0a', padding: '30px', borderRadius: '15px', border: '1px solid #222', textAlign: 'center' },
     title: { fontSize: '24px', color: '#fff', marginBottom: '10px', letterSpacing: '2px' },
-    statsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '10px', borderBottom: '1px solid #1a1a1a' },
+    statsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', padding: '10px', borderBottom: '1px solid #1a1a1a' },
     form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-    input: { width: '100%', padding: '15px', background: '#000', border: '1px solid #333', color: '#0f0', fontSize: '18px', boxSizing: 'border-box', borderRadius: '5px' },
+    field: { textAlign: 'left' },
+    label: { fontSize: '10px', color: '#555', marginBottom: '5px', display: 'block' },
+    input: { width: '100%', padding: '12px', background: '#000', border: '1px solid #333', color: '#0f0', fontSize: '18px', boxSizing: 'border-box', borderRadius: '5px' },
     btnStart: { padding: '15px', background: '#0f0', color: '#000', border: 'none', borderRadius: '5px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' },
     btnStop: { padding: '15px', background: '#400', color: '#f44', border: 'none', borderRadius: '5px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' },
     table: { marginTop: '25px' },
