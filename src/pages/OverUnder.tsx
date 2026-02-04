@@ -14,6 +14,7 @@ const OverUnder = observer(() => {
     const ws = useRef<WebSocket | null>(null);
     const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
     const isAuthorized = useRef(false);
+    const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
     // State
     const [connectionStatus, setConnectionStatus] = useState(STATUS_OFFLINE);
@@ -40,14 +41,21 @@ const OverUnder = observer(() => {
         { text: 'Volatility 10 (1s) Index', value: '1HZ10V' },
     ];
 
+    const addLog = (msg: string) => {
+        console.log(`[OverUnder] ${msg}`);
+        setDebugInfo(prev => [msg, ...prev].slice(0, 5));
+    };
+
     const subscribeToTicks = (symbol: string) => {
-        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+            addLog('WS not open for subscribe');
+            return;
+        }
         
-        console.log(`Subscribing to ticks for ${symbol}`);
+        addLog(`Subscribing to ${symbol}`);
         ws.current.send(JSON.stringify({ forget_all: 'ticks' }));
         ws.current.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
         
-        // Reset stats for new symbol
         setDigitStats(Array(10).fill(0));
         setLastDigit(null);
     };
@@ -62,76 +70,89 @@ const OverUnder = observer(() => {
             clearTimeout(reconnectTimeout.current);
         }
 
+        addLog('Connecting...');
         setConnectionStatus(STATUS_CONNECTING);
         isAuthorized.current = false;
         
-        const app_id = localStorage.getItem('config.app_id') || '80058';
-        ws.current = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${app_id}`);
+        // Use default production app_id as fallback
+        const app_id = localStorage.getItem('config.app_id') || '117164';
+        const server_url = localStorage.getItem('config.server_url') || 'ws.derivws.com';
+        
+        addLog(`Using AppID: ${app_id}`);
+        
+        try {
+            ws.current = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
 
-        ws.current.onopen = () => {
-            console.log('WebSocket opened - Public Session');
-            setConnectionStatus(STATUS_LIVE);
-            
-            // Subscribe to ticks immediately - no auth required for public data
-            subscribeToTicks(selectedSymbol);
+            ws.current.onopen = () => {
+                addLog('WS Opened - Public');
+                setConnectionStatus(STATUS_LIVE);
+                subscribeToTicks(selectedSymbol);
 
-            // If we have a token, try to authorize in the background
-            const token = localStorage.getItem('authToken') || 
-                          localStorage.getItem('token') || 
-                          JSON.parse(localStorage.getItem('accountsList') || '{}')[client.loginid];
-            
-            if (token) {
-                ws.current?.send(JSON.stringify({ authorize: token }));
-            }
-        };
-
-        ws.current.onmessage = (msg) => {
-            try {
-                const data = JSON.parse(msg.data);
-
-                if (data.msg_type === 'authorize' && !data.error) {
-                    console.log('Authorized successfully');
-                    isAuthorized.current = true;
-                    setConnectionStatus(STATUS_AUTHORIZED);
+                // Attempt Authorization
+                const token = localStorage.getItem('authToken') || 
+                              localStorage.getItem('token') || 
+                              JSON.parse(localStorage.getItem('accountsList') || '{}')[client.loginid];
+                
+                if (token) {
+                    addLog('Sending Authorize...');
+                    ws.current?.send(JSON.stringify({ authorize: token }));
+                } else {
+                    addLog('No token found');
                 }
+            };
 
-                if (data.msg_type === 'tick') {
-                    const quote = data.tick.quote.toString();
-                    const digit = parseInt(quote.charAt(quote.length - 1));
-                    
-                    setLastDigit(digit);
-                    setDigitStats(prev => {
-                        const newStats = [...prev];
-                        newStats[digit] += 1;
-                        return newStats;
-                    });
+            ws.current.onmessage = (msg) => {
+                try {
+                    const data = JSON.parse(msg.data);
 
-                    if (isAutoRunning && digit === entryDigit) {
-                        executeMultiTrade();
+                    if (data.msg_type === 'authorize') {
+                        if (data.error) {
+                            addLog(`Auth Error: ${data.error.message}`);
+                            isAuthorized.current = false;
+                        } else {
+                            addLog('Authorized!');
+                            isAuthorized.current = true;
+                            setConnectionStatus(STATUS_AUTHORIZED);
+                        }
                     }
-                }
 
-                if (data.msg_type === 'buy' && !data.error) {
-                    if (journal?.pushMessage) {
-                        journal.pushMessage({ 
-                            message: `💰 Trade executed: ${data.buy.contract_id}`, 
-                            type: 'success' 
+                    if (data.msg_type === 'tick') {
+                        const quote = data.tick.quote.toString();
+                        const digit = parseInt(quote.charAt(quote.length - 1));
+                        
+                        setLastDigit(digit);
+                        setDigitStats(prev => {
+                            const newStats = [...prev];
+                            newStats[digit] += 1;
+                            return newStats;
                         });
-                    }
-                } else if (data.error && data.msg_type === 'buy') {
-                    if (journal?.pushMessage) {
-                        journal.pushMessage({ message: `❌ Trade failed: ${data.error.message}`, type: 'error' });
-                    }
-                }
-            } catch (error) {
-                console.error('Error processing message:', error);
-            }
-        };
 
-        ws.current.onclose = () => {
-            setConnectionStatus(STATUS_OFFLINE);
-            reconnectTimeout.current = setTimeout(connectWebSocket, 5000);
-        };
+                        if (isAutoRunning && digit === entryDigit) {
+                            executeMultiTrade();
+                        }
+                    }
+
+                    if (data.error && data.msg_type !== 'authorize') {
+                        addLog(`Error: ${data.error.message}`);
+                    }
+                } catch (error) {
+                    console.error('Error parsing WS message', error);
+                }
+            };
+
+            ws.current.onclose = (e) => {
+                addLog(`WS Closed: ${e.code}`);
+                setConnectionStatus(STATUS_OFFLINE);
+                reconnectTimeout.current = setTimeout(connectWebSocket, 5000);
+            };
+
+            ws.current.onerror = (err) => {
+                addLog('WS Error');
+                console.error(err);
+            };
+        } catch (e) {
+            addLog(`WS Init Fail: ${e.message}`);
+        }
     };
 
     useEffect(() => {
@@ -143,17 +164,15 @@ const OverUnder = observer(() => {
     }, []);
 
     useEffect(() => {
-        if (connectionStatus !== STATUS_OFFLINE && connectionStatus !== STATUS_CONNECTING) {
+        if (connectionStatus === STATUS_LIVE || connectionStatus === STATUS_AUTHORIZED) {
             subscribeToTicks(selectedSymbol);
         }
     }, [selectedSymbol]);
 
     const executeMultiTrade = () => {
-        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
-        
-        if (!isAuthorized.current) {
-            if (journal?.pushMessage) {
-                journal.pushMessage({ message: '⚠️ Cannot trade: Not logged in.', type: 'error' });
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN || !isAuthorized.current) {
+            if (!isAuthorized.current && journal?.pushMessage) {
+                journal.pushMessage({ message: '⚠️ Login required to trade.', type: 'error' });
             }
             setIsAutoRunning(false);
             return;
@@ -191,7 +210,7 @@ const OverUnder = observer(() => {
     const getStatusClassName = () => {
         switch(connectionStatus) {
             case STATUS_AUTHORIZED: return 'connected';
-            case STATUS_LIVE: return 'authorizing'; // Using orange for live but not authorized
+            case STATUS_LIVE: return 'authorizing';
             default: return 'disconnected';
         }
     };
@@ -249,6 +268,12 @@ const OverUnder = observer(() => {
                         {isAutoRunning ? 'STOP' : 'START'}
                     </button>
                 </div>
+            </div>
+            
+            {/* Debug Monitor for troubleshooting */}
+            <div style={{marginTop: '20px', padding: '10px', background: '#111', borderRadius: '8px', fontSize: '10px', color: '#666'}}>
+                <div style={{fontWeight: 'bold', marginBottom: '5px'}}>DEBUG LOG:</div>
+                {debugInfo.map((log, i) => <div key={i}>• {log}</div>)}
             </div>
         </div>
     );
