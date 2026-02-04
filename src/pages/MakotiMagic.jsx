@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useStore } from '@/hooks/useStore';
-import { api_base } from '@/external/bot-skeleton';
 
 const MakotiMagic = observer(() => {
     const { client } = useStore();
@@ -9,112 +8,177 @@ const MakotiMagic = observer(() => {
     const [stake, setStake] = useState(0.35);
     const [results, setResults] = useState([]);
     const [total_pl, setTotalPL] = useState(0);
-
-    const is_active = useRef(false);
-    const stake_ref = useRef(0.35);
-
-    useEffect(() => { stake_ref.current = stake; }, [stake]);
+    const [latency, setLatency] = useState(0);
+    
+    const workerRef = useRef(null);
 
     useEffect(() => {
-        // DIRECT BINARY LISTENER
-        const sub = api_base.api.onMessage().subscribe((msg) => {
-            const data = msg.data;
+        // THE WORKER: This code runs on a separate CPU thread
+        const workerBlob = new Blob([`
+            let ws;
+            let active = false;
+            let currentStake = 0.35;
 
-            // 1. THE INSTANT STRIKE
-            if (is_active.current && data.msg_type === 'tick') {
-                const quote = data.tick.quote.toString();
-                const intercepted_digit = quote.charAt(quote.length - 1);
+            self.onmessage = function(e) {
+                const { type, payload } = e.data;
                 
-                // SINGLE SURGICAL INJECTION
-                api_base.api.send({
-                    buy: 1,
-                    price: Number(stake_ref.current),
-                    parameters: {
-                        amount: Number(stake_ref.current),
-                        basis: 'stake',
-                        contract_type: 'DIGITMATCH',
-                        currency: client.currency || 'USD',
-                        duration: 1,
-                        duration_unit: 't',
-                        symbol: '1HZ100V', 
-                        barrier: parseInt(intercepted_digit) 
-                    }
-                });
-                
-                // Reset immediately to wait for the next manual trigger or tick
-                // This prevents "Double-firing" on a jittery connection
-                is_active.current = false;
-                setIsHunting(false);
-            }
+                if (type === 'START') {
+                    active = true;
+                    currentStake = payload.stake;
+                    ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+                    
+                    ws.onopen = () => ws.send(JSON.stringify({ authorize: payload.token }));
+                    
+                    ws.onmessage = (msg) => {
+                        const res = JSON.parse(msg.data);
+                        
+                        if (res.msg_type === 'authorize') {
+                            ws.send(JSON.stringify({ ticks: '1HZ100V' }));
+                        }
 
-            // 2. RESULT DATA
-            if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
-                const c = data.proposal_open_contract;
+                        if (active && res.msg_type === 'tick') {
+                            const startTime = Date.now();
+                            const digit = res.tick.quote.toString().slice(-1);
+                            
+                            ws.send(JSON.stringify({
+                                buy: 1, 
+                                price: currentStake,
+                                parameters: {
+                                    amount: currentStake,
+                                    basis: 'stake',
+                                    contract_type: 'DIGITMATCH',
+                                    currency: 'USD',
+                                    duration: 1,
+                                    duration_unit: 't',
+                                    symbol: '1HZ100V',
+                                    barrier: parseInt(digit)
+                                }
+                            }));
+                            // Send latency feedback to UI
+                            self.postMessage({ type: 'LATENCY', data: Date.now() - startTime });
+                        }
+
+                        if (res.msg_type === 'proposal_open_contract' && res.proposal_open_contract.is_sold) {
+                            self.postMessage({ type: 'RESULT', data: res.proposal_open_contract });
+                        }
+                    };
+                }
+
+                if (type === 'STOP') {
+                    active = false;
+                    if(ws) ws.close();
+                }
+
+                if (type === 'UPDATE_STAKE') {
+                    currentStake = payload;
+                }
+            };
+        `], { type: 'application/javascript' });
+
+        workerRef.current = new Worker(URL.createObjectURL(workerBlob));
+
+        // Listen for messages FROM the Worker thread
+        workerRef.current.onmessage = (e) => {
+            const { type, data } = e.data;
+            if (type === 'RESULT') {
                 setResults(prev => [{
-                    target: c.barrier,
-                    entry: c.entry_tick_display_value?.slice(-1),
-                    exit: c.exit_tick_display_value?.slice(-1),
-                    status: c.status.toUpperCase(),
-                    p: c.profit
+                    target: data.barrier,
+                    entry: data.entry_tick_display_value.slice(-1),
+                    exit: data.exit_tick_display_value.slice(-1),
+                    status: data.status.toUpperCase(),
+                    profit: data.profit
                 }, ...prev].slice(0, 10));
-                setTotalPL(v => v + c.profit);
+                setTotalPL(v => v + data.profit);
             }
-        });
+            if (type === 'LATENCY') {
+                setLatency(data);
+            }
+        };
 
-        return () => sub.unsubscribe();
-    }, [client.currency]);
+        return () => workerRef.current.terminate();
+    }, []);
+
+    const handleToggle = () => {
+        if (!is_hunting) {
+            workerRef.current.postMessage({ 
+                type: 'START', 
+                payload: { token: client.token, stake: Number(stake) } 
+            });
+        } else {
+            workerRef.current.postMessage({ type: 'STOP' });
+        }
+        setIsHunting(!is_hunting);
+    };
 
     return (
         <div style={ui.container}>
-            <div style={ui.header}>
-                <h1 style={ui.title}>MAKOTI SURGICAL STRIKE</h1>
-                <div style={ui.pl}>P/L: {total_pl.toFixed(2)}</div>
-            </div>
-
-            <div style={ui.workarea}>
-                <div style={{color: '#444', fontSize: '10px'}}>STAKE</div>
-                <input type="number" value={stake} onChange={(e) => setStake(e.target.value)} style={ui.input} />
-                
-                <button 
-                    onClick={() => {
-                        is_active.current = true;
-                        setIsHunting(true);
-                    }} 
-                    disabled={is_hunting}
-                    style={{...ui.btn, background: is_hunting ? '#111' : '#0f0'}}
-                >
-                    {is_hunting ? "WAITING FOR TICK..." : "EXECUTE STRIKE"}
-                </button>
-            </div>
-
-            <div style={ui.table}>
-                <div style={ui.tableHeader}>
-                    <span>PREDICT</span><span>ENTRY</span><span>EXIT</span><span>RESULT</span>
+            <div style={ui.card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '10px', color: latency < 15 ? '#0f0' : '#f00' }}>
+                        LATENCY: {latency}ms {latency < 15 ? '(ULTRA)' : '(LAGGING)'}
+                    </span>
+                    <span style={{ fontSize: '12px' }}>V8 WORKER ENGINE</span>
                 </div>
-                {results.map((r, i) => (
-                    <div key={i} style={ui.tableRow}>
-                        <span style={{color: '#ff0'}}>{r.target}</span>
-                        <span style={{color: r.target === r.entry ? '#0f0' : '#f00'}}>{r.entry}</span>
-                        <span style={{fontWeight: 'bold'}}>{r.exit}</span>
-                        <span style={{color: r.status === 'WON' ? '#0f0' : '#f00'}}>{r.status}</span>
+                
+                <div style={ui.inputGroup}>
+                    <label style={{ fontSize: '10px', color: '#666' }}>STAKE AMOUNT</label><br/>
+                    <input 
+                        type="number" 
+                        value={stake} 
+                        onChange={(e) => {
+                            setStake(e.target.value);
+                            workerRef.current.postMessage({ type: 'UPDATE_STAKE', payload: Number(e.target.value) });
+                        }} 
+                        style={ui.input} 
+                    />
+                </div>
+
+                <button onClick={handleToggle} style={{ ...ui.btn, background: is_hunting ? '#300' : '#040', color: is_hunting ? '#f00' : '#0f0' }}>
+                    {is_hunting ? 'STOP SCANNER' : 'START SURGICAL STRIKE'}
+                </button>
+
+                <div style={{ marginTop: '20px' }}>
+                    <div style={{ fontSize: '12px', color: '#444' }}>ACCOUNT BALANCE (P/L)</div>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: total_pl >= 0 ? '#0f0' : '#f00' }}>
+                        ${total_pl.toFixed(2)}
                     </div>
-                ))}
+                </div>
+            </div>
+
+            <div style={ui.tableWrapper}>
+                <table style={ui.table}>
+                    <thead>
+                        <tr>
+                            <th>TGT</th>
+                            <th>ENT</th>
+                            <th>EXT</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {results.map((r, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #111' }}>
+                                <td style={{ color: '#ff0' }}>{r.target}</td>
+                                <td style={{ color: r.target === r.entry ? '#0f0' : '#f00' }}>{r.entry}</td>
+                                <td>{r.exit}</td>
+                                <td style={{ color: r.status === 'WON' ? '#0f0' : '#f00', fontWeight: 'bold' }}>{r.status}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 });
 
 const ui = {
-    container: { background: '#000', color: '#0f0', height: '100vh', padding: '15px', fontFamily: 'monospace' },
-    header: { display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #222', paddingBottom: '10px' },
-    title: { fontSize: '14px', letterSpacing: '2px' },
-    pl: { fontWeight: 'bold' },
-    workarea: { padding: '40px 0', textAlign: 'center' },
-    input: { background: '#000', border: 'none', borderBottom: '2px solid #0f0', color: '#0f0', fontSize: '24px', textAlign: 'center', width: '100px', marginBottom: '20px' },
-    btn: { width: '100%', padding: '20px', color: '#000', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '18px' },
-    table: { marginTop: '20px' },
-    tableHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#444', marginBottom: '10px' },
-    tableRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #111', fontSize: '14px' }
+    container: { background: '#000', color: '#fff', minHeight: '100vh', padding: '15px', fontFamily: 'monospace' },
+    card: { background: '#050505', padding: '20px', borderRadius: '4px', border: '1px solid #1a1a1a', textAlign: 'center' },
+    inputGroup: { marginBottom: '20px' },
+    input: { background: '#000', color: '#0f0', border: 'none', borderBottom: '2px solid #0f0', padding: '10px', width: '100px', textAlign: 'center', fontSize: '24px', outline: 'none' },
+    btn: { width: '100%', padding: '20px', fontWeight: 'bold', border: '1px solid currentColor', cursor: 'pointer', fontSize: '16px', transition: '0.3s' },
+    tableWrapper: { marginTop: '20px', overflowX: 'auto' },
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'center' }
 };
 
 export default MakotiMagic;
