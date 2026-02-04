@@ -45,7 +45,7 @@ const OverUnder = observer(() => {
 
     const addLog = (msg: string) => {
         console.log(`[OverUnder] ${msg}`);
-        setDebugInfo(prev => [msg, ...prev].slice(0, 10));
+        setDebugInfo(prev => [msg, ...prev].slice(0, 15));
     };
 
     const subscribeToTicks = (symbol: string) => {
@@ -146,7 +146,7 @@ const OverUnder = observer(() => {
                         if (contract.is_sold) {
                             const profit = contract.profit;
                             const result = profit >= 0 ? 'WON' : 'LOST';
-                            addLog(`Trade Finished: ${result} (${profit})`);
+                            addLog(`Trade Result: ${result} (${profit})`);
                             journal.pushMessage(`Trade Finished: ${result} (${profit})`, profit >= 0 ? 'success' : 'error');
                         }
                     }
