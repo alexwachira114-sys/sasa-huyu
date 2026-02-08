@@ -119,16 +119,16 @@
                 sans-serif !important;
         }
 
-        // Tab icons - light blue for all navigation items
+        // Tab icons - light brown for all navigation items
         svg {
-            fill: #60a5fa !important; // Light blue icons - override any inline fill attributes
+            fill: #D2B48C !important; // Light brown icons - override any inline fill attributes
         }
 
         svg,
         svg > path,
         svg > g > path,
         svg > * {
-            fill: #60a5fa !important; // Light blue icons
+            fill: #D2B48C !important; // Light brown icons
             stroke: none !important;
             filter: none !important;
         }
@@ -200,16 +200,16 @@
                     sans-serif !important;
             }
 
-            // Non-active tab icons - light blue
+            // Non-active tab icons - light brown
             svg {
-                fill: #60a5fa !important; // Light blue icons - override any inline fill attributes
+                fill: #D2B48C !important; // Light brown icons - override any inline fill attributes
             }
 
             svg,
             svg > path,
             svg > g > path,
             svg > * {
-                fill: #60a5fa !important; // Light blue icons
+                fill: #D2B48C !important; // Light brown icons
                 stroke: none !important;
                 filter: none !important;
             }
@@ -224,14 +224,14 @@
                 }
 
                 svg {
-                    fill: #60a5fa !important; // Light blue icons on hover
+                    fill: #D2B48C !important; // Light brown icons on hover
                 }
 
                 svg,
                 svg > path,
                 svg > g > path,
                 svg > * {
-                    fill: #60a5fa !important; // Light blue icons on hover
+                    fill: #D2B48C !important; // Light brown icons on hover
                     stroke: none !important;
                     filter: none !important;
                 }
@@ -246,7 +246,7 @@
     &__active {
         font-weight: bold !important;
         color: #ffffff !important; // White text
-        background-color: #3b82f6 !important; // Lighter blue background for active tab
+        background-color: #8B4513 !important; // Brown background for active tab
         font-family:
             Arial,
             Helvetica,
@@ -287,7 +287,7 @@
         // Override any theme-based active states
         &:hover {
             color: #ffffff !important;
-            background-color: #2563eb !important; // Slightly darker blue on hover
+            background-color: #A0522D !important; // Slightly darker brown on hover
 
             * {
                 color: #ffffff !important;
