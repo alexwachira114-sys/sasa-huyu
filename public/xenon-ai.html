@@ -1615,14 +1615,19 @@
                 };
 
                 const handleReset = () => {
-                    setTransactions([]);
-                    setRuns(0);
-                    setWon(0);
-                    setLost(0);
-                    setTotalProfit(0);
-                    setSignal('');
-                    setHasSignal(false);
-                    setCountdown(0);
+                    if (window.confirm('Are you sure you want to reset all trade history and statistics?')) {
+                        setTransactions([]);
+                        setRuns(0);
+                        setWon(0);
+                        setLost(0);
+                        setTotalProfit(0);
+                        setSignal('');
+                        setHasSignal(false);
+                        setCountdown(0);
+                        setLastDigits([]);
+                        // Reset analysis counter to require new data
+                        analysisCountRef.current = 0;
+                    }
                 };
 
                 return (
@@ -1855,7 +1860,12 @@
                                 <button className={running ? 'my-stop-button' : 'my-run-button'} onClick={handleRunBot}>
                                     {running ? '⏹ STOP BOT' : '▶ RUN BOT'}
                                 </button>
-                                <button className='data-reset-btn' onClick={handleReset}>
+                                <button 
+                                    className='data-reset-btn' 
+                                    onClick={handleReset}
+                                    title="Reset trade history and stats"
+                                    style={{ touchAction: 'manipulation' }}
+                                >
                                     Reset
                                 </button>
                             </div>
