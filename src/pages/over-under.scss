@@ -122,6 +122,12 @@
                 &:focus { border-color: var(--brand-red-coral); outline: none; }
             }
 
+            .entry-config-row {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
             .entry-config {
                 display: flex;
                 align-items: center;

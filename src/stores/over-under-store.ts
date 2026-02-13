@@ -40,6 +40,8 @@ export default class OverUnderStore {
     martingale = 2;
     is_volatility_changer = false;
     entry_digit = 7;
+    second_entry_digit = 7;
+    last_last_digit: number | null = null;
     is_turbo = false;
     selected_symbol = 'R_100';
     active_contracts: Set<string> = new Set();
@@ -50,12 +52,14 @@ export default class OverUnderStore {
             connection_status: observable,
             tick_history: observable,
             last_digit: observable,
+            last_last_digit: observable,
             is_auto_running: observable,
             stake: observable,
             initial_stake: observable,
             martingale: observable,
             is_volatility_changer: observable,
             entry_digit: observable,
+            second_entry_digit: observable,
             is_turbo: observable,
             selected_symbol: observable,
             debug_info: observable,
@@ -63,6 +67,7 @@ export default class OverUnderStore {
             setMartingale: action.bound,
             setIsVolatilityChanger: action.bound,
             setEntryDigit: action.bound,
+            setSecondEntryDigit: action.bound,
             setIsTurbo: action.bound,
             setSelectedSymbol: action.bound,
             setIsAutoRunning: action.bound,
@@ -105,6 +110,10 @@ export default class OverUnderStore {
 
     setEntryDigit(digit: number) {
         this.entry_digit = digit;
+    }
+
+    setSecondEntryDigit(digit: number) {
+        this.second_entry_digit = digit;
     }
 
     setIsTurbo(is_turbo: boolean) {
@@ -288,13 +297,16 @@ export default class OverUnderStore {
                         const quote_str = quote.toFixed(pip_size);
                         const digit = parseInt(quote_str.slice(-1), 10);
 
+                        this.last_last_digit = this.last_digit;
                         this.last_digit = digit;
                         this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
 
-                        if (this.is_auto_running && digit === Number(this.entry_digit)) {
+                        if (this.is_auto_running && 
+                            this.last_last_digit === Number(this.entry_digit) && 
+                            this.last_digit === Number(this.second_entry_digit)) {
                             // Only trigger if no active trades
                             if (this.active_contracts.size === 0) {
-                                this.addLog(`Trigger Hit: Last digit is ${digit}`);
+                                this.addLog(`Trigger Hit: Pattern ${this.last_last_digit}-${this.last_digit} matches ${this.entry_digit}-${this.second_entry_digit}`);
                                 this.executeMultiTrade();
                             }
                         }

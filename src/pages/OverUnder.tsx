@@ -14,6 +14,7 @@ const OverUnder = observer(() => {
         martingale,
         is_volatility_changer,
         entry_digit,
+        second_entry_digit,
         is_turbo,
         selected_symbol,
         debug_info,
@@ -21,6 +22,7 @@ const OverUnder = observer(() => {
         setMartingale,
         setIsVolatilityChanger,
         setEntryDigit,
+        setSecondEntryDigit,
         setIsTurbo,
         setSelectedSymbol,
         connectWebSocket,
@@ -116,10 +118,16 @@ const OverUnder = observer(() => {
                         </select>
                     </div>
                     <div className="input-group">
-                        <label>Trigger Digit</label>
-                        <div className="entry-config">
-                            <input className="ui-input digit-entry" type="number" min="0" max="9" value={entry_digit} onChange={(e) => setEntryDigit(Number(e.target.value))} disabled={is_auto_running} />
-                            <div className={`status-led ${last_digit === Number(entry_digit) ? 'glow' : ''}`}></div>
+                        <label>Trigger Digits</label>
+                        <div className="entry-config-row">
+                            <div className="entry-config">
+                                <input className="ui-input digit-entry" type="number" min="0" max="9" value={entry_digit} onChange={(e) => setEntryDigit(Number(e.target.value))} disabled={is_auto_running} />
+                                <div className={`status-led ${over_under.last_last_digit === Number(entry_digit) ? 'glow' : ''}`}></div>
+                            </div>
+                            <div className="entry-config">
+                                <input className="ui-input digit-entry" type="number" min="0" max="9" value={second_entry_digit} onChange={(e) => setSecondEntryDigit(Number(e.target.value))} disabled={is_auto_running} />
+                                <div className={`status-led ${over_under.last_digit === Number(second_entry_digit) ? 'glow' : ''}`}></div>
+                            </div>
                         </div>
                     </div>
                 </div>
