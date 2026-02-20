@@ -61,6 +61,7 @@ export default class OverUnderStore {
     ai_barrier = '3';
     ai_scan_results: string[] = [];
     is_ai_scanning = false;
+    ai_volatility_data: Map<string, number[]> = new Map();
 
     constructor(root_store: RootStore) {
         makeObservable(this, {
@@ -91,6 +92,7 @@ export default class OverUnderStore {
             ai_barrier: observable,
             ai_scan_results: observable,
             is_ai_scanning: observable,
+            ai_volatility_data: observable,
             setStake: action.bound,
             setMartingale: action.bound,
             setIsVolatilityChanger: action.bound,
@@ -133,23 +135,68 @@ export default class OverUnderStore {
     }
 
     startAiScan() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.addLog('Cannot start AI scan: WebSocket not connected.');
+            return;
+        }
+
         this.is_ai_scanning = true;
         this.ai_scan_results = [];
-        this.addLog("AI Scan Started: Checking volatilities...");
+        this.ai_volatility_data.clear();
+        this.addLog('AI Scan Started: Fetching data for all volatilities...');
 
-        // Simulate scanning process
-        setTimeout(() => {
-            const results = [
-                'Volatility 100 Index: Good match',
-                'Volatility 75 Index: Potential match',
-                'Volatility 50 Index: Not recommended'
-            ];
-            this.ai_scan_results = results;
-            this.is_ai_scanning = false;
-            this.addLog("AI Scan Finished. Results are available.");
-        }, 3000);
+        const symbols = Object.keys(pip_sizes);
+        symbols.forEach(symbol => {
+            this.ws.send(JSON.stringify({ ticks_history: symbol, count: 100, end: 'latest', style: 'ticks' }));
+        });
     }
 
+    analyzeVolatility(symbol: string, ticks: number[]) {
+        const barrier = parseInt(this.ai_barrier, 10);
+        const contract_type = this.ai_contract_type;
+        const total_ticks = ticks.length;
+
+        if (total_ticks < 50) {
+            return `${symbol}: Insufficient data`;
+        }
+
+        const digit_stats = Array(10).fill(0);
+        ticks.forEach(digit => digit_stats[digit]++);
+
+        const first_half_stats = Array(10).fill(0);
+        ticks.slice(0, Math.floor(total_ticks / 2)).forEach(digit => first_half_stats[digit]++);
+
+        const second_half_stats = Array(10).fill(0);
+        ticks.slice(Math.floor(total_ticks / 2)).forEach(digit => second_half_stats[digit]++);
+
+        const percentages = digit_stats.map(count => (count / total_ticks) * 100);
+        const first_half_percentages = first_half_stats.map(count => (count / (total_ticks/2)) * 100);
+        const second_half_percentages = second_half_stats.map(count => (count / (total_ticks/2)) * 100);
+
+        const max_val = Math.max(...percentages);
+        const min_val = Math.min(...percentages);
+        const hot_digit = percentages.indexOf(max_val);
+        const cold_digit = percentages.indexOf(min_val);
+
+        let target_digits: number[] = [];
+        if (contract_type === 'DIGITOVER') {
+            for (let i = 0; i < barrier; i++) target_digits.push(i);
+        } else { // DIGITUNDER
+            for (let i = barrier + 1; i < 10; i++) target_digits.push(i);
+        }
+
+        const total_percentage = target_digits.reduce((sum, digit) => sum + percentages[digit], 0);
+        const is_increasing = target_digits.some(digit => second_half_percentages[digit] > first_half_percentages[digit]);
+        const has_hot_cold_conflict = target_digits.some(digit => digit === hot_digit || digit === cold_digit);
+
+        if (total_percentage < 10 && !is_increasing && !has_hot_cold_conflict) {
+            return `${symbol}: Strong Signal`;
+        } else if (total_percentage < 15 && !is_increasing) {
+            return `${symbol}: Potential Signal`;
+        } else {
+            return `${symbol}: Not Recommended`;
+        }
+    }
 
     addLog(msg: string) {
         // Optimized logging
@@ -333,6 +380,32 @@ export default class OverUnderStore {
                         return;
                     }
 
+                    if (this.is_ai_scanning) {
+                        if (data.msg_type === 'history') {
+                            const symbol = data.echo_req.ticks_history;
+                            const pip_size = pip_sizes[symbol] || 2;
+                            const prices = data.history.prices;
+                            const digits = prices.map((p: string | number) => {
+                                const price_str = Number(p).toFixed(pip_size);
+                                return parseInt(price_str.slice(-1), 10);
+                            });
+                            this.ai_volatility_data.set(symbol, digits);
+
+                            // When all data is received, start analysis
+                            if (this.ai_volatility_data.size === Object.keys(pip_sizes).length) {
+                                this.addLog('All volatility data received. Analyzing...');
+                                const results: string[] = [];
+                                this.ai_volatility_data.forEach((ticks, sym) => {
+                                    results.push(this.analyzeVolatility(sym, ticks));
+                                });
+                                this.ai_scan_results = results;
+                                this.is_ai_scanning = false;
+                                this.addLog('AI Scan Finished.');
+                            }
+                        }
+                        return;
+                    }
+
                     if (data.msg_type === 'authorize') {
                         this.addLog('Authorization Successful!');
                         this.is_authorized = true;
@@ -383,7 +456,7 @@ export default class OverUnderStore {
                         }
                     }
 
-                    if (data.msg_type === 'history') {
+                    if (data.msg_type === 'history' && data.echo_req.subscribe === 1) {
                         const pip_size = pip_sizes[this.selected_symbol] || 2;
                         const prices = data.history.prices;
                         const digits = prices.map((p: string | number) => {
