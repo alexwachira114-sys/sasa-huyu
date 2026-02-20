@@ -4,6 +4,7 @@ import { observer } from 'mobx-react-lite';
 import Journal from '@/components/journal';
 import SelfExclusion from '@/components/self-exclusion';
 import Button from '@/components/shared_ui/button';
+import Dialog from '@/components/shared_ui/dialog';
 import Drawer from '@/components/shared_ui/drawer';
 import Modal from '@/components/shared_ui/modal';
 import Money from '@/components/shared_ui/money';
@@ -36,11 +37,12 @@ type TStatisticsSummary = {
     total_profit: number;
     won_contracts: number;
 };
+
 type TDrawerHeader = {
     is_clear_stat_disabled: boolean;
     is_mobile: boolean;
     is_drawer_open: boolean;
-    onClearStatClick: () => void;
+    onResetClick: () => void;
 };
 
 type TDrawerContent = {
@@ -52,7 +54,7 @@ type TDrawerContent = {
 
 type TDrawerFooter = {
     is_clear_stat_disabled: boolean;
-    onClearStatClick: () => void;
+    onResetClick: () => void;
 };
 
 type TStatisticsInfoModal = {
@@ -116,7 +118,7 @@ export const StatisticsSummary = ({
     </div>
 );
 
-const DrawerHeader = ({ is_clear_stat_disabled, is_mobile, is_drawer_open, onClearStatClick }: TDrawerHeader) =>
+const DrawerHeader = ({ is_clear_stat_disabled, is_mobile, is_drawer_open, onResetClick }: TDrawerHeader) =>
     is_mobile &&
     is_drawer_open && (
         <Button
@@ -124,7 +126,7 @@ const DrawerHeader = ({ is_clear_stat_disabled, is_mobile, is_drawer_open, onCle
             className='run-panel__clear-button'
             disabled={is_clear_stat_disabled}
             text={localize('Reset')}
-            onClick={onClearStatClick}
+            onClick={onResetClick}
             secondary
         />
     );
@@ -163,16 +165,13 @@ const DrawerContent = ({ active_index, is_drawer_open, active_tour, setActiveTab
     );
 };
 
-const DrawerFooter = ({ is_clear_stat_disabled, onClearStatClick }: TDrawerFooter) => (
+const DrawerFooter = ({ is_clear_stat_disabled, onResetClick }: TDrawerFooter) => (
     <div className='run-panel__footer'>
         <Button
             id='db-run-panel__clear-button'
             className='run-panel__footer-button'
-            is_disabled={false}
-            onClick={() => {
-                console.log('[Run Panel] Reset button clicked');
-                onClearStatClick();
-            }}
+            is_disabled={is_clear_stat_disabled}
+            onClick={onResetClick}
             has_effect
             secondary
         >
@@ -268,10 +267,15 @@ const RunPanel = observer(() => {
         toggleDrawer,
         toggleStatisticsInfoModal,
     } = run_panel;
-    const { statistics } = transactions;
+    const {
+        statistics: { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs },
+    } = transactions;
     const { active_tour, active_tab } = dashboard;
-    const { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs } = statistics;
     const { BOT_BUILDER, CHART, STRATEGIES, TRADING_BOTS, ANALYSIS_TOOL } = DBOT_TABS;
+    const [is_clear_stat_dialog_open, setIsClearStatDialogOpen] = React.useState(false);
+
+    const openClearStatDialog = () => setIsClearStatDialogOpen(true);
+    const closeClearStatDialog = () => setIsClearStatDialogOpen(false);
 
     React.useEffect(() => {
         onMount();
@@ -303,14 +307,14 @@ const RunPanel = observer(() => {
         />
     );
 
-    const footer = <DrawerFooter is_clear_stat_disabled={is_clear_stat_disabled} onClearStatClick={onClearStatClick} />;
+    const footer = <DrawerFooter is_clear_stat_disabled={is_clear_stat_disabled} onResetClick={openClearStatDialog} />;
 
     const header = (
         <DrawerHeader
             is_clear_stat_disabled={is_clear_stat_disabled}
             is_mobile={!isDesktop}
             is_drawer_open={is_drawer_open}
-            onClearStatClick={onClearStatClick}
+            onResetClick={openClearStatDialog}
         />
     );
 
@@ -347,6 +351,24 @@ const RunPanel = observer(() => {
                 is_statistics_info_modal_open={is_statistics_info_modal_open}
                 toggleStatisticsInfoModal={toggleStatisticsInfoModal}
             />
+            <Dialog
+                title={localize('Are you sure?')}
+                is_open={is_clear_stat_dialog_open}
+                onCancel={closeClearStatDialog}
+                onConfirm={() => {
+                    onClearStatClick();
+                    closeClearStatDialog();
+                }}
+                confirm_button_text={localize('Reset')}
+                cancel_button_text={localize('Cancel')}
+            >
+                <p>
+                    <Localize i18n_default_text='This will clear all your trade history in Summary, Transactions, and Journal.' />
+                </p>
+                <p>
+                    <Localize i18n_default_text='This action cannot be undone.' />
+                </p>
+            </Dialog>
         </>
     );
 });
