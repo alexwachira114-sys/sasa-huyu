@@ -1,3 +1,5 @@
+@import './AnimatedStatus.scss';
+
 /* SMART TRADING HUB Loader (matches screenshot layout) */
 
 .georgetown-loader {
@@ -200,23 +202,6 @@
     font-size: 10px;
     color: rgba(229, 231, 235, 0.80);
     font-weight: 600;
-}
-
-/* Status text */
-.smart-loader__status {
-    text-align: center;
-    margin-bottom: 10px;
-}
-
-.smart-loader__status-line {
-    font-size: 11px;
-    color: rgba(229, 231, 235, 0.70);
-}
-
-.smart-loader__status-sub {
-    margin-top: 4px;
-    font-size: 10px;
-    color: rgba(34, 211, 238, 0.88);
 }
 
 /* Progress (reuse existing classes; style to match screenshot) */

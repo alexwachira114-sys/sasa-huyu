@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './app-loader.scss';
+import AnimatedStatus from './AnimatedStatus';
 
 interface AppLoaderProps {
     onLoadingComplete: () => void;
@@ -145,10 +146,10 @@ const AppLoader: React.FC<AppLoaderProps> = ({ onLoadingComplete, duration = 120
                         ))}
                     </div>
 
-                    <div className='smart-loader__status'>
-                        <div className='smart-loader__status-line'>Establishing secure connection...</div>
-                        <div className='smart-loader__status-sub'>{messages[messageIndex]?.title || 'Connecting...'}</div>
-                    </div>
+                    <AnimatedStatus
+                        status="Establishing secure connection..."
+                        subStatus={messages[messageIndex]?.title || 'Connecting...'}
+                    />
 
                     <div className='progress-wrapper'>
                         <div className='progress-track'>

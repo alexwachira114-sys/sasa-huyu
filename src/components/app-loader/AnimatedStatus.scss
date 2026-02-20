@@ -1,0 +1,26 @@
+.animated-status {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.animated-status__line {
+    font-size: 11px;
+    color: rgba(229, 231, 235, 0.70);
+    overflow: hidden;
+    white-space: nowrap;
+    animation: typing 1s steps(40, end);
+}
+
+.animated-status__sub {
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(34, 211, 238, 0.88);
+    overflow: hidden;
+    white-space: nowrap;
+    animation: typing 1s steps(40, end);
+}
+
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
