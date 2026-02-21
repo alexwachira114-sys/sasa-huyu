@@ -1,6 +1,7 @@
 
 self.onmessage = (event) => {
-    const { tick_data, contract_type, barrier } = event.data;
+    const { tick_data_entries, contract_type, barrier } = event.data;
+    const tick_data = Object.fromEntries(tick_data_entries);
 
     let bestVolatility = null;
     let minInstability = Infinity;
@@ -9,19 +10,16 @@ self.onmessage = (event) => {
     const target_digits = [];
 
     if (contract_type === 'DIGITOVER') {
-        // Digits that should be stable (not appear) are below the barrier
         for (let i = 0; i < barrier_num; i++) {
             target_digits.push(i);
         }
     } else { // DIGITUNDER
-        // Digits that should be stable (not appear) are above the barrier
         for (let i = barrier_num + 1; i < 10; i++) {
             target_digits.push(i);
         }
     }
 
     if (target_digits.length === 0) {
-        // No digits to analyze, return a random one
         const symbols = Object.keys(tick_data);
         self.postMessage(symbols[Math.floor(Math.random() * symbols.length)]);
         return;

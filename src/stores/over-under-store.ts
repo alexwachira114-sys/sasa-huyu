@@ -450,7 +450,7 @@ export default class OverUnderStore {
                                 const barrier = this.is_recovery_active ? this.recovery_barrier : this.manual_barrier;
 
                                 this.volatilityAnalyzer.postMessage({
-                                    tick_data: Object.fromEntries(this.ai_volatility_data.entries()),
+                                    tick_data_entries: Array.from(this.ai_volatility_data.entries()),
                                     contract_type,
                                     barrier
                                 });
