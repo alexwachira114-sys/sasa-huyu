@@ -102,11 +102,16 @@ const OverUnder = observer(() => {
         }
     };
 
-    const analyzingText = useMemo(() => {
-        if (!is_analyzing_volatility) return 'ANALYZING...';
-        const name = volatilityIndices.find(v => v.value === current_analyzing_symbol)?.text || current_analyzing_symbol;
-        return `ANALYZING: ${name}`;
-    }, [is_analyzing_volatility, current_analyzing_symbol]);
+    const startButtonText = useMemo(() => {
+        if (is_auto_running) {
+            if (is_analyzing_volatility) {
+                const name = volatilityIndices.find(v => v.value === current_analyzing_symbol)?.text || current_analyzing_symbol;
+                return `ANALYZING: ${name}`;
+            } 
+            return 'STOP';
+        }
+        return 'START';
+    }, [is_auto_running, is_analyzing_volatility, current_analyzing_symbol]);
 
     return (
         <div className="over-under-container" style={{ height: 'calc(100vh - 15rem)', overflowY: 'auto' }}>
@@ -139,7 +144,7 @@ const OverUnder = observer(() => {
                 <div className="input-row">
                     <div className="input-group">
                         <label>Index</label>
-                        <select className="ui-select" value={selected_symbol} onChange={(e) => setSelectedSymbol(e.target.value)} disabled={is_auto_running || is_analyzing_volatility}>
+                        <select className="ui-select" value={selected_symbol} onChange={(e) => setSelectedSymbol(e.target.value)} disabled={is_auto_running}>
                             {volatilityIndices.map(idx => <option key={idx.value} value={idx.value}>{idx.text}</option>)}
                         </select>
                     </div>
@@ -147,19 +152,19 @@ const OverUnder = observer(() => {
                         <label>Trigger Digits</label>
                         <div className="entry-config-row">
                             <div className="entry-config">
-                                <input className="ui-input digit-entry" type="number" min="0" max="9" value={entry_digit} onChange={(e) => setEntryDigit(Number(e.target.value))} disabled={is_auto_running || is_analyzing_volatility} title="First Trigger" />
+                                <input className="ui-input digit-entry" type="number" min="0" max="9" value={entry_digit} onChange={(e) => setEntryDigit(Number(e.target.value))} disabled={is_auto_running} title="First Trigger" />
                                 <div className={`status-led ${over_under.last_digit === Number(entry_digit) ? 'glow' : ''}`}></div>
                             </div>
                             {use_second_trigger && (
                                 <div className="entry-config">
-                                    <input className="ui-input digit-entry" type="number" min="0" max="9" value={second_entry_digit} onChange={(e) => setSecondEntryDigit(Number(e.target.value))} disabled={is_auto_running || is_analyzing_volatility} title="Second Trigger" />
+                                    <input className="ui-input digit-entry" type="number" min="0" max="9" value={second_entry_digit} onChange={(e) => setSecondEntryDigit(Number(e.target.value))} disabled={is_auto_running} title="Second Trigger" />
                                     <div className={`status-led ${over_under.last_last_digit === Number(entry_digit) && over_under.last_digit === Number(second_entry_digit) ? 'glow' : ''}`}></div>
                                 </div>
                             )}
                             <button 
                                 className={`ui-switch mini second-trigger-btn ${use_second_trigger ? 'active' : ''}`}
                                 onClick={() => setUseSecondTrigger(!use_second_trigger)}
-                                disabled={is_auto_running || is_analyzing_volatility}
+                                disabled={is_auto_running}
                                 title="Toggle Second Trigger"
                             >
                                 2ND
@@ -260,8 +265,8 @@ const OverUnder = observer(() => {
                     <button className={`btn-secondary ${is_turbo ? 'active' : ''}`} onClick={() => setIsTurbo(!is_turbo)} disabled={is_auto_running}>
                         {is_turbo ? 'TURBO ON' : 'TURBO OFF'}
                     </button>
-                    <button className={`btn-primary ${is_auto_running ? 'running' : ''}`} onClick={handleStartStop} disabled={is_analyzing_volatility}>
-                        {is_analyzing_volatility ? analyzingText : (is_auto_running ? 'STOP' : 'START')}
+                    <button className={`btn-primary ${is_auto_running ? 'running' : ''}`} onClick={handleStartStop}>
+                        {startButtonText}
                     </button>
                 </div>
             </div>

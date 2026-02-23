@@ -250,7 +250,7 @@ export default class OverUnderStore {
     setSelectedSymbol(symbol: string) {
         if (this.selected_symbol === symbol) return;
         this.selected_symbol = symbol;
-        if (this.is_authorized || this.connection_status === STATUS_LIVE || this.connection_status === STATUS_AUTHORIZED) {
+        if (this.connection_status === STATUS_LIVE || this.connection_status === STATUS_AUTHORIZED) {
             this.subscribeToTicks(symbol);
         }
     }
@@ -264,11 +264,12 @@ export default class OverUnderStore {
     }
 
     handleStartStop() {
-        if (!this.is_auto_running && !this.is_authorized && this.connection_status !== STATUS_LIVE) {
-            this.addLog("Please log in or wait for connection to start the tool.");
+        // Only allow starting if the account is authorized for trading.
+        if (!this.is_auto_running && !this.is_authorized) {
+            this.addLog("Please log in to start trading.");
             return;
         }
-        
+
         if (!this.is_auto_running) {
             this.initial_stake = this.stake;
             this.setIsRecoveryActive(false);
@@ -293,8 +294,8 @@ export default class OverUnderStore {
         }
 
         if (this.active_subscription_id) {
-            this.addLog(`Forgetting previous subscription: ${this.active_subscription_id}`);
             this.ws.send(JSON.stringify({ forget: this.active_subscription_id }));
+            this.active_subscription_id = null;
         }
 
         this.addLog(`Fetching history & subscribing to: ${symbol}`);
@@ -333,33 +334,27 @@ export default class OverUnderStore {
             this.ws = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
 
             this.ws.onopen = () => {
-                this.addLog('WS Opened. Attempting to authorize...');
+                this.addLog('WS Opened. Authorizing...');
+                this.connection_status = STATUS_LIVE; // Set to LIVE immediately for responsiveness
                 
                 try {
-                    let token: string | null = null;
                     const active_loginid = localStorage.getItem('active_loginid');
-                    if (active_loginid) {
-                        const client_accounts_str = localStorage.getItem('client.accounts');
-                        if (client_accounts_str) {
-                            const client_accounts = JSON.parse(client_accounts_str);
-                            const active_account = client_accounts[active_loginid];
-                            if (active_account && active_account.token) {
-                                token = active_account.token;
-                            }
+                    const client_accounts_str = active_loginid ? localStorage.getItem('client.accounts') : null;
+                    
+                    if (client_accounts_str) {
+                        const client_accounts = JSON.parse(client_accounts_str);
+                        const token = client_accounts[active_loginid]?.token;
+                        if (token) {
+                            this.ws?.send(JSON.stringify({ authorize: token }));
+                            return; // Wait for authorize response
                         }
                     }
+                    // If no token, proceed with public ticks
+                    this.addLog('No auth token found. Subscribing to public ticks.');
+                    this.subscribeToTicks(this.selected_symbol);
 
-                    if (token) {
-                        this.addLog('Token found. Sending authorize request.');
-                        this.ws?.send(JSON.stringify({ authorize: token }));
-                    } else {
-                        this.addLog('No auth token found. Proceeding with public ticks.');
-                        this.connection_status = STATUS_LIVE;
-                        this.subscribeToTicks(this.selected_symbol);
-                    }
                 } catch (e) {
-                    this.addLog(`Token retrieval error: ${e.message}. Falling back to public ticks.`);
-                    this.connection_status = STATUS_LIVE;
+                    this.addLog(`Token retrieval error: ${e.message}. Subscribing to public ticks.`);
                     this.subscribeToTicks(this.selected_symbol);
                 }
             };
@@ -368,120 +363,114 @@ export default class OverUnderStore {
                 try {
                     const data = JSON.parse(msg.data);
 
-                    if (data.subscription && data.subscription.id) {
+                    if (data.subscription?.id) {
                         this.active_subscription_id = data.subscription.id;
                     }
 
                     if (data.error) {
                         this.addLog(`Error: ${data.error.message}`);
-                        // No return here, some errors are informational
                     }
 
-                    if (data.msg_type === 'history') {
-                        if (this.is_analyzing_volatility && data.echo_req.ticks_history === this.current_analyzing_symbol) {
-                            const pip_size = pip_sizes[this.current_analyzing_symbol] || 2;
-                            const prices = data.history.prices;
-                            const digits = prices.map((p: string | number) => {
-                                const price_str = Number(p).toFixed(pip_size);
-                                return parseInt(price_str.slice(-1), 10);
-                            });
+                    switch (data.msg_type) {
+                        case 'history':
+                            if (this.is_analyzing_volatility && data.echo_req.ticks_history === this.current_analyzing_symbol) {
+                                const pip_size = pip_sizes[this.current_analyzing_symbol] || 2;
+                                const prices = data.history.prices;
+                                const digits = prices.map((p: string | number) => {
+                                    const price_str = Number(p).toFixed(pip_size);
+                                    return parseInt(price_str.slice(-1), 10);
+                                });
 
-                            this.volatilityAnalyzer.postMessage({
-                                ticks: digits,
-                                contract_type: this.is_recovery_active ? this.recovery_contract_type : this.manual_contract_type,
-                                barrier: this.is_recovery_active ? this.recovery_barrier : this.manual_barrier,
-                            });
-                        } else if (data.echo_req.subscribe === 1) {
-                            const pip_size = pip_sizes[this.selected_symbol] || 2;
-                            const prices = data.history.prices;
-                            const digits = prices.map((p: string | number) => {
-                                const price_str = Number(p).toFixed(pip_size);
-                                return parseInt(price_str.slice(-1), 10);
-                            });
-                            this.tick_history = digits;
-                            if (digits.length > 0) {
-                                this.last_digit = digits[digits.length - 1];
-                            }
-                            this.addLog(`Loaded ${digits.length} historical ticks for ${this.selected_symbol}.`);
-                        }
-                    } else if (data.msg_type === 'authorize') {
-                        if (data.error) {
-                            this.addLog(`Authorization failed: ${data.error.message}.`);
-                            this.is_authorized = false;
-                            this.addLog('Falling back to public ticks.');
-                            this.connection_status = STATUS_LIVE;
-                            this.subscribeToTicks(this.selected_symbol);
-                        } else {
-                            this.addLog('Authorization Successful!');
-                            this.is_authorized = true;
-                            this.connection_status = STATUS_AUTHORIZED;
-                            this.addLog('Subscribing to ticks for authorized account.');
-                            this.subscribeToTicks(this.selected_symbol); 
-                        }
-                    } else if (data.msg_type === 'buy') {
-                        if (data.error) {
-                             this.addLog(`Buy Error: ${data.error.message}`);
-                        } else {
-                            const contract_id = data.buy.contract_id;
-                            this.addLog(`Purchase Sent: ${contract_id}`);
-                            this.active_contracts.add(String(contract_id));
-                        }
-                    } else if (data.msg_type === 'proposal_open_contract') {
-                        const contract = data.proposal_open_contract;
-
-                        if (this.root_store.summary_card?.onBotContractEvent) {
-                            this.root_store.summary_card.onBotContractEvent(contract);
-                        }
-
-                        if (contract.is_sold) {
-                            const contract_id = String(contract.contract_id);
-                            if (this.active_contracts.has(contract_id)) {
-                                const profit = contract.profit;
-                                this.contract_results.set(contract_id, profit);
-                                
-                                const result = profit >= 0 ? 'WON' : 'LOST';
-                                this.addLog(`Trade Result [${contract_id}]: ${result} ($${profit})`);
-                                
-                                this.active_contracts.delete(contract_id);
-
-                                if (this.active_contracts.size === 0) {
-                                    this.processRoundResults();
+                                this.volatilityAnalyzer.postMessage({
+                                    ticks: digits,
+                                    contract_type: this.is_recovery_active ? this.recovery_contract_type : this.manual_contract_type,
+                                    barrier: this.is_recovery_active ? this.recovery_barrier : this.manual_barrier,
+                                });
+                            } else if (data.echo_req.subscribe === 1) {
+                                const pip_size = pip_sizes[this.selected_symbol] || 2;
+                                const prices = data.history.prices;
+                                const digits = prices.map((p: string | number) => {
+                                    const price_str = Number(p).toFixed(pip_size);
+                                    return parseInt(price_str.slice(-1), 10);
+                                });
+                                this.tick_history = digits;
+                                if (digits.length > 0) {
+                                    this.last_digit = digits[digits.length - 1];
                                 }
+                                this.addLog(`Loaded ${digits.length} historical ticks for ${this.selected_symbol}.`);
                             }
-                        }
-                    } else if (data.msg_type === 'tick') {
-                        const quote = data.tick.quote;
-                        const pip_size = data.tick.pip_size;
-                        const quote_str = quote.toFixed(pip_size);
-                        const digit = parseInt(quote_str.slice(-1), 10);
+                            break;
 
-                        this.last_last_digit = this.last_digit;
-                        this.last_digit = digit;
-                        this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
-
-                        if (this.is_auto_running && !this.is_analyzing_volatility) {
-                            let is_triggered = false;
-                            
-                            if (this.use_second_trigger) {
-                                is_triggered = (this.last_last_digit === Number(this.entry_digit) && this.last_digit === Number(this.second_entry_digit)) || 
-                                             (this.last_last_digit === Number(this.second_entry_digit) && this.last_digit === Number(this.entry_digit));
+                        case 'authorize':
+                            if (data.error) {
+                                this.addLog(`Authorization failed: ${data.error.message}.`);
+                                this.is_authorized = false;
+                                this.subscribeToTicks(this.selected_symbol);
                             } else {
-                                is_triggered = (this.last_digit === Number(this.entry_digit));
+                                this.addLog('Authorization Successful!');
+                                this.is_authorized = true;
+                                this.connection_status = STATUS_AUTHORIZED;
+                                this.subscribeToTicks(this.selected_symbol);
                             }
+                            break;
 
-                            if (is_triggered && this.active_contracts.size === 0) {
-                                if (this.is_manual_mode) {
-                                    this.addLog(`Trigger Hit: Manual Trade`);
-                                    this.executeTrade(this.manual_contract_type, this.manual_barrier);
-                                } else if (this.is_recovery_active) {
-                                    this.addLog(`Trigger Hit: Recovery Trade`);
-                                    this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
-                                } else {
-                                    this.addLog(`Trigger Hit: Standard Multi-Trade`);
-                                    this.executeMultiTrade();
+                        case 'buy':
+                            if (!data.error) {
+                                const contract_id = data.buy.contract_id;
+                                this.addLog(`Purchase Sent: ${contract_id}`);
+                                this.active_contracts.add(String(contract_id));
+                            }
+                            break;
+
+                        case 'proposal_open_contract':
+                            const contract = data.proposal_open_contract;
+                            if (this.root_store.summary_card?.onBotContractEvent) {
+                                this.root_store.summary_card.onBotContractEvent(contract);
+                            }
+                            if (contract.is_sold) {
+                                const contract_id = String(contract.contract_id);
+                                if (this.active_contracts.has(contract_id)) {
+                                    const profit = contract.profit;
+                                    this.contract_results.set(contract_id, profit);
+                                    const result = profit >= 0 ? 'WON' : 'LOST';
+                                    this.addLog(`Trade Result [${contract_id}]: ${result} ($${profit})`);
+                                    this.active_contracts.delete(contract_id);
+                                    if (this.active_contracts.size === 0) {
+                                        this.processRoundResults();
+                                    }
                                 }
                             }
-                        }
+                            break;
+
+                        case 'tick':
+                            const quote = data.tick.quote;
+                            const pip_size = data.tick.pip_size;
+                            const quote_str = quote.toFixed(pip_size);
+                            const digit = parseInt(quote_str.slice(-1), 10);
+
+                            this.last_last_digit = this.last_digit;
+                            this.last_digit = digit;
+                            this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
+
+                            if (this.is_auto_running && !this.is_analyzing_volatility && this.active_contracts.size === 0) {
+                                const primary_trigger = this.last_digit === Number(this.entry_digit);
+                                const secondary_trigger = this.last_last_digit === Number(this.second_entry_digit);
+                                let is_triggered = this.use_second_trigger ? (primary_trigger && secondary_trigger) : primary_trigger;
+
+                                if (is_triggered) {
+                                    if (this.is_recovery_active) {
+                                        this.addLog(`Trigger Hit: Recovery Trade`);
+                                        this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
+                                    } else if (this.is_manual_mode) {
+                                        this.addLog(`Trigger Hit: Manual Trade`);
+                                        this.executeTrade(this.manual_contract_type, this.manual_barrier);
+                                    } else {
+                                        this.addLog(`Trigger Hit: Standard Multi-Trade`);
+                                        this.executeMultiTrade();
+                                    }
+                                }
+                            }
+                            break;
                     }
                 } catch (error) {
                     this.addLog(`Error parsing message: ${error.message}`);
