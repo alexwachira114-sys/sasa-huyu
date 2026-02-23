@@ -56,6 +56,7 @@ export default class OverUnderStore {
     selected_symbol = 'R_100';
     active_contracts: Set<string> = new Set();
     contract_results: Map<string, number> = new Map();
+    active_subscription_id: string | null = null;
 
     // Volatility Analysis State
     is_analyzing_volatility = false;
@@ -249,7 +250,7 @@ export default class OverUnderStore {
     setSelectedSymbol(symbol: string) {
         if (this.selected_symbol === symbol) return;
         this.selected_symbol = symbol;
-        if (this.is_authorized || this.connection_status === STATUS_LIVE) {
+        if (this.is_authorized || this.connection_status === STATUS_LIVE || this.connection_status === STATUS_AUTHORIZED) {
             this.subscribeToTicks(symbol);
         }
     }
@@ -263,8 +264,8 @@ export default class OverUnderStore {
     }
 
     handleStartStop() {
-        if (!this.is_auto_running && !this.is_authorized) {
-            this.addLog("Please log in to start the tool.");
+        if (!this.is_auto_running && !this.is_authorized && this.connection_status !== STATUS_LIVE) {
+            this.addLog("Please log in or wait for connection to start the tool.");
             return;
         }
         
@@ -291,9 +292,12 @@ export default class OverUnderStore {
             return;
         }
 
-        this.addLog(`Fetching history & subscribing: ${symbol}`);
-        this.ws.send(JSON.stringify({ forget_all: 'ticks' }));
+        if (this.active_subscription_id) {
+            this.addLog(`Forgetting previous subscription: ${this.active_subscription_id}`);
+            this.ws.send(JSON.stringify({ forget: this.active_subscription_id }));
+        }
 
+        this.addLog(`Fetching history & subscribing to: ${symbol}`);
         this.ws.send(
             JSON.stringify({
                 ticks_history: symbol,
@@ -329,17 +333,33 @@ export default class OverUnderStore {
             this.ws = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
 
             this.ws.onopen = () => {
-                this.addLog('WS Opened. Authorizing...');
-                this.connection_status = STATUS_LIVE;
+                this.addLog('WS Opened. Attempting to authorize...');
+                
+                try {
+                    let token: string | null = null;
+                    const active_loginid = localStorage.getItem('active_loginid');
+                    if (active_loginid) {
+                        const client_accounts_str = localStorage.getItem('client.accounts');
+                        if (client_accounts_str) {
+                            const client_accounts = JSON.parse(client_accounts_str);
+                            const active_account = client_accounts[active_loginid];
+                            if (active_account && active_account.token) {
+                                token = active_account.token;
+                            }
+                        }
+                    }
 
-                const token = localStorage.getItem('active_loginid') ? 
-                    JSON.parse(localStorage.getItem('client.accounts') || '{}')[localStorage.getItem('active_loginid')].token :
-                    null;
-
-                if (token) {
-                    this.ws?.send(JSON.stringify({ authorize: token }));
-                } else {
-                    this.addLog('No auth token found. Subscribing to public ticks.');
+                    if (token) {
+                        this.addLog('Token found. Sending authorize request.');
+                        this.ws?.send(JSON.stringify({ authorize: token }));
+                    } else {
+                        this.addLog('No auth token found. Proceeding with public ticks.');
+                        this.connection_status = STATUS_LIVE;
+                        this.subscribeToTicks(this.selected_symbol);
+                    }
+                } catch (e) {
+                    this.addLog(`Token retrieval error: ${e.message}. Falling back to public ticks.`);
+                    this.connection_status = STATUS_LIVE;
                     this.subscribeToTicks(this.selected_symbol);
                 }
             };
@@ -348,9 +368,13 @@ export default class OverUnderStore {
                 try {
                     const data = JSON.parse(msg.data);
 
+                    if (data.subscription && data.subscription.id) {
+                        this.active_subscription_id = data.subscription.id;
+                    }
+
                     if (data.error) {
                         this.addLog(`Error: ${data.error.message}`);
-                        return;
+                        // No return here, some errors are informational
                     }
 
                     if (data.msg_type === 'history') {
@@ -381,14 +405,27 @@ export default class OverUnderStore {
                             this.addLog(`Loaded ${digits.length} historical ticks for ${this.selected_symbol}.`);
                         }
                     } else if (data.msg_type === 'authorize') {
-                        this.addLog('Authorization Successful!');
-                        this.is_authorized = true;
-                        this.connection_status = STATUS_AUTHORIZED;
-                        this.subscribeToTicks(this.selected_symbol); 
+                        if (data.error) {
+                            this.addLog(`Authorization failed: ${data.error.message}.`);
+                            this.is_authorized = false;
+                            this.addLog('Falling back to public ticks.');
+                            this.connection_status = STATUS_LIVE;
+                            this.subscribeToTicks(this.selected_symbol);
+                        } else {
+                            this.addLog('Authorization Successful!');
+                            this.is_authorized = true;
+                            this.connection_status = STATUS_AUTHORIZED;
+                            this.addLog('Subscribing to ticks for authorized account.');
+                            this.subscribeToTicks(this.selected_symbol); 
+                        }
                     } else if (data.msg_type === 'buy') {
-                        const contract_id = data.buy.contract_id;
-                        this.addLog(`Purchase Sent: ${contract_id}`);
-                        this.active_contracts.add(String(contract_id));
+                        if (data.error) {
+                             this.addLog(`Buy Error: ${data.error.message}`);
+                        } else {
+                            const contract_id = data.buy.contract_id;
+                            this.addLog(`Purchase Sent: ${contract_id}`);
+                            this.active_contracts.add(String(contract_id));
+                        }
                     } else if (data.msg_type === 'proposal_open_contract') {
                         const contract = data.proposal_open_contract;
 
