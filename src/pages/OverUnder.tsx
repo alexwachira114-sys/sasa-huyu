@@ -53,18 +53,13 @@ const OverUnder = observer(() => {
 
     useEffect(() => {
         connectWebSocket();
-        return () => {
-            if (over_under.reconnectTimeout) clearTimeout(over_under.reconnectTimeout);
-            if (over_under.ws) over_under.ws.close();
-        };
+        return () => over_under.dispose();
     }, [connectWebSocket, over_under]);
 
     const digitStats = useMemo(() => {
         const stats = Array(10).fill(0);
         tick_history.forEach(digit => {
-            if (digit >= 0 && digit <= 9) {
-                stats[digit]++;
-            }
+            if (digit >= 0 && digit <= 9) stats[digit]++;
         });
         return stats;
     }, [tick_history]);

@@ -1,6 +1,5 @@
 
 import { action, makeObservable, observable } from 'mobx';
-import { LogTypes } from '@/external/bot-skeleton';
 import { TStores } from '@/types/stores.types';
 import RootStore from './root-store';
 
@@ -58,7 +57,6 @@ export default class OverUnderStore {
     contract_results: Map<string, number> = new Map();
     active_subscription_id: string | null = null;
 
-    // Volatility Analysis State
     is_analyzing_volatility = false;
     analysis_queue: string[] = [];
     best_score = Infinity;
@@ -110,13 +108,26 @@ export default class OverUnderStore {
             setSelectedSymbol: action.bound,
             setIsAutoRunning: action.bound,
             connectWebSocket: action.bound,
-            executeMultiTrade: action.bound,
             handleStartStop: action.bound,
             addLog: action.bound,
             clearDebug: action.bound,
         });
         this.root_store = root_store;
         this.initializeWorker();
+        window.addEventListener('message', this.handleAuthResponse.bind(this));
+    }
+
+    handleAuthResponse(event: MessageEvent) {
+        if (event.data?.name !== 'auth_token') return;
+
+        const token = event.data?.token;
+        if (token && this.ws?.readyState === WebSocket.OPEN) {
+            this.addLog('Auth token received from parent window');
+            this.ws.send(JSON.stringify({ authorize: token }));
+        } else {
+            this.addLog('Parent window auth failed. Falling back to public ticks.');
+            this.subscribeToTicks(this.selected_symbol);
+        }
     }
 
     initializeWorker() {
@@ -150,13 +161,15 @@ export default class OverUnderStore {
     processAnalysisQueue() {
         if (this.analysis_queue.length > 0) {
             this.current_analyzing_symbol = this.analysis_queue.shift();
-            this.addLog(`Analyzing: ${this.current_analyzing_symbol}`);
-            this.ws.send(JSON.stringify({ 
-                ticks_history: this.current_analyzing_symbol, 
-                count: 50, 
-                end: 'latest', 
-                style: 'ticks' 
-            }));
+            if (this.current_analyzing_symbol) {
+                 this.addLog(`Analyzing: ${this.current_analyzing_symbol}`);
+                 this.ws?.send(JSON.stringify({ 
+                    ticks_history: this.current_analyzing_symbol, 
+                    count: 50, 
+                    end: 'latest', 
+                    style: 'ticks' 
+                }));
+            }
         } else {
             this.is_analyzing_volatility = false;
             this.current_analyzing_symbol = null;
@@ -164,10 +177,8 @@ export default class OverUnderStore {
                 this.addLog(`Analysis complete. Best volatility: ${this.best_symbol}`);
                 this.setSelectedSymbol(this.best_symbol);
             } else {
-                this.addLog('Analysis complete. No suitable volatility found. Switching to a random volatility.');
-                const symbols = Object.keys(pip_sizes);
-                const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-                this.setSelectedSymbol(randomSymbol);
+                this.addLog('Analysis complete. No suitable volatility found. Reverting to default.');
+                this.setSelectedSymbol('R_100'); 
             }
         }
     }
@@ -264,19 +275,16 @@ export default class OverUnderStore {
     }
 
     handleStartStop() {
-        // Only allow starting if the account is authorized for trading.
         if (!this.is_auto_running && !this.is_authorized) {
             this.addLog("Please log in to start trading.");
             return;
         }
 
-        if (!this.is_auto_running) {
+        this.setIsAutoRunning(!this.is_auto_running);
+
+        if (this.is_auto_running) {
             this.initial_stake = this.stake;
             this.setIsRecoveryActive(false);
-        }
-
-        this.setIsAutoRunning(!this.is_auto_running);
-        if (this.is_auto_running) {
             this.addLog("Tool started. Waiting for trigger...");
             if (this.is_automate && this.is_volatility_changer) {
                 this.startVolatilityAnalysis();
@@ -289,7 +297,7 @@ export default class OverUnderStore {
     
     subscribeToTicks(symbol: string) {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            this.addLog('WS not open for subscribe');
+            this.addLog('WS not open to subscribe');
             return;
         }
 
@@ -299,29 +307,14 @@ export default class OverUnderStore {
         }
 
         this.addLog(`Fetching history & subscribing to: ${symbol}`);
-        this.ws.send(
-            JSON.stringify({
-                ticks_history: symbol,
-                count: MAX_TICKS,
-                end: 'latest',
-                style: 'ticks',
-                subscribe: 1,
-            })
-        );
-
+        this.ws.send(JSON.stringify({ ticks_history: symbol, count: MAX_TICKS, end: 'latest', style: 'ticks', subscribe: 1 }));
         this.tick_history = [];
         this.last_digit = null;
     }
     
     connectWebSocket() {
-        if (this.ws) {
-            this.ws.onclose = null;
-            this.ws.close();
-        }
-
-        if (this.reconnectTimeout) {
-            clearTimeout(this.reconnectTimeout);
-        }
+        if (this.ws) { this.ws.onclose = null; this.ws.close(); }
+        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
 
         this.addLog('Connecting...');
         this.connection_status = STATUS_CONNECTING;
@@ -334,86 +327,61 @@ export default class OverUnderStore {
             this.ws = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
 
             this.ws.onopen = () => {
-                this.addLog('WS Opened. Authorizing...');
-                this.connection_status = STATUS_LIVE; // Set to LIVE immediately for responsiveness
-                
-                try {
-                    const active_loginid = localStorage.getItem('active_loginid');
-                    const client_accounts_str = active_loginid ? localStorage.getItem('client.accounts') : null;
-                    
-                    if (client_accounts_str) {
-                        const client_accounts = JSON.parse(client_accounts_str);
-                        const token = client_accounts[active_loginid]?.token;
-                        if (token) {
-                            this.ws?.send(JSON.stringify({ authorize: token }));
-                            return; // Wait for authorize response
-                        }
-                    }
-                    // If no token, proceed with public ticks
-                    this.addLog('No auth token found. Subscribing to public ticks.');
-                    this.subscribeToTicks(this.selected_symbol);
+                this.addLog('WS Opened. Checking auth...');
+                this.connection_status = STATUS_LIVE;
 
-                } catch (e) {
-                    this.addLog(`Token retrieval error: ${e.message}. Subscribing to public ticks.`);
-                    this.subscribeToTicks(this.selected_symbol);
+                if (window.self !== window.top) {
+                    this.addLog('Requesting auth token from parent...');
+                    window.parent.postMessage({ name: 'request_auth_token' }, '*');
+                } else {
+                    try {
+                        const active_loginid = localStorage.getItem('active_loginid');
+                        const client_accounts_str = active_loginid ? localStorage.getItem('client.accounts') : null;
+                        if (client_accounts_str) {
+                            const client_accounts = JSON.parse(client_accounts_str);
+                            const token = client_accounts[active_loginid]?.token;
+                            if (token) {
+                                this.ws?.send(JSON.stringify({ authorize: token }));
+                                return;
+                            }
+                        }
+                        this.addLog('No local auth token found. Subscribing to public ticks.');
+                        this.subscribeToTicks(this.selected_symbol);
+                    } catch (e) {
+                        this.addLog(`Local token error: ${e.message}. Subscribing to public ticks.`);
+                        this.subscribeToTicks(this.selected_symbol);
+                    }
                 }
             };
 
-            this.ws.onmessage = async msg => {
+            this.ws.onmessage = async (msg) => {
                 try {
                     const data = JSON.parse(msg.data);
-
-                    if (data.subscription?.id) {
-                        this.active_subscription_id = data.subscription.id;
-                    }
-
-                    if (data.error) {
-                        this.addLog(`Error: ${data.error.message}`);
-                    }
+                    if (data.subscription?.id) this.active_subscription_id = data.subscription.id;
+                    if (data.error) this.addLog(`Error: ${data.error.message}`);
 
                     switch (data.msg_type) {
                         case 'history':
-                            if (this.is_analyzing_volatility && data.echo_req.ticks_history === this.current_analyzing_symbol) {
-                                const pip_size = pip_sizes[this.current_analyzing_symbol] || 2;
-                                const prices = data.history.prices;
-                                const digits = prices.map((p: string | number) => {
-                                    const price_str = Number(p).toFixed(pip_size);
-                                    return parseInt(price_str.slice(-1), 10);
-                                });
-
-                                this.volatilityAnalyzer.postMessage({
-                                    ticks: digits,
-                                    contract_type: this.is_recovery_active ? this.recovery_contract_type : this.manual_contract_type,
-                                    barrier: this.is_recovery_active ? this.recovery_barrier : this.manual_barrier,
-                                });
-                            } else if (data.echo_req.subscribe === 1) {
+                             if (data.echo_req.subscribe === 1) {
                                 const pip_size = pip_sizes[this.selected_symbol] || 2;
                                 const prices = data.history.prices;
-                                const digits = prices.map((p: string | number) => {
-                                    const price_str = Number(p).toFixed(pip_size);
-                                    return parseInt(price_str.slice(-1), 10);
-                                });
+                                const digits = prices.map((p: string | number) => Number(p).toFixed(pip_size).slice(-1)).map(Number);
                                 this.tick_history = digits;
-                                if (digits.length > 0) {
-                                    this.last_digit = digits[digits.length - 1];
-                                }
+                                if (digits.length > 0) this.last_digit = digits[digits.length - 1];
                                 this.addLog(`Loaded ${digits.length} historical ticks for ${this.selected_symbol}.`);
                             }
                             break;
-
                         case 'authorize':
                             if (data.error) {
                                 this.addLog(`Authorization failed: ${data.error.message}.`);
                                 this.is_authorized = false;
-                                this.subscribeToTicks(this.selected_symbol);
                             } else {
                                 this.addLog('Authorization Successful!');
                                 this.is_authorized = true;
                                 this.connection_status = STATUS_AUTHORIZED;
-                                this.subscribeToTicks(this.selected_symbol);
                             }
+                            this.subscribeToTicks(this.selected_symbol);
                             break;
-
                         case 'buy':
                             if (!data.error) {
                                 const contract_id = data.buy.contract_id;
@@ -421,41 +389,31 @@ export default class OverUnderStore {
                                 this.active_contracts.add(String(contract_id));
                             }
                             break;
-
                         case 'proposal_open_contract':
                             const contract = data.proposal_open_contract;
-                            if (this.root_store.summary_card?.onBotContractEvent) {
-                                this.root_store.summary_card.onBotContractEvent(contract);
-                            }
+                            this.root_store.summary_card?.onBotContractEvent?.(contract);
                             if (contract.is_sold) {
                                 const contract_id = String(contract.contract_id);
                                 if (this.active_contracts.has(contract_id)) {
                                     const profit = contract.profit;
                                     this.contract_results.set(contract_id, profit);
-                                    const result = profit >= 0 ? 'WON' : 'LOST';
-                                    this.addLog(`Trade Result [${contract_id}]: ${result} ($${profit})`);
+                                    this.addLog(`Trade Result [${contract_id}]: ${profit >= 0 ? 'WON' : 'LOST'} ($${profit})`);
                                     this.active_contracts.delete(contract_id);
-                                    if (this.active_contracts.size === 0) {
-                                        this.processRoundResults();
-                                    }
+                                    if (this.active_contracts.size === 0) this.processRoundResults();
                                 }
                             }
                             break;
-
                         case 'tick':
-                            const quote = data.tick.quote;
-                            const pip_size = data.tick.pip_size;
-                            const quote_str = quote.toFixed(pip_size);
+                            const quote_str = data.tick.quote.toFixed(data.tick.pip_size);
                             const digit = parseInt(quote_str.slice(-1), 10);
-
                             this.last_last_digit = this.last_digit;
                             this.last_digit = digit;
                             this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
 
                             if (this.is_auto_running && !this.is_analyzing_volatility && this.active_contracts.size === 0) {
-                                const primary_trigger = this.last_digit === Number(this.entry_digit);
-                                const secondary_trigger = this.last_last_digit === Number(this.second_entry_digit);
-                                let is_triggered = this.use_second_trigger ? (primary_trigger && secondary_trigger) : primary_trigger;
+                                let is_triggered = this.use_second_trigger ? 
+                                    (this.last_digit === this.entry_digit && this.last_last_digit === this.second_entry_digit) : 
+                                    (this.last_digit === this.entry_digit);
 
                                 if (is_triggered) {
                                     if (this.is_recovery_active) {
@@ -473,34 +431,29 @@ export default class OverUnderStore {
                             break;
                     }
                 } catch (error) {
-                    this.addLog(`Error parsing message: ${error.message}`);
+                    this.addLog(`Message parse error: ${error.message}`);
                 }
             };
 
-            this.ws.onclose = e => {
+            this.ws.onclose = () => {
                 this.addLog(`WS Closed. Reconnecting...`);
                 this.connection_status = STATUS_OFFLINE;
                 this.reconnectTimeout = setTimeout(() => this.connectWebSocket(), 5000);
             };
-            this.ws.onerror = e => {
-                this.addLog(`WS Error`);
-            };
+            this.ws.onerror = () => this.addLog(`WS Error`);
         } catch (e) {
             this.addLog(`WS Init Fail: ${e.message}`);
         }
     }
 
     processRoundResults() {
-        const profits = Array.from(this.contract_results.values());
-        const all_loss = profits.every(p => p < 0);
-
-        this.addLog(`Round finished. All trades resulted in loss: ${all_loss}`);
+        const all_loss = Array.from(this.contract_results.values()).every(p => p < 0);
+        this.addLog(`Round finished. All trades lost: ${all_loss}`);
 
         if (all_loss) {
             this.stake = Number((this.stake * this.martingale).toFixed(2));
             this.addLog(`Martingale Applied: New stake is ${this.stake}`);
             this.setIsRecoveryActive(true);
-            
             if (!this.use_recovery_delay) {
                 this.addLog("Immediate recovery trade");
                 this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
@@ -509,14 +462,10 @@ export default class OverUnderStore {
             this.stake = this.initial_stake;
             this.addLog(`Resetting stake to ${this.initial_stake}`);
             this.setIsRecoveryActive(false);
-            
-            if (this.is_volatility_changer && this.is_automate) {
-                this.startVolatilityAnalysis();
-            }
+            if (this.is_volatility_changer && this.is_automate) this.startVolatilityAnalysis();
         }
 
         this.contract_results.clear();
-
         if (!this.is_turbo) {
             this.setIsAutoRunning(false);
             this.addLog('Turbo Mode is off. Stopping auto-run.');
@@ -526,27 +475,28 @@ export default class OverUnderStore {
     executeTrade(contract_type: string, barrier: string) {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.is_authorized) return;
         const tradeAmount = Number(this.stake);
-        const currency = 'USD';
-
-        const params = {
-            buy: 1, price: tradeAmount,
-            parameters: { amount: tradeAmount, basis: 'stake', currency, duration: 1, duration_unit: 't', symbol: this.selected_symbol, contract_type, barrier },
-        };
         this.addLog(`Executing: ${contract_type} ${barrier} @ ${tradeAmount}`);
-        this.ws.send(JSON.stringify(params));
+        this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: this.selected_symbol, contract_type, barrier } }));
     }
 
     executeMultiTrade() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.is_authorized) return;
         const tradeAmount = Number(this.stake);
-        const currency = 'USD';
-
-        const baseParams = { amount: tradeAmount, basis: 'stake', currency, duration: 1, duration_unit: 't', symbol: this.selected_symbol };
-        const trade1_params = { buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITOVER', barrier: '5' } };
-        const trade2_params = { buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITUNDER', barrier: '4' } };
-
         this.addLog(`Executing Multi-Trade: O5/U4 @ ${tradeAmount}`);
-        this.ws.send(JSON.stringify(trade1_params));
-        this.ws.send(JSON.stringify(trade2_params));
+        const baseParams = { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: this.selected_symbol };
+        this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITOVER', barrier: '5' } }));
+        this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITUNDER', barrier: '4' } }));
+    }
+    
+    dispose() {
+        window.removeEventListener('message', this.handleAuthResponse.bind(this));
+        if (this.ws) {
+            this.ws.onclose = null;
+            this.ws.close();
+        }
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+        }
+        this.volatilityAnalyzer?.terminate();
     }
 }
