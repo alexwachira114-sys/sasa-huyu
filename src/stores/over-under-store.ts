@@ -210,7 +210,7 @@ export default class OverUnderStore {
                 this.addLog('Analysis complete. No suitable volatility found.');
             }
             
-            // If auto-running and turbo is on, we are now ready for the next trade
+            // If auto-running and turbo is on, we are now ready for the next trade round
             if (this.is_auto_running && this.is_turbo) {
                 this.addLog("Ready for next trade round.");
             }
@@ -305,6 +305,12 @@ export default class OverUnderStore {
     }
 
     connectWebSocket() {
+        // PERSISTENCE: If already connected and authorized, don't reconnect
+        if (this.ws && this.ws.readyState === WebSocket.OPEN && this.is_authorized) {
+            this.addLog('Already connected and authorized.');
+            return;
+        }
+
         if (this.ws) { this.ws.onclose = null; this.ws.close(); }
         if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
 
@@ -612,6 +618,13 @@ export default class OverUnderStore {
     }
 
     dispose() {
+        // PERSISTENCE: Only dispose if the bot is NOT running.
+        // This allows the bot to keep running in the background when switching tabs.
+        if (this.is_auto_running) {
+            this.addLog('Tab switched. Bot continuing in background...');
+            return;
+        }
+
         window.removeEventListener('message', this._boundAuthHandler);
         if (this._loginReaction) this._loginReaction();
         if (this._accountReaction) this._accountReaction();

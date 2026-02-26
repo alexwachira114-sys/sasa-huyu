@@ -55,7 +55,10 @@ const OverUnder = observer(() => {
     } = over_under;
 
     useEffect(() => {
-        connectWebSocket();
+        // Only connect if not already connected
+        if (over_under.connection_status === 'Offline') {
+            connectWebSocket();
+        }
         return () => over_under.dispose();
     }, [connectWebSocket, over_under]);
 
@@ -256,12 +259,12 @@ const OverUnder = observer(() => {
                                 onClick={() => setUseRecoveryDelay(!use_recovery_delay)}
                                 disabled={is_auto_running || is_authorizing}
                             >
-                                {use_recovery_delay ? 'WAIT' : 'NOW'}
+                                {use_recovery_delay ? 'ON' : 'OFF'}
                             </button>
                         </div>
                         <div className="input-group">
                             <label>Recovery Type</label>
-                            <select className="ui-select" value={recovery_contract_type} onChange={(e) => setRecoveryContractType(e.target.value)} disabled={is_auto_running || is_authorizing}>
+                            <select className="ui-select" value={recovery_contract_type} onChange={(e) => setRecovery_contract_type(e.target.value)} disabled={is_auto_running || is_authorizing}>
                                 <option value="DIGITOVER">OVER</option>
                                 <option value="DIGITUNDER">UNDER</option>
                                 <option value="DIGITDIFF">DIFFERS</option>
@@ -274,23 +277,34 @@ const OverUnder = observer(() => {
                     </div>
                 </div>
 
-                <div className="button-group">
-                    <button className={`btn-secondary ${is_turbo ? 'active' : ''}`} onClick={() => setIsTurbo(!is_turbo)} disabled={is_auto_running || is_authorizing}>
-                        {is_turbo ? 'TURBO ON' : 'TURBO OFF'}
-                    </button>
-                    <button className={`btn-primary ${is_auto_running ? 'running' : ''}`} onClick={handleStartStop} disabled={is_authorizing || (is_auto_running && is_analyzing_volatility)}>
+                <div className="input-row turbo-row">
+                    <div className="input-group switch-group">
+                        <label>Turbo Mode</label>
+                        <button 
+                            className={`ui-switch ${is_turbo ? 'active' : ''}`} 
+                            onClick={() => setIsTurbo(!is_turbo)}
+                            disabled={is_auto_running || is_authorizing}
+                        >
+                            {is_turbo ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+                    <button className={`ui-button start-btn ${is_auto_running ? 'stop' : ''}`} onClick={handleStartStop} disabled={is_authorizing}>
                         {startButtonText}
                     </button>
                 </div>
             </div>
-            
+
             <div className="debug-monitor">
                 <div className="debug-header">
-                    <span>REAL-TIME MONITOR</span>
-                    <button onClick={clearDebug} className="clear-btn">Clear</button>
+                    <span>Real-Time Monitor</span>
+                    <button className="clear-btn" onClick={clearDebug}>Clear</button>
                 </div>
                 <div className="debug-content">
-                    {debug_info.map((log, i) => <div key={i} className="log-item">{log}</div>)}
+                    {debug_info.length === 0 ? (
+                        <div className="empty-log">Waiting for activity...</div>
+                    ) : (
+                        debug_info.map((log, i) => <div key={i} className="log-entry">{log}</div>)
+                    )}
                 </div>
             </div>
         </div>
