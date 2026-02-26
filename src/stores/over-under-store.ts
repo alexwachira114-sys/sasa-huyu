@@ -67,6 +67,10 @@ export default class OverUnderStore {
     best_symbol: string | null = null;
     current_analyzing_symbol: string | null = null;
 
+    // LOCKS: Prevent multiple trades and ensure sequence
+    private is_purchasing = false;
+    private is_processing_round = false;
+
     private _boundAuthHandler: (event: MessageEvent) => void;
     private _loginReaction: () => void;
     private _accountReaction: () => void;
@@ -205,6 +209,11 @@ export default class OverUnderStore {
             } else {
                 this.addLog('Analysis complete. No suitable volatility found.');
             }
+            
+            // If auto-running and turbo is on, we are now ready for the next trade
+            if (this.is_auto_running && this.is_turbo) {
+                this.addLog("Ready for next trade round.");
+            }
         }
     }
 
@@ -252,6 +261,8 @@ export default class OverUnderStore {
         if (is_running) {
             this.active_contracts.clear();
             this.contract_results.clear();
+            this.is_purchasing = false;
+            this.is_processing_round = false;
         }
     }
 
@@ -361,7 +372,12 @@ export default class OverUnderStore {
                 try {
                     const data = JSON.parse(msg.data);
                     if (data.subscription?.id) this.active_subscription_id = data.subscription.id;
-                    if (data.error) this.addLog(`Error: ${data.error.message}`);
+                    if (data.error) {
+                        this.addLog(`Error: ${data.error.message}`);
+                        if (data.msg_type === 'buy') {
+                            this.is_purchasing = false; // Release lock on purchase error
+                        }
+                    }
 
                     switch (data.msg_type) {
                         case 'history':
@@ -373,7 +389,6 @@ export default class OverUnderStore {
                                 if (digits.length > 0) this.last_digit = digits[digits.length - 1];
                                 this.addLog(`Loaded ${digits.length} historical ticks.`);
                             } else if (this.is_analyzing_volatility) {
-                                // Handle volatility analysis ticks
                                 const pip_size = pip_sizes[data.echo_req.ticks_history] || 2;
                                 const digits = data.history.prices.map((p: string | number) => Number(p).toFixed(pip_size).slice(-1)).map(Number);
                                 
@@ -403,11 +418,12 @@ export default class OverUnderStore {
                                 this.addLog(`Purchase Sent: ${contract_id}`);
                                 this.active_contracts.add(String(contract_id));
                             }
+                            // Release purchasing lock after receiving buy response (success or error)
+                            this.is_purchasing = false;
                             break;
                         case 'proposal_open_contract':
                             const contract = data.proposal_open_contract;
                             
-                            // Ensure contract has required fields for Transactions tab
                             const formattedContract = {
                                 ...contract,
                                 date_start: contract.date_start || Math.floor(Date.now() / 1000),
@@ -429,7 +445,11 @@ export default class OverUnderStore {
                                     this.contract_results.set(contract_id, profit);
                                     this.addLog(`Trade Result [${contract_id}]: ${profit >= 0 ? 'WON' : 'LOST'} ($${profit})`);
                                     this.active_contracts.delete(contract_id);
-                                    if (this.active_contracts.size === 0) this.processRoundResults();
+                                    
+                                    // Process round results only when ALL active contracts for this round are sold
+                                    if (this.active_contracts.size === 0 && !this.is_processing_round) {
+                                        this.processRoundResults();
+                                    }
                                 }
                             }
                             break;
@@ -440,11 +460,20 @@ export default class OverUnderStore {
                             this.last_digit = digit;
                             this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
 
-                            if (this.is_auto_running && !this.is_analyzing_volatility && this.active_contracts.size === 0) {
+                            // TRADE TRIGGER LOGIC
+                            if (this.is_auto_running && 
+                                !this.is_analyzing_volatility && 
+                                !this.is_purchasing && 
+                                !this.is_processing_round && 
+                                this.active_contracts.size === 0) {
+                                
                                 if (this.is_differs_mode) {
                                     this.analyzeAndExecuteDiffers();
                                 } else {
-                                    let is_triggered = this.use_second_trigger ? (this.last_digit === this.entry_digit && this.last_last_digit === this.second_entry_digit) : (this.last_digit === this.entry_digit);
+                                    let is_triggered = this.use_second_trigger ? 
+                                        (this.last_digit === this.entry_digit && this.last_last_digit === this.second_entry_digit) : 
+                                        (this.last_digit === this.entry_digit);
+                                        
                                     if (is_triggered) {
                                         if (this.is_recovery_active) {
                                             this.addLog(`Trigger Hit: Recovery Trade`);
@@ -481,7 +510,7 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteDiffers() {
-        if (this.tick_history.length < 10) return;
+        if (this.tick_history.length < 10 || this.is_purchasing) return;
 
         const last5 = this.tick_history.slice(-5);
         const last10 = this.tick_history.slice(-10);
@@ -505,53 +534,79 @@ export default class OverUnderStore {
     }
 
     processRoundResults() {
+        this.is_processing_round = true;
         const all_loss = Array.from(this.contract_results.values()).every(p => p < 0);
         this.addLog(`Round finished. All trades lost: ${all_loss}`);
+        
         if (all_loss) {
             this.stake = Number((this.stake * this.martingale).toFixed(2));
             this.addLog(`Martingale Applied: New stake is ${this.stake}`);
             this.setIsRecoveryActive(true);
+            
             if (!this.use_recovery_delay) {
                 this.addLog("Immediate recovery trade");
+                this.is_processing_round = false; // Release lock to allow immediate trade
                 if (this.is_differs_mode) {
                     this.analyzeAndExecuteDiffers();
                 } else {
                     this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
                 }
+                this.contract_results.clear();
+                return;
             }
         } else {
             this.stake = this.initial_stake;
             this.addLog(`Resetting stake to ${this.initial_stake}`);
             this.setIsRecoveryActive(false);
-            if (this.is_volatility_changer) this.startVolatilityAnalysis();
+            
+            // RE-ANALYZE: If volatility changer is on, start analysis for the next round
+            if (this.is_volatility_changer) {
+                this.startVolatilityAnalysis();
+            }
         }
+        
         this.contract_results.clear();
+        this.is_processing_round = false; // Release lock
+
         if (!this.is_turbo) {
             this.setIsAutoRunning(false);
             this.addLog('Turbo Mode is off. Stopping auto-run.');
+        } else {
+            this.addLog("Waiting for next trigger...");
         }
     }
 
     executeTrade(contract_type: string, barrier: string) {
+        if (this.is_purchasing) return; // Strict lock
+
         const is_logged_in = this.is_authorized || 
                            this.root_store.client.is_logged_in || 
                            !!localStorage.getItem('active_loginid');
 
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        
+        this.is_purchasing = true; // Set lock
         const tradeAmount = Number(this.stake);
         this.addLog(`Executing: ${contract_type} ${barrier} @ ${tradeAmount}`);
         this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: this.selected_symbol, contract_type, barrier } }));
     }
 
     executeMultiTrade() {
+        if (this.is_purchasing) return; // Strict lock
+
         const is_logged_in = this.is_authorized || 
                            this.root_store.client.is_logged_in || 
                            !!localStorage.getItem('active_loginid');
 
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        
+        this.is_purchasing = true; // Set lock
         const tradeAmount = Number(this.stake);
         this.addLog(`Executing Multi-Trade: O5/U4 @ ${tradeAmount}`);
         const baseParams = { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: this.selected_symbol };
+        
+        // Send both trades. The lock will be released when the 'buy' response for the LAST trade is received.
+        // Since we are sending two, we'll manually handle the lock release in onmessage for 'buy' responses.
         this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITOVER', barrier: '5' } }));
         this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { ...baseParams, contract_type: 'DIGITUNDER', barrier: '4' } }));
     }
