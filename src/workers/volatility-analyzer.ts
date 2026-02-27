@@ -12,12 +12,16 @@ self.onmessage = (event) => {
         const barrier_num = parseInt(p_barrier, 10);
         let target_digits: number[] = [];
 
-        if (p_contract_type === 'DIGITOVER') {
-            for (let i = 0; i < barrier_num; i++) {
+        // For DIFFERS, the "bad" digit is exactly the barrier.
+        // For OVER/UNDER, the "bad" digits are those that don't meet the condition.
+        if (p_contract_type === 'DIGITDIFF') {
+            target_digits = [barrier_num];
+        } else if (p_contract_type === 'DIGITOVER') {
+            for (let i = 0; i <= barrier_num; i++) {
                 target_digits.push(i);
             }
-        } else { // DIGITUNDER
-            for (let i = barrier_num + 1; i < 10; i++) {
+        } else if (p_contract_type === 'DIGITUNDER') {
+            for (let i = barrier_num; i < 10; i++) {
                 target_digits.push(i);
             }
         }
@@ -37,14 +41,21 @@ self.onmessage = (event) => {
         const percentInSecondHalf = (countInSecondHalf / 25) * 100;
 
         // Trend of "bad" digits. Higher is worse.
-        const trend = Math.max(0, percentInSecondHalf - percentInFirstHalf);
+        const trend = percentInSecondHalf - percentInFirstHalf;
 
         const totalCount = recent_ticks.filter(t => target_digits.includes(t)).length;
         const totalPercent = (totalCount / 50) * 100;
 
         // Instability score: weighted sum of trend and total percentage of "bad" digits.
-        // A lower score is better (more stable).
-        const instability_score = (trend * 1.5) + totalPercent;
+        // For DIFFERS, we want the barrier digit to be extremely rare and not increasing.
+        let instability_score = (trend * 2.0) + totalPercent;
+
+        // Penalty for very recent appearance (last 5 ticks) if it's a DIFFERS strategy
+        if (p_contract_type === 'DIGITDIFF') {
+            const last5 = recent_ticks.slice(-5);
+            const last5Count = last5.filter(t => t === barrier_num).length;
+            instability_score += (last5Count * 10); // Heavy penalty for recent hits
+        }
 
         return instability_score;
     };

@@ -370,7 +370,7 @@ export default class OverUnderStore {
                                 const digits = data.history.prices.map((p: string | number) => Number(p).toFixed(pip_size).slice(-1)).map(Number);
                                 this.volatilityAnalyzer?.postMessage({
                                     ticks: digits,
-                                    contract_type: this.is_recovery_active ? this.recovery_contract_type : (this.is_manual_mode ? this.manual_contract_type : 'DIGITOVER'),
+                                    contract_type: this.is_recovery_active ? this.recovery_contract_type : (this.is_manual_mode ? this.manual_contract_type : (this.is_differs_mode ? 'DIGITDIFF' : 'DIGITOVER')),
                                     barrier: this.is_recovery_active ? this.recovery_barrier : (this.is_manual_mode ? this.manual_barrier : '5')
                                 });
                             }
@@ -459,15 +459,29 @@ export default class OverUnderStore {
 
     analyzeAndExecuteDiffers() {
         if (this.tick_history.length < 50 || this.is_purchasing) return;
+        
         const last5 = this.tick_history.slice(-5);
         const last50 = this.tick_history.slice(-50);
+        
+        // Frequency analysis over 50 ticks
         const stats50 = Array(10).fill(0);
         last50.forEach(d => stats50[d]++);
+        
+        // Filter digits that appeared in the last 5 ticks
         const appearedInLast5 = Array.from(new Set(last5));
-        const candidates = appearedInLast5.sort((a, b) => stats50[a] - stats50[b]);
+        
+        // Advanced Filter: 
+        // 1. Must have appeared in last 5 ticks
+        // 2. Must have a frequency < 12% over 50 ticks (statistically safe)
+        // 3. Must not be the very last digit (immediate repeat protection)
+        const candidates = appearedInLast5.filter(d => {
+            const freq = (stats50[d] / 50) * 100;
+            return freq < 12 && d !== this.last_digit;
+        }).sort((a, b) => stats50[a] - stats50[b]);
+
         if (candidates.length > 0) {
             const targetDigit = candidates[0];
-            this.addLog(`Differs Logic: Target Digit ${targetDigit} (Least appearing in 50 ticks & appeared in last 5)`);
+            this.addLog(`Differs Logic: Target Digit ${targetDigit} (Safe Freq: ${(stats50[targetDigit]/50*100).toFixed(1)}%)`);
             this.executeTrade('DIGITDIFF', String(targetDigit));
         }
     }
