@@ -460,28 +460,42 @@ export default class OverUnderStore {
     analyzeAndExecuteDiffers() {
         if (this.tick_history.length < 50 || this.is_purchasing) return;
         
-        const last5 = this.tick_history.slice(-5);
+        const last10 = this.tick_history.slice(-10);
         const last50 = this.tick_history.slice(-50);
         
-        // Frequency analysis over 50 ticks
-        const stats50 = Array(10).fill(0);
-        last50.forEach(d => stats50[d]++);
-        
-        // Filter digits that appeared in the last 5 ticks
-        const appearedInLast5 = Array.from(new Set(last5));
-        
-        // Advanced Filter: 
-        // 1. Must have appeared in last 5 ticks
-        // 2. Must have a frequency < 12% over 50 ticks (statistically safe)
-        // 3. Must not be the very last digit (immediate repeat protection)
-        const candidates = appearedInLast5.filter(d => {
-            const freq = (stats50[d] / 50) * 100;
-            return freq < 12 && d !== this.last_digit;
-        }).sort((a, b) => stats50[a] - stats50[b]);
+        // 1. Calculate frequency over 50 ticks to find 3 least appearing digits
+        const stats50 = Array(10).fill(0).map((_, i) => ({
+            digit: i,
+            count: last50.filter(d => d === i).length
+        }));
+
+        // Sort by count (ascending) and take top 3
+        const leastAppearing3 = stats50
+            .sort((a, b) => a.count - b.count)
+            .slice(0, 3)
+            .map(item => item.digit);
+
+        // 2. Trend analysis over last 10 ticks for these 3 candidates
+        // Percentage is not increasing means: count in last 5 ticks <= count in previous 5 ticks (within the 10 tick window)
+        const candidates = leastAppearing3.filter(d => {
+            const last5 = last10.slice(-5);
+            const prev5 = last10.slice(0, 5);
+            
+            const countLast5 = last5.filter(t => t === d).length;
+            const countPrev5 = prev5.filter(t => t === d).length;
+            
+            const hasRecentlyAppeared = last10.includes(d);
+            const isNotIncreasing = countLast5 <= countPrev5;
+
+            return hasRecentlyAppeared && isNotIncreasing;
+        });
 
         if (candidates.length > 0) {
-            const targetDigit = candidates[0];
-            this.addLog(`Differs Logic: Target Digit ${targetDigit} (Safe Freq: ${(stats50[targetDigit]/50*100).toFixed(1)}%)`);
+            // If multiple candidates, pick the one that is overall least frequent in 50 ticks
+            const targetDigit = candidates[0]; 
+            const freq = (stats50.find(s => s.digit === targetDigit)!.count / 50) * 100;
+            
+            this.addLog(`Differs Logic: Target Digit ${targetDigit} (3-Least List, Recently Seen, Trend Stable, Freq: ${freq.toFixed(1)}%)`);
             this.executeTrade('DIGITDIFF', String(targetDigit));
         }
     }
