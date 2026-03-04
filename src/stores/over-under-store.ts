@@ -60,6 +60,7 @@ export default class OverUnderStore {
     active_contracts: Set<string> = new Set();
     contract_results: Map<string, number> = new Map();
     active_subscription_id: string | null = null;
+    differs_barrier_digit: number | null = null;
 
     is_analyzing_volatility = false;
     analysis_queue: string[] = [];
@@ -103,6 +104,7 @@ export default class OverUnderStore {
             is_analyzing_volatility: observable,
             current_analyzing_symbol: observable,
             is_authorizing: observable,
+            differs_barrier_digit: observable,
             setStake: action.bound,
             setMartingale: action.bound,
             setIsVolatilityChanger: action.bound,
@@ -252,6 +254,7 @@ export default class OverUnderStore {
             this.contract_results.clear();
             this.is_purchasing = false;
             this.is_processing_round = false;
+            this.differs_barrier_digit = null;
         }
     }
 
@@ -460,44 +463,33 @@ export default class OverUnderStore {
     analyzeAndExecuteDiffers() {
         if (this.tick_history.length < 50 || this.is_purchasing) return;
         
-        const last10 = this.tick_history.slice(-10);
+        // If we already have a barrier digit set, check if it appears
+        if (this.differs_barrier_digit !== null) {
+            if (this.last_digit === this.differs_barrier_digit) {
+                this.addLog(`Barrier digit ${this.differs_barrier_digit} appeared! Firing trade immediately.`);
+                this.executeTrade('DIGITDIFF', String(this.differs_barrier_digit));
+                this.differs_barrier_digit = null; // Reset after trade
+            }
+            return;
+        }
+        
         const last50 = this.tick_history.slice(-50);
         
-        // 1. Calculate frequency over 50 ticks to find 3 least appearing digits
+        // 1. Calculate frequency over 50 ticks to find all digits
         const stats50 = Array(10).fill(0).map((_, i) => ({
             digit: i,
             count: last50.filter(d => d === i).length
         }));
 
-        // Sort by count (ascending) and take top 3
-        const leastAppearing3 = stats50
-            .sort((a, b) => a.count - b.count)
-            .slice(0, 3)
-            .map(item => item.digit);
-
-        // 2. Trend analysis over last 10 ticks for these 3 candidates
-        // Percentage is not increasing means: count in last 5 ticks <= count in previous 5 ticks (within the 10 tick window)
-        const candidates = leastAppearing3.filter(d => {
-            const last5 = last10.slice(-5);
-            const prev5 = last10.slice(0, 5);
-            
-            const countLast5 = last5.filter(t => t === d).length;
-            const countPrev5 = prev5.filter(t => t === d).length;
-            
-            const hasRecentlyAppeared = last10.includes(d);
-            const isNotIncreasing = countLast5 <= countPrev5;
-
-            return hasRecentlyAppeared && isNotIncreasing;
-        });
-
-        if (candidates.length > 0) {
-            // If multiple candidates, pick the one that is overall least frequent in 50 ticks
-            const targetDigit = candidates[0]; 
-            const freq = (stats50.find(s => s.digit === targetDigit)!.count / 50) * 100;
-            
-            this.addLog(`Differs Logic: Target Digit ${targetDigit} (3-Least List, Recently Seen, Trend Stable, Freq: ${freq.toFixed(1)}%)`);
-            this.executeTrade('DIGITDIFF', String(targetDigit));
-        }
+        // Sort by count (ascending) to find least frequent digits
+        const sortedByFrequency = stats50.sort((a, b) => a.count - b.count);
+        
+        // Get the second least frequent digit
+        const secondLeastFrequentDigit = sortedByFrequency.length > 1 ? sortedByFrequency[1].digit : sortedByFrequency[0].digit;
+        const freq = (sortedByFrequency[1].count / 50) * 100;
+        
+        this.differs_barrier_digit = secondLeastFrequentDigit;
+        this.addLog(`Differs Strategy: Found best volatility. Barrier digit set to ${secondLeastFrequentDigit} (2nd Least Frequent, Freq: ${freq.toFixed(1)}%). Waiting for digit to appear...`);
     }
 
     processRoundResults() {
@@ -512,6 +504,7 @@ export default class OverUnderStore {
                 this.addLog("Immediate recovery trade");
                 this.is_processing_round = false;
                 if (this.is_differs_mode) {
+                    this.differs_barrier_digit = null;
                     this.analyzeAndExecuteDiffers();
                 } else {
                     this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
@@ -523,6 +516,9 @@ export default class OverUnderStore {
             this.stake = this.initial_stake;
             this.addLog(`Resetting stake to ${this.initial_stake}`);
             this.setIsRecoveryActive(false);
+            if (this.is_differs_mode) {
+                this.differs_barrier_digit = null;
+            }
             if (this.is_volatility_changer) this.startVolatilityAnalysis();
         }
         this.contract_results.clear();
