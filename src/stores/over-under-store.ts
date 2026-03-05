@@ -471,64 +471,87 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteDiffers() {
-        if (this.tick_history.length < 25 || this.is_purchasing) return;
+        if (this.tick_history.length < 100 || this.is_purchasing) return;
         
-        // State machine for the new differs strategy:
-        // State 1: Waiting for hot digit to appear
-        // State 2: Hot digit appeared, waiting for 1 tick gap
-        // State 3: Gap tick received, check if it's NOT the hot digit, then trade on next tick
+        // New differs strategy with dual analysis windows:
+        // - 25 ticks for speed analysis
+        // - 100 ticks for stability analysis
+        // Filter: Find digits with frequency < 9% in 100-tick window
+        // Trigger: Wait for digit to appear, then wait 4 ticks without it appearing
         
-        // If we don't have a barrier digit set yet, find the hot digit from last 25 ticks
+        // If we don't have a barrier digit set yet, find the rare digit from last 100 ticks
         if (this.differs_barrier_digit === null) {
+            const last100 = this.tick_history.slice(-100);
             const last25 = this.tick_history.slice(-25);
             
-            // Calculate frequency over last 25 ticks
-            const stats = Array(10).fill(0).map((_, i) => ({
+            // Calculate frequency over last 100 ticks (stability window)
+            const stats100 = Array(10).fill(0).map((_, i) => ({
                 digit: i,
-                count: last25.filter(d => d === i).length
+                count: last100.filter(d => d === i).length,
+                frequency: (last100.filter(d => d === i).length / 100) * 100
             }));
             
-            // Find the most frequent digit (hot digit)
-            const sortedByFrequency = stats.sort((a, b) => b.count - a.count);
-            const hotDigit = sortedByFrequency[0].digit;
-            const hotDigitFreq = sortedByFrequency[0].count;
-            const hotDigitPercent = (hotDigitFreq / 25) * 100;
+            // Calculate frequency over last 25 ticks (speed window)
+            const stats25 = Array(10).fill(0).map((_, i) => ({
+                digit: i,
+                count: last25.filter(d => d === i).length,
+                frequency: (last25.filter(d => d === i).length / 25) * 100
+            }));
             
-            this.differs_barrier_digit = hotDigit;
-            // Store state: waiting for hot digit to appear
-            (this as any).differs_state = 'waiting_for_hot_digit';
-            this.addLog(`Differs Strategy: Hot digit identified as ${hotDigit} (${hotDigitPercent.toFixed(1)}% in last 25 ticks). Waiting for it to appear...`);
+            // Filter: Find digits with frequency below 9% in the 100-tick window
+            const rareDigits = stats100.filter(s => s.frequency < 9);
+            
+            if (rareDigits.length === 0) {
+                this.addLog(`Differs Strategy: No rare digits found (< 9% frequency in 100 ticks). Waiting...`);
+                return;
+            }
+            
+            // Among rare digits, select the one with lowest frequency in 100-tick window
+            const selectedDigit = rareDigits.reduce((min, curr) => curr.frequency < min.frequency ? curr : min);
+            const rareDigitValue = selectedDigit.digit;
+            const rareDigitFreq100 = selectedDigit.frequency;
+            const rareDigitFreq25 = stats25[rareDigitValue].frequency;
+            
+            this.differs_barrier_digit = rareDigitValue;
+            // Store state: waiting for rare digit to appear
+            (this as any).differs_state = 'waiting_for_digit_appearance';
+            (this as any).differs_gap_counter = 0;
+            this.addLog(`Differs Strategy: Rare digit identified as ${rareDigitValue} (${rareDigitFreq100.toFixed(1)}% in 100 ticks, ${rareDigitFreq25.toFixed(1)}% in 25 ticks). Waiting for appearance...`);
             return;
         }
         
-        const hotDigit = this.differs_barrier_digit;
-        const currentState = (this as any).differs_state || 'waiting_for_hot_digit';
+        const rareDigit = this.differs_barrier_digit;
+        const currentState = (this as any).differs_state || 'waiting_for_digit_appearance';
         
-        // State 1: Waiting for hot digit to appear
-        if (currentState === 'waiting_for_hot_digit') {
-            if (this.last_digit === hotDigit) {
-                this.addLog(`Hot digit ${hotDigit} appeared! Now waiting for 1 tick gap...`);
+        // State 1: Waiting for rare digit to appear
+        if (currentState === 'waiting_for_digit_appearance') {
+            if (this.last_digit === rareDigit) {
+                this.addLog(`Rare digit ${rareDigit} appeared! Now waiting for 4-tick gap...`);
                 (this as any).differs_state = 'waiting_for_gap';
+                (this as any).differs_gap_counter = 0;
             }
             return;
         }
         
-        // State 2: Hot digit appeared, waiting for 1 tick gap (next tick)
+        // State 2: Rare digit appeared, waiting for 4-tick gap
         if (currentState === 'waiting_for_gap') {
-            const gapDigit = this.last_digit;
+            (this as any).differs_gap_counter = ((this as any).differs_gap_counter || 0) + 1;
             
-            // Check if the gap tick is NOT the hot digit
-            if (gapDigit !== hotDigit) {
-                this.addLog(`Gap tick received: ${gapDigit} (not the hot digit ${hotDigit}). Executing DIFFERS trade with barrier ${hotDigit}...`);
-                const targetDigit = hotDigit;
+            // Check if the current tick is the rare digit
+            if (this.last_digit === rareDigit) {
+                // Rare digit appeared again, reset gap counter
+                this.addLog(`Rare digit ${rareDigit} appeared during gap. Resetting gap counter...`);
+                (this as any).differs_gap_counter = 0;
+                return;
+            }
+            
+            // Check if we've completed the 4-tick gap
+            if ((this as any).differs_gap_counter >= 4) {
+                this.addLog(`4-tick gap completed without rare digit ${rareDigit}. Executing DIFFERS trade with barrier ${rareDigit}...`);
                 this.differs_barrier_digit = null; // Reset for next cycle
-                (this as any).differs_state = 'waiting_for_hot_digit';
-                this.executeTrade('DIGITDIFF', String(targetDigit));
-            } else {
-                // Gap tick IS the hot digit, reset and wait for next hot digit appearance
-                this.addLog(`Gap tick was the hot digit ${hotDigit}. Resetting strategy...`);
-                this.differs_barrier_digit = null;
-                (this as any).differs_state = 'waiting_for_hot_digit';
+                (this as any).differs_state = 'waiting_for_digit_appearance';
+                (this as any).differs_gap_counter = 0;
+                this.executeTrade('DIGITDIFF', String(rareDigit));
             }
             return;
         }
