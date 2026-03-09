@@ -282,6 +282,14 @@ const RunPanel = observer(() => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const {
+        is_dialog_open,
+        dialog_options,
+        onOkButtonClick,
+        onCancelButtonClick,
+        onCloseDialog,
+    } = run_panel;
+
     const content = (
         <DrawerContent
             active_index={active_index}
@@ -344,6 +352,33 @@ const RunPanel = observer(() => {
                 is_statistics_info_modal_open={is_statistics_info_modal_open}
                 toggleStatisticsInfoModal={toggleStatisticsInfoModal}
             />
+            <Modal
+                className='confirmation-dialog'
+                title={dialog_options?.title || ''}
+                is_open={is_dialog_open}
+                toggleModal={onCloseDialog}
+                width={'440px'}
+            >
+                <Modal.Body>
+                    <Text as='p'>{dialog_options?.message || ''}</Text>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        secondary
+                        onClick={onCancelButtonClick || onCloseDialog}
+                        text={localize('Cancel')}
+                    />
+                    <Button
+                        primary
+                        onClick={() => {
+                            if (onOkButtonClick) {
+                                onOkButtonClick();
+                            }
+                        }}
+                        text={localize('Confirm')}
+                    />
+                </Modal.Footer>
+            </Modal>
         </>
     );
 });
