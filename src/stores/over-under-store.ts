@@ -483,7 +483,7 @@ export default class OverUnderStore {
     analyzeAndExecuteDiffers() {
         if (this.tick_history.length < 1000 || this.is_purchasing) return;
         
-        // Strategy: Look for the second least appearing number in the 1000 historical ticks
+        // Strategy: Look for the most appearing number in the 1000 historical ticks
         // Trigger: Wait for the digit to appear then execute the trade using the digit as a barrier.
         // Constraint: If the digit's percentage increases before trade execution, wait for it to appear again.
         
@@ -497,51 +497,51 @@ export default class OverUnderStore {
                 frequency: (last1000.filter(d => d === i).length / 1000) * 100
             }));
             
-            // Sort by count to find the second least appearing number
-            const sortedStats = [...stats1000].sort((a, b) => a.count - b.count);
-            const selectedDigit = sortedStats[1]; // Second least frequent
-            const rareDigitValue = selectedDigit.digit;
-            const rareDigitFreq1000 = selectedDigit.frequency;
+            // Sort by count to find the most appearing number
+            const sortedStats = [...stats1000].sort((a, b) => b.count - a.count);
+            const selectedDigit = sortedStats[0]; // Most frequent
+            const targetDigitValue = selectedDigit.digit;
+            const targetDigitFreq1000 = selectedDigit.frequency;
             
-            this.differs_barrier_digit = rareDigitValue;
-            // Store state: waiting for rare digit to appear
+            this.differs_barrier_digit = targetDigitValue;
+            // Store state: waiting for target digit to appear
             (this as any).differs_state = 'waiting_for_digit_appearance';
-            (this as any).differs_initial_percentage = rareDigitFreq1000; // Store initial percentage
-            this.addLog(`Differs: Digit ${rareDigitValue} (${rareDigitFreq1000.toFixed(1)}%) waiting...`);
+            (this as any).differs_initial_percentage = targetDigitFreq1000; // Store initial percentage
+            this.addLog(`Differs: Digit ${targetDigitValue} (${targetDigitFreq1000.toFixed(1)}%) waiting...`);
             return;
         }
         
-        const rareDigit = this.differs_barrier_digit;
+        const targetDigit = this.differs_barrier_digit;
         const currentState = (this as any).differs_state || 'waiting_for_digit_appearance';
         
         // State 1: Waiting for rare digit to appear
         if (currentState === 'waiting_for_digit_appearance') {
-            if (this.last_digit === rareDigit) {
+            if (this.last_digit === targetDigit) {
                 // Check if percentage has increased
                 const last1000 = this.tick_history.slice(-1000);
-                const currentCount = last1000.filter(d => d === rareDigit).length;
+                const currentCount = last1000.filter(d => d === targetDigit).length;
                 const currentPercentage = (currentCount / 1000) * 100;
                 const initialPercentage = (this as any).differs_initial_percentage;
                 
                 if (currentPercentage > initialPercentage + 0.1) {
                     // Percentage increased by more than 0.1%, wait for it to appear again
-                    this.addLog(`Differs: Digit ${rareDigit} appeared but % increased (${initialPercentage.toFixed(1)}% -> ${currentPercentage.toFixed(1)}%). Waiting again...`);
+                    this.addLog(`Differs: Digit ${targetDigit} appeared but % increased (${initialPercentage.toFixed(1)}% -> ${currentPercentage.toFixed(1)}%). Waiting again...`);
                     (this as any).differs_initial_percentage = currentPercentage; // Update threshold
                     return;
                 }
                 
                 // Percentage is constant or decreased, increment appearance counter
                 this.differs_digit_appearance_count++;
-                this.addLog(`Differs: Digit ${rareDigit} appeared (${this.differs_digit_appearance_count}/2 times)`);
+                this.addLog(`Differs: Digit ${targetDigit} appeared (${this.differs_digit_appearance_count}/2 times)`);
                 
                 if (this.differs_digit_appearance_count >= 2) {
                     // Digit appeared twice, execute trade
-                    this.addLog(`Differs: Digit ${rareDigit} appeared 2 times. Executing trade...`);
+                    this.addLog(`Differs: Digit ${targetDigit} appeared 2 times. Executing trade...`);
                     this.differs_barrier_digit = null; // Reset for next cycle
                     this.differs_digit_appearance_count = 0; // Reset counter
                     (this as any).differs_state = 'waiting_for_digit_appearance';
                     (this as any).differs_initial_percentage = null;
-                    this.executeTrade('DIGITDIFF', String(rareDigit));
+                    this.executeTrade('DIGITDIFF', String(targetDigit));
                 } else {
                     // Wait for the digit to appear again
                     (this as any).differs_state = 'waiting_for_second_appearance';
@@ -552,16 +552,16 @@ export default class OverUnderStore {
         
         // State 2: Waiting for second appearance
         if (currentState === 'waiting_for_second_appearance') {
-            if (this.last_digit === rareDigit) {
+            if (this.last_digit === targetDigit) {
                 // Check if percentage has increased
                 const last1000 = this.tick_history.slice(-1000);
-                const currentCount = last1000.filter(d => d === rareDigit).length;
+                const currentCount = last1000.filter(d => d === targetDigit).length;
                 const currentPercentage = (currentCount / 1000) * 100;
                 const initialPercentage = (this as any).differs_initial_percentage;
                 
                 if (currentPercentage > initialPercentage + 0.1) {
                     // Percentage increased by more than 0.1%, reset and wait again
-                    this.addLog(`Differs: Digit ${rareDigit} appeared again but % increased. Resetting...`);
+                    this.addLog(`Differs: Digit ${targetDigit} appeared again but % increased. Resetting...`);
                     this.differs_digit_appearance_count = 0;
                     (this as any).differs_state = 'waiting_for_digit_appearance';
                     (this as any).differs_initial_percentage = currentPercentage;
@@ -570,16 +570,16 @@ export default class OverUnderStore {
                 
                 // Percentage is constant or decreased, increment counter
                 this.differs_digit_appearance_count++;
-                this.addLog(`Differs: Digit ${rareDigit} appeared (${this.differs_digit_appearance_count}/2 times)`);
+                this.addLog(`Differs: Digit ${targetDigit} appeared (${this.differs_digit_appearance_count}/2 times)`);
                 
                 if (this.differs_digit_appearance_count >= 2) {
                     // Digit appeared twice, execute trade
-                    this.addLog(`Differs: Digit ${rareDigit} appeared 2 times. Executing trade...`);
+                    this.addLog(`Differs: Digit ${targetDigit} appeared 2 times. Executing trade...`);
                     this.differs_barrier_digit = null; // Reset for next cycle
                     this.differs_digit_appearance_count = 0; // Reset counter
                     (this as any).differs_state = 'waiting_for_digit_appearance';
                     (this as any).differs_initial_percentage = null;
-                    this.executeTrade('DIGITDIFF', String(rareDigit));
+                    this.executeTrade('DIGITDIFF', String(targetDigit));
                 }
             }
             return;
