@@ -1,4 +1,4 @@
-# Create Deriv V2
+# Create Deriv V22
 
 This template was generated using `create-deriv-v2`site
 
