@@ -16,11 +16,10 @@ export const TRADE_TYPE_INDEX: TTradeTypesItemsIndex = Object.freeze({
     // MULTIPLIERS: 2,
     ACCUMULATORS: 1,
     OPTIONS: 2,
-    OVER_UNDER: 3,
 });
 
 // export const TRADE_TYPES = [localize('All'), localize('Accumulators'), localize('Options'), localize('Multipliers')];
-export const TRADE_TYPES = [localize('All'), localize('Accumulators'), localize('Options'), localize('Over/Under')];
+export const TRADE_TYPES = [localize('All'), localize('Accumulators'), localize('Options')];
 
 export type TTStrategyTradeAssociation = {
     name: string;
@@ -115,11 +114,5 @@ export const STRATEGY_TRADE_ASSOCIATIONS: TStrategyTradeAssociations = [
         display_name: STRATEGIES().ACCUMULATORS_REVERSE_DALEMBERT_ON_STAT_RESET.label,
         id: 13,
         parent: [localize('Accumulators')],
-    },
-    {
-        name: 'MAKOTI_V3_RISE_FALL',
-        display_name: localize('Rise/Fall'),
-        id: 14,
-        parent: [localize('Over/Under')],
     },
 ];

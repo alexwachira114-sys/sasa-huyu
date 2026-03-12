@@ -32,6 +32,7 @@ const OverUnder = observer(() => {
         is_volatility_changer,
         is_differs_mode,
         is_2term_mode,
+        is_rise_fall_mode,
         is_automate,
         use_second_trigger,
         is_manual_mode,
@@ -54,6 +55,7 @@ const OverUnder = observer(() => {
         setIsVolatilityChanger,
         setIsDiffersMode,
         setIs2termMode,
+        setIsRiseFallMode,
         setIsAutomate,
         setUseSecondTrigger,
         setIsManualMode,
@@ -491,7 +493,17 @@ const OverUnder = observer(() => {
                                             <button
                                                 className={`modern-switch ${is_manual_mode ? 'active' : ''}`}
                                                 onClick={() => setIsManualMode(!is_manual_mode)}
-                                                disabled={is_auto_running || is_authorizing || is_differs_mode}
+                                                disabled={is_auto_running || is_authorizing || is_differs_mode || is_rise_fall_mode}
+                                            >
+                                                <div className='switch-handle' />
+                                            </button>
+                                        </div>
+                                        <div className='switch-item'>
+                                            <label>Rise/Fall</label>
+                                            <button
+                                                className={`modern-switch ${is_rise_fall_mode ? 'active' : ''}`}
+                                                onClick={() => setIsRiseFallMode(!is_rise_fall_mode)}
+                                                disabled={is_auto_running || is_authorizing || is_differs_mode || is_manual_mode}
                                             >
                                                 <div className='switch-handle' />
                                             </button>

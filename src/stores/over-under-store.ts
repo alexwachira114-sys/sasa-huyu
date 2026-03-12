@@ -63,7 +63,9 @@ export default class OverUnderStore {
     differs_barrier_digit: number | null = null;
     is_differs_recovery_mode = false;
     is_2term_mode = false;
+    is_rise_fall_mode = false;
     last_profit = 0;
+    private _tick_prices: number[] = [];
     total_loss_to_recover = 0;
     differs_digit_appearance_count = 0;
 
@@ -112,7 +114,9 @@ export default class OverUnderStore {
             differs_barrier_digit: observable,
             is_differs_recovery_mode: observable,
             is_2term_mode: observable,
+            is_rise_fall_mode: observable,
             setStake: action.bound,
+            setIsRiseFallMode: action.bound,
             setIs2termMode: action.bound,
             setMartingale: action.bound,
             setIsVolatilityChanger: action.bound,
@@ -239,6 +243,7 @@ export default class OverUnderStore {
     setIsVolatilityChanger(value: boolean) { this.is_volatility_changer = value; }
     setIsDiffersMode(value: boolean) { this.is_differs_mode = value; }
     setIs2termMode(value: boolean) { this.is_2term_mode = value; }
+    setIsRiseFallMode(value: boolean) { this.is_rise_fall_mode = value; }
     setIsAutomate(value: boolean) { this.is_automate = value; }
     setUseSecondTrigger(value: boolean) { this.use_second_trigger = value; }
     setIsManualMode(value: boolean) { this.is_manual_mode = value; }
@@ -380,6 +385,7 @@ export default class OverUnderStore {
                                 const prices = data.history.prices;
                                 const digits = prices.map((p: string | number) => Number(p).toFixed(pip_size).slice(-1)).map(Number);
                                 this.tick_history = digits;
+                                this._tick_prices = prices.map((p: string | number) => Number(p));
                                 if (digits.length > 0) this.last_digit = digits[digits.length - 1];
                                 this.addLog(`Loaded ${digits.length} historical ticks.`);
                             } else if (this.is_analyzing_volatility) {
@@ -440,8 +446,11 @@ export default class OverUnderStore {
                             this.last_last_digit = this.last_digit;
                             this.last_digit = digit;
                             this.tick_history = [...this.tick_history.slice(-MAX_TICKS + 1), digit];
+                            this._tick_prices = [...this._tick_prices.slice(-MAX_TICKS + 1), Number(data.tick.quote)];
                             if (this.is_auto_running && !this.is_analyzing_volatility && !this.is_purchasing && !this.is_processing_round && this.active_contracts.size === 0) {
-                                if (this.is_differs_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
+                                if (this.is_rise_fall_mode) {
+                                    this.analyzeAndExecuteRiseFall();
+                                } else if (this.is_differs_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
                                     this.analyzeAndExecuteDiffers();
                                 } else {
                                     // Recovery mode: non-differs should execute immediately
@@ -482,6 +491,71 @@ export default class OverUnderStore {
             };
             this.ws.onerror = (e) => this.addLog(`Connection Error: ${e.type}`);
         } catch (e) { this.addLog(`Connection failed to initialize: ${e.message}`); this.is_authorizing = false; }
+    }
+
+    calculateEMA(prices: number[], period: number): number[] {
+        if (prices.length < period) return [];
+        const k = 2 / (period + 1);
+        const result: number[] = [];
+        let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        result.push(ema);
+        for (let i = period; i < prices.length; i++) {
+            ema = prices[i] * k + ema * (1 - k);
+            result.push(ema);
+        }
+        return result;
+    }
+
+    analyzeAndExecuteRiseFall() {
+        if (this._tick_prices.length < 36 || this.is_purchasing) return;
+
+        const fast_ema = this.calculateEMA(this._tick_prices, 12);
+        const slow_ema = this.calculateEMA(this._tick_prices, 26);
+
+        const macd_length = slow_ema.length;
+        const fast_offset = fast_ema.length - macd_length;
+        const macd_line: number[] = [];
+        for (let i = 0; i < macd_length; i++) {
+            macd_line.push(fast_ema[fast_offset + i] - slow_ema[i]);
+        }
+
+        const signal_line = this.calculateEMA(macd_line, 9);
+        if (signal_line.length < 2) return;
+
+        const mc = macd_line[macd_line.length - 1];
+        const mp = macd_line[macd_line.length - 2];
+        const sc = signal_line[signal_line.length - 1];
+        const sp = signal_line[signal_line.length - 2];
+
+        if (mp < sp && mc > sc && mc < 0) {
+            this.addLog(`Rise/Fall: MACD crossed ABOVE signal (mc=${mc.toFixed(5)}). RISE!`);
+            this.executeRiseFallTrade('CALL');
+        } else if (mp > sp && mc < sc && mc > 0) {
+            this.addLog(`Rise/Fall: MACD crossed BELOW signal (mc=${mc.toFixed(5)}). FALL!`);
+            this.executeRiseFallTrade('PUT');
+        }
+    }
+
+    executeRiseFallTrade(contract_type: 'CALL' | 'PUT') {
+        if (this.is_purchasing) return;
+        const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        this.is_purchasing = true;
+        const tradeAmount = Number(this.stake);
+        this.addLog(`Rise/Fall Trade: ${contract_type === 'CALL' ? 'RISE' : 'FALL'} @ $${tradeAmount}`);
+        this.ws.send(JSON.stringify({
+            buy: 1,
+            price: tradeAmount,
+            parameters: {
+                amount: tradeAmount,
+                basis: 'stake',
+                currency: 'USD',
+                duration: 1,
+                duration_unit: 't',
+                symbol: this.selected_symbol,
+                contract_type,
+            },
+        }));
     }
 
     analyzeAndExecuteDiffers() {
@@ -596,6 +670,20 @@ export default class OverUnderStore {
         const all_loss = Array.from(this.contract_results.values()).every(p => p < 0);
         
         this.addLog(`Round finished. Profit: ${roundProfit.toFixed(2)}, All lost: ${all_loss}`);
+
+        if (this.is_rise_fall_mode) {
+            if (all_loss) {
+                this.stake = Number((this.stake * this.martingale).toFixed(2));
+                this.addLog(`Rise/Fall: Loss. Martingale stake: ${this.stake}`);
+            } else {
+                this.stake = this.initial_stake;
+                this.addLog(`Rise/Fall: Win. Stake reset to: ${this.stake}`);
+            }
+            this.contract_results.clear();
+            this.is_processing_round = false;
+            this.addLog('Rise/Fall: Monitoring MACD for next signal...');
+            return;
+        }
         
         if (all_loss) {
             // Update total loss to recover

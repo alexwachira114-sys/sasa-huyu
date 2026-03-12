@@ -74,7 +74,6 @@ const StrategyList = ({ selector_chip_value, search_value, is_searching, onSelec
     const options = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.OPTIONS]));
     const multiplier = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.MULTIPLIERS]));
     const accumulator = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.ACCUMULATORS]));
-    const over_under = result.filter(item => item.parent.includes(TRADE_TYPES[TRADE_TYPE_INDEX.OVER_UNDER]));
 
     const selected_chip_value = TRADE_TYPES[selector_chip_value];
 
@@ -82,7 +81,6 @@ const StrategyList = ({ selector_chip_value, search_value, is_searching, onSelec
         { type: localize('Accumulators'), items: accumulator },
         { type: localize('Options'), items: options },
         { type: localize('Multipliers'), items: multiplier },
-        { type: localize('Over/Under'), items: over_under },
     ];
 
     const should_render = (type: string) => selected_chip_value === localize('All') || selected_chip_value === type;

@@ -669,7 +669,7 @@ export const STRATEGIES = (): TStrategies => ({
     },
     MAKOTI_V3_RISE_FALL: {
         name: 'MAKOTIV3RISE_FALL',
-        label: localize('Rise/Fall'),
+        label: localize('MAKOTI V3 RISE FALL'),
         rs_strategy_name: 'MAKOTIV3RISE_FALL',
         description: MAKOTI_V3_RISE_FALL(),
         fields: [
