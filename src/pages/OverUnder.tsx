@@ -175,7 +175,7 @@ const OverUnder = observer(() => {
                                     <h3 className='ou-guide__sh blue'>Over 5 / Under 4</h3>
                                     <p>The bot waits until the live tick's last digit matches your <strong>Trigger Digit</strong>, then simultaneously places both an Over 5 and Under 4 contract.</p>
                                     <p><strong>2ND Trigger</strong> — Require two consecutive matching digits before firing (extra precision).</p>
-                                    <p><strong>Turbo Mode</strong> — Loops continuously, re-triggering after each settled round without pausing.</p>
+                                    <p><strong>Turbo Mode</strong> — Available for all strategies. When ON, the bot loops continuously, re-triggering the next trade immediately after each settled round without any pause.</p>
                                 </div>
                                 <div className='ou-guide__section'>
                                     <h3 className='ou-guide__sh purple'>Differs (Pushback)</h3>
@@ -340,15 +340,6 @@ const OverUnder = observer(() => {
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div className='ou-field ou-field--auto'>
-                                                <label>Turbo Mode</label>
-                                                <div className='ou-row ou-row--center'>
-                                                    <button className={`ou-toggle ${is_turbo ? 'on' : ''}`}
-                                                        onClick={() => setIsTurbo(!is_turbo)}
-                                                        disabled={is_auto_running || is_authorizing}><span /></button>
-                                                    <span className={`ou-toggle-label ${is_turbo ? 'on' : ''}`}>{is_turbo ? 'ON' : 'OFF'}</span>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -463,6 +454,15 @@ const OverUnder = observer(() => {
                                 <input className='ou-input' type='number' min='1' step='0.1' value={martingale}
                                     onChange={e => setMartingale(Number(e.target.value))}
                                     disabled={is_auto_running || is_authorizing} />
+                            </div>
+                            <div className='ou-field ou-field--auto'>
+                                <label>Turbo Mode</label>
+                                <div className='ou-row ou-row--center'>
+                                    <button className={`ou-toggle ${is_turbo ? 'on' : ''}`}
+                                        onClick={() => setIsTurbo(!is_turbo)}
+                                        disabled={is_auto_running || is_authorizing}><span /></button>
+                                    <span className={`ou-toggle-label ${is_turbo ? 'on' : ''}`}>{is_turbo ? 'ON' : 'OFF'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

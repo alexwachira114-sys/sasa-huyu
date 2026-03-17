@@ -22,31 +22,12 @@
         padding: 0;
     }
 
-    // Full-screen scrollable mode for custom full-page tools
+    // Scrollable tab content for custom full-page tools
     &[data-active-tab='over_under'],
     &[data-active-tab='makoti_magic'] {
-        overflow-y: auto;
-        overflow-x: hidden;
-        height: auto;
-        min-height: calc(100vh - 4rem);
-
-        .main__container {
-            height: auto;
-            min-height: 100%;
-            overflow: visible;
-        }
-
-        .dc-tabs {
-            height: auto;
-        }
-
         .dc-tabs__content {
-            height: auto !important;
-            overflow: visible !important;
-        }
-
-        @include mobile-or-tablet-screen {
-            min-height: calc(100vh - 3.5rem);
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
         }
     }
 
