@@ -19,7 +19,7 @@ $orange:    #f97316;
 
 @mixin row { display:flex; align-items:center; }
 @mixin label-style {
-    font-size: 0.68rem;
+    font-size: 0.76rem;
     font-weight: 700;
     letter-spacing: 0.7px;
     text-transform: uppercase;
@@ -37,7 +37,7 @@ $orange:    #f97316;
     background: $bg;
     color: $text;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 0.9rem;
+    font-size: 1rem;
     position: relative;
     width: 100%;
     box-sizing: border-box;
@@ -211,11 +211,11 @@ $orange:    #f97316;
     &.cold { border-color: rgba($red, 0.4); .ou-digit__num { color: $red; } }
 
     &__num {
-        font-size: 1.1rem;
+        font-size: 1.25rem;
         font-weight: 800;
         line-height: 1;
         color: $text;
-        @media (max-width: 450px) { font-size: 0.9rem; }
+        @media (max-width: 450px) { font-size: 1rem; }
     }
 
     &__bar {
@@ -236,10 +236,10 @@ $orange:    #f97316;
     }
 
     &__pct {
-        font-size: 0.65rem;
+        font-size: 0.75rem;
         font-weight: 700;
         color: $muted;
-        @media (max-width: 450px) { font-size: 0.6rem; }
+        @media (max-width: 450px) { font-size: 0.7rem; }
     }
 }
 
@@ -280,7 +280,7 @@ $orange:    #f97316;
             @include row;
             gap: 0.45rem;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.95rem;
             color: $text;
             svg { color: $muted; }
         }
@@ -291,7 +291,7 @@ $orange:    #f97316;
 .ou-status {
     @include row;
     gap: 0.4rem;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.4px;
     padding: 0.3rem 0.7rem;
@@ -407,7 +407,7 @@ $orange:    #f97316;
     border: 1px solid $border-hi;
     border-radius: 8px;
     color: $text;
-    font-size: 0.88rem;
+    font-size: 0.95rem;
     font-family: inherit;
     transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     appearance: none;
@@ -461,7 +461,7 @@ $orange:    #f97316;
     color: $muted;
     cursor: pointer;
     transition: all 0.2s;
-    font-size: 0.75rem;
+    font-size: 0.83rem;
     font-weight: 600;
     text-align: center;
 
@@ -475,7 +475,7 @@ $orange:    #f97316;
         transition: all 0.2s;
     }
 
-    &__label { font-size: 0.72rem; line-height: 1.2; }
+    &__label { font-size: 0.8rem; line-height: 1.2; }
 
     &:hover:not(:disabled) {
         border-color: rgba(255,255,255,0.18);
@@ -508,7 +508,7 @@ $orange:    #f97316;
     border-radius: 50px;
     background: rgba(255,255,255,0.03);
     border: 1px solid $border;
-    font-size: 0.75rem;
+    font-size: 0.83rem;
     color: $muted;
     margin-bottom: 0.85rem;
 
@@ -583,7 +583,7 @@ $orange:    #f97316;
     border: 1px solid $border-hi;
     background: rgba(255,255,255,0.04);
     color: $muted;
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.5px;
     cursor: pointer;
@@ -626,7 +626,7 @@ $orange:    #f97316;
 }
 
 .ou-toggle-label {
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: $muted;
     letter-spacing: 0.4px;
@@ -650,7 +650,7 @@ $orange:    #f97316;
     border: 1px solid var(--ac, $blue);
     background: rgba(var(--ac-raw, 59, 130, 246), 0.12);
     color: var(--ac, $blue);
-    font-size: 0.88rem;
+    font-size: 0.95rem;
     font-weight: 800;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -724,7 +724,7 @@ $orange:    #f97316;
     &__title {
         @include row;
         gap: 0.45rem;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         font-weight: 700;
         color: $muted;
     }
@@ -793,7 +793,7 @@ $orange:    #f97316;
 
     &__text {
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-        font-size: 0.76rem;
+        font-size: 0.84rem;
         line-height: 1.5;
         color: #7a90b8;
         word-break: break-all;

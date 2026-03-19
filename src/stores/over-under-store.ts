@@ -600,11 +600,36 @@ export default class OverUnderStore {
 
         if (surge_count >= 3) {
             const rejection_digit = this.last_digit;
+
+            // ── Restriction 1: digit must not exceed 10% in last 1000 ticks ──
+            const history = this.tick_history;
+            const totalTicks = history.length;
+            const digitCount = history.filter(d => d === rejection_digit).length;
+            const digitPct = totalTicks > 0 ? (digitCount / totalTicks) * 100 : 0;
+
+            if (digitPct > 10) {
+                this.addLog(
+                    `Differs: SKIP digit ${rejection_digit} — too frequent (${digitPct.toFixed(1)}% in ${totalTicks} ticks, limit 10%). Re-analyzing...`
+                );
+                return;
+            }
+
+            // ── Restriction 2: digit must not appear more than 3 times in last 10 ticks ──
+            const last10 = history.slice(-10);
+            const recentCount = last10.filter(d => d === rejection_digit).length;
+
+            if (recentCount > 3) {
+                this.addLog(
+                    `Differs: SKIP digit ${rejection_digit} — rapidly increasing (appeared ${recentCount}x in last 10 ticks, limit 3). Re-analyzing...`
+                );
+                return;
+            }
+
             this.differs_barrier_digit = rejection_digit;
 
             this.addLog(
                 `Differs: PATTERN! ${surge_count}x ${surge_direction} surge → ` +
-                `${curr_direction} reversal. Digit ${rejection_digit}. DIFFER!`
+                `${curr_direction} reversal. Digit ${rejection_digit} (${digitPct.toFixed(1)}%, ${recentCount}x recent). DIFFER!`
             );
 
             this.executeTrade('DIGITDIFF', String(rejection_digit));
