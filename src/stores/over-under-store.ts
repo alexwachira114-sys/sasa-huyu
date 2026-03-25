@@ -661,7 +661,7 @@ export default class OverUnderStore {
             }
         }
 
-        if (surge_count >= 3) {
+        if (surge_count >= 2) {
             const rejection_digit = this.last_digit;
             const history = this.tick_history.slice(-1000);
             const totalTicks = history.length;
@@ -718,7 +718,7 @@ export default class OverUnderStore {
 
             this.executeTrade('DIGITDIFF', String(rejection_digit));
         } else {
-            this.addLog(`Differs: Watching... ${surge_count}x ${surge_direction} (need 3+ consecutive)`);
+            this.addLog(`Differs: Watching... ${surge_count}x ${surge_direction} (need 2+ consecutive)`);
         }
     }
 
