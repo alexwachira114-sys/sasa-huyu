@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -28,7 +28,8 @@ import ChartModal from '../chart/chart-modal';
 import Dashboard from '../dashboard';
 import RunStrategy from '../dashboard/run-strategy';
 import OverUnder from '../OverUnder'; 
-import MakotiMagic from '../MakotiMagic'; // The new tool import
+import MakotiMagic from '../MakotiMagic';
+import MakotiMagicStore from '@/stores/makoti-magic-store';
 import './main.scss';
 
 const ChartWrapper = lazy(() => import('../chart/chart-wrapper'));
@@ -48,12 +49,14 @@ const AppWrapper = observer(() => {
         setActiveTab,
         setWebSocketState,
         setTourDialogVisibility,
+        setPendingFreeBot,
     } = dashboard;
     const { stopBot } = run_panel;
     const { is_open } = quick_strategy;
     const { clear } = summary_card;
     const { DASHBOARD } = DBOT_TABS;
     const init_render = React.useRef(true);
+    const pendingXmlRef = useRef<string | null>(null);
 
     const hash = [
         'dashboard',
@@ -72,6 +75,22 @@ const AppWrapper = observer(() => {
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        MakotiMagicStore.setBotLoadCallback((xmlContent: string) => {
+            pendingXmlRef.current = xmlContent;
+            const botBuilderIndex = 1;
+            setActiveTab(botBuilderIndex);
+            navigate(`#${hash[botBuilderIndex]}`);
+        });
+    }, [setActiveTab, navigate]);
+
+    useEffect(() => {
+        if (pendingXmlRef.current && active_tab === 1) {
+            setPendingFreeBot({ name: 'Makoti Magic Bot', xml: pendingXmlRef.current });
+            pendingXmlRef.current = null;
+        }
+    }, [active_tab, setPendingFreeBot]);
 
     const GetHashedValue = (tab: number) => {
         const tab_val = location.hash?.split('#')[1];

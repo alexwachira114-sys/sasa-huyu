@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'framer-motion';
-import { Zap, BarChart2, Cpu, RefreshCw } from 'lucide-react';
+import { Zap, BarChart2, Cpu, RefreshCw, TrendingUp, Play } from 'lucide-react';
 import MakotiMagicStore from '@/stores/makoti-magic-store';
 import './MakotiMagic.scss';
 
@@ -10,15 +10,18 @@ const MakotiMagic = observer(() => {
         connectWebSocket,
         setSelectedSymbol,
         runScan,
+        loadBot,
         last_digit,
         prediction,
         is_loading,
         selected_symbol,
         connection_status,
+        tick_history,
     } = MakotiMagicStore;
 
     useEffect(() => {
         connectWebSocket();
+        return () => MakotiMagicStore.dispose();
     }, []);
 
     const volatilityOptions = [
@@ -33,6 +36,15 @@ const MakotiMagic = observer(() => {
         { label: 'V 75 (1s)', value: '1HZ75V' },
         { label: 'V 100 (1s)', value: '1HZ100V' },
     ];
+
+    const getConfidenceColor = (confidence) => {
+        if (confidence >= 0.4) return '#2ecc71';
+        if (confidence >= 0.25) return '#f39c12';
+        return '#e74c3c';
+    };
+
+    const confidencePercent = prediction?.confidence ? (prediction.confidence * 100).toFixed(0) : '0';
+    const showLoadButton = prediction?.predictedDigit !== null && !is_loading;
 
     return (
         <div className='makoti-magic'>
@@ -80,12 +92,45 @@ const MakotiMagic = observer(() => {
                         </div>
                     </div>
 
+                    <div className='mm-tick-count'>
+                        <span className='mm-tick-count__label'>Ticks Collected</span>
+                        <span className='mm-tick-count__value'>{tick_history.length}</span>
+                    </div>
+
                     <div className='mm-prediction'>
                         <div className='mm-prediction__title'>Predicted Digit</div>
                         <div className='mm-prediction__digit'>
-                            {prediction && prediction.predictedDigit !== null ? prediction.predictedDigit : '-'}
+                            {prediction?.predictedDigit !== null ? prediction?.predictedDigit : '-'}
                         </div>
+                        {prediction?.predictedDigit !== null && (
+                            <div className='mm-prediction__meta'>
+                                <div className='mm-confidence'>
+                                    <TrendingUp size={12} />
+                                    <span style={{ color: getConfidenceColor(prediction.confidence) }}>
+                                        {confidencePercent}% confidence
+                                    </span>
+                                </div>
+                                <div className='mm-tick-range'>
+                                    Valid for {prediction?.tickRange} ticks
+                                </div>
+                            </div>
+                        )}
                     </div>
+
+                    {prediction?.rankedDigits && prediction.rankedDigits.length > 0 && (
+                        <div className='mm-rankings'>
+                            <div className='mm-rankings__title'>Top Predictions</div>
+                            <div className='mm-rankings__list'>
+                                {prediction.rankedDigits.slice(0, 5).map((item, idx) => (
+                                    <div key={item.digit} className={`mm-ranking-item ${idx === 0 ? 'mm-ranking-item--top' : ''}`}>
+                                        <span className='mm-ranking-item__rank'>#{idx + 1}</span>
+                                        <span className='mm-ranking-item__digit'>{item.digit}</span>
+                                        <span className='mm-ranking-item__score'>{(item.score * 100).toFixed(0)}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className='mm-cta-wrap'>
                         <motion.button className='mm-cta' onClick={runScan} disabled={is_loading}>
@@ -94,6 +139,19 @@ const MakotiMagic = observer(() => {
                             </span>
                             <span className='mm-cta__txt'>{is_loading ? 'SCANNING...' : 'SCAN'}</span>
                         </motion.button>
+                        
+                        {showLoadButton && (
+                            <motion.button 
+                                className='mm-load-btn' 
+                                onClick={loadBot}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <Play size={17} />
+                                <span>LOAD BOT</span>
+                            </motion.button>
+                        )}
                     </div>
                 </div>
             </div>

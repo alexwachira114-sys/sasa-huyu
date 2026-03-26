@@ -166,24 +166,117 @@
     }
 
     .mm-prediction {
-        margin: 24px 0;
+        margin: 16px 0;
         text-align: center;
 
         &__title {
-            font-size: 13px;
-            color: #aaa;
-            margin-bottom: 8px;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
         }
 
         &__digit {
-            font-size: 48px;
+            font-size: 56px;
             font-weight: 700;
             color: #ffcc00;
+            text-shadow: 0 0 20px rgba(255, 204, 0, 0.4);
+        }
+
+        &__meta {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 8px;
+            font-size: 11px;
+        }
+    }
+
+    .mm-confidence {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 600;
+    }
+
+    .mm-tick-range {
+        color: #888;
+    }
+
+    .mm-tick-count {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #333;
+        margin-bottom: 16px;
+
+        &__label {
+            font-size: 11px;
+            color: #888;
+        }
+
+        &__value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+    }
+
+    .mm-rankings {
+        margin: 16px 0;
+        padding: 12px;
+        background: #1a1a1a;
+        border-radius: 6px;
+
+        &__title {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        &__list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+    }
+
+    .mm-ranking-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: #242424;
+        font-size: 12px;
+
+        &--top {
+            background: linear-gradient(145deg, #2a2a2a, #333);
+            border: 1px solid #ffcc00;
+        }
+
+        &__rank {
+            color: #666;
+            width: 28px;
+            font-size: 10px;
+        }
+
+        &__digit {
+            font-weight: 700;
+            color: #fff;
+            flex: 1;
+        }
+
+        &__score {
+            color: #ffcc00;
+            font-weight: 600;
         }
     }
 
     .mm-cta-wrap {
         margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
     }
 
     .mm-cta {
@@ -206,6 +299,32 @@
             background: #444;
             color: #888;
             cursor: not-allowed;
+        }
+    }
+
+    .mm-load-btn {
+        background: linear-gradient(145deg, #2ecc71, #27ae60);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 12px 16px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+            background: linear-gradient(145deg, #27ae60, #229954);
+            transform: translateY(-1px);
+        }
+
+        &:active {
+            transform: translateY(0);
         }
     }
 
