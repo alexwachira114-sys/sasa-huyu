@@ -330,20 +330,39 @@ export default class TransactionsStore {
     }
 
     clear() {
-        const currentLoginId = this.core?.client?.loginid;
-        if (currentLoginId) {
-            const stored_transactions = getStoredItemsByKey(this.TRANSACTION_CACHE, {});
-            delete stored_transactions[currentLoginId];
-            setStoredItemsByKey(this.TRANSACTION_CACHE, stored_transactions);
+        try {
+            const currentLoginId = this.core?.client?.loginid;
             
-            if (isSpecialCRAccount(currentLoginId)) {
-                const demoAccountId = this.getDemoAccountId();
-                if (demoAccountId && stored_transactions[demoAccountId]) {
-                    delete stored_transactions[demoAccountId];
+            // Only try to clear from storage if we have a loginid
+            if (currentLoginId) {
+                try {
+                    const stored_transactions = getStoredItemsByKey(this.TRANSACTION_CACHE, {});
+                    delete stored_transactions[currentLoginId];
                     setStoredItemsByKey(this.TRANSACTION_CACHE, stored_transactions);
+                } catch (e) {
+                    console.error('[Transactions] Error clearing transaction storage:', e);
+                }
+                
+                try {
+                    if (isSpecialCRAccount(currentLoginId)) {
+                        const demoAccountId = this.getDemoAccountId();
+                        if (demoAccountId) {
+                            const stored_transactions = getStoredItemsByKey(this.TRANSACTION_CACHE, {});
+                            if (stored_transactions[demoAccountId]) {
+                                delete stored_transactions[demoAccountId];
+                                setStoredItemsByKey(this.TRANSACTION_CACHE, stored_transactions);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('[Transactions] Error clearing special CR transactions:', e);
                 }
             }
+        } catch (e) {
+            console.error('[Transactions] Error in clear method:', e);
         }
+        
+        // Clear in-memory state
         this.elements = {};
         this.recovered_completed_transactions = [];
         this.recovered_transactions = [];

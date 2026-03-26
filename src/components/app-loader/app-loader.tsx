@@ -1,207 +1,167 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './app-loader.scss';
-import AnimatedStatus from './AnimatedStatus';
 
 interface AppLoaderProps {
     onLoadingComplete: () => void;
     duration?: number;
 }
 
-const AppLoader: React.FC<AppLoaderProps> = ({ onLoadingComplete, duration = 6000 }) => {
-    const [isVisible, setIsVisible] = useState(true);
+const AppLoader: React.FC<AppLoaderProps> = ({ onLoadingComplete, duration = 5000 }) => {
     const [progress, setProgress] = useState(0);
-    const [crackEffects, setCrackEffects] = useState<Array<{ id: number; x: number; y: number; angle: number }>>([]);
-    const [flyingWords, setFlyingWords] = useState<Array<{ id: number; text: string; x: number; y: number; angle: number; delay: number }>>([]);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const crackAudioRef = useRef<HTMLAudioElement | null>(null);
-
-    const words = ['TRADING', 'MAKOTI', 'PRECISION', 'PROFIT', 'AUTOMATED', 'SIGNALS', 'BOTS', 'ANALYSIS', 'STRATEGY', 'SUCCESS'];
+    const [phase, setPhase] = useState<'intro' | 'loading' | 'complete'>('intro');
+    const [showCrack, setShowCrack] = useState(false);
+    const engineSoundRef = useRef<HTMLAudioElement | null>(null);
+    const crackSoundRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        // Initialize flying words from different directions
-        const newWords = words.map((word, i) => ({
-            id: i,
-            text: word,
-            x: Math.random() > 0.5 ? -200 - Math.random() * 100 : window.innerWidth + 200 + Math.random() * 100,
-            y: Math.random() * window.innerHeight,
-            angle: Math.random() * 30 - 15,
-            delay: i * 200 + Math.random() * 500,
-        }));
-        setFlyingWords(newWords);
-
-        // Generate crack effects
-        const cracks = Array.from({ length: 8 }, (_, i) => ({
-            id: i,
-            x: 40 + Math.random() * 20,
-            y: 40 + Math.random() * 20,
-            angle: Math.random() * 360,
-        }));
-        setCrackEffects(cracks);
-
-        // Try to load sounds (placeholder - would need actual audio files)
         try {
-            // @ts-ignore - audio would be loaded from public folder
-            audioRef.current = new Audio('/sounds/engine.mp3');
-            audioRef.current.volume = 0.3;
-            
-            // @ts-ignore
-            crackAudioRef.current = new Audio('/sounds/crack.mp3');
-            crackAudioRef.current.volume = 0.5;
+            engineSoundRef.current = new Audio('/sounds/engine.mp3');
+            engineSoundRef.current.volume = 0.4;
+            engineSoundRef.current.loop = true;
+            engineSoundRef.current.play().catch(() => {});
         } catch (e) {
-            console.log('Audio files not found, continuing without sound');
+            console.log('Engine sound not found');
         }
 
         return () => {
-            if (audioRef.current) {
-                audioRef.current.pause();
-            }
-            if (crackAudioRef.current) {
-                crackAudioRef.current.pause();
+            if (engineSoundRef.current) {
+                engineSoundRef.current.pause();
             }
         };
     }, []);
 
-    // Progress bar
     useEffect(() => {
+        const introTimer = setTimeout(() => {
+            setPhase('loading');
+        }, 800);
+
+        return () => clearTimeout(introTimer);
+    }, []);
+
+    useEffect(() => {
+        if (phase !== 'loading') return;
+
         const interval = setInterval(() => {
             setProgress(prev => {
                 if (prev >= 100) {
                     clearInterval(interval);
                     return 100;
                 }
-                return prev + 2;
+                return prev + 1;
             });
-        }, duration / 50);
+        }, duration / 100);
 
         return () => clearInterval(interval);
-    }, [duration]);
+    }, [phase, duration]);
 
-    // Complete loading
     useEffect(() => {
         if (progress >= 100) {
-            // Play crack sound
-            if (crackAudioRef.current) {
-                crackAudioRef.current.currentTime = 0;
-                crackAudioRef.current.play().catch(() => {});
+            setPhase('complete');
+            
+            if (engineSoundRef.current) {
+                engineSoundRef.current.pause();
             }
             
+            try {
+                crackSoundRef.current = new Audio('/sounds/glass_crack.mp3');
+                crackSoundRef.current.volume = 0.6;
+                crackSoundRef.current.play().catch(() => {});
+            } catch (e) {
+                console.log('Crack sound not found');
+            }
+
+            setShowCrack(true);
+
             setTimeout(() => {
-                if (audioRef.current) {
-                    audioRef.current.pause();
-                }
-                setIsVisible(false);
-                setTimeout(onLoadingComplete, 500);
-            }, 500);
+                onLoadingComplete();
+            }, 800);
         }
     }, [progress, onLoadingComplete]);
 
-    if (!isVisible) return null;
-
     return (
-        <div className='makoti-intro-loader'>
-            {/* Flying words background */}
-            <div className='flying-words-container'>
-                {flyingWords.map((word) => (
-                    <div
-                        key={word.id}
-                        className='flying-word'
-                        style={{
-                            '--start-x': `${word.x}px`,
-                            '--start-y': `${word.y}px`,
-                            '--angle': `${word.angle}deg`,
-                            '--delay': `${word.delay}ms`,
-                        } as React.CSSProperties}
-                    >
-                        {word.text}
+        <div className='makoti-loader'>
+            <div className='loader-bg'>
+                <div className='loader-grid' />
+                <div className='loader-glow loader-glow--1' />
+                <div className='loader-glow loader-glow--2' />
+            </div>
+
+            <div className={`loader-content ${phase === 'complete' ? 'loader-content--exit' : ''}`}>
+                <div className={`loader-logo ${phase !== 'intro' ? 'loader-logo--visible' : ''}`}>
+                    <div className='logo-ring'>
+                        <div className='logo-ring-inner' />
                     </div>
-                ))}
-            </div>
-
-            {/* Crack overlay effect */}
-            <div className='crack-overlay'>
-                {crackEffects.map((crack) => (
-                    <div
-                        key={crack.id}
-                        className='crack-line'
-                        style={{
-                            '--crack-x': `${crack.x}%`,
-                            '--crack-y': `${crack.y}%`,
-                            '--crack-angle': `${crack.angle}deg`,
-                        } as React.CSSProperties}
-                    />
-                ))}
-            </div>
-
-            {/* Main content */}
-            <div className='intro-content'>
-                <div className='intro-logo-container'>
-                    <div className='intro-logo'>
-                        <div className='logo-icon'>
-                            <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                                <path d='M13 3L4 14H12L11 21L20 10H12L13 3Z' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
-                            </svg>
-                        </div>
-                        <div className='logo-text'>
-                            <span className='logo-main'>MAKOTI</span>
-                            <span className='logo-sub'>TRADING</span>
-                        </div>
+                    <div className='logo-icon'>
+                        <svg viewBox='0 0 24 24' fill='none'>
+                            <path d='M13 3L4 14H12L11 21L20 10H12L13 3Z' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                        </svg>
                     </div>
                 </div>
 
-                <div className='intro-tagline'>
-                    <span className='tagline-word'>Automated</span>
-                    <span className='tagline-word'>Precision</span>
-                    <span className='tagline-word'>Trading</span>
-                    <span className='tagline-word'>System</span>
+                <div className={`loader-text ${phase !== 'intro' ? 'loader-text--visible' : ''}`}>
+                    <h1 className='loader-title'>MAKOTI</h1>
+                    <p className='loader-subtitle'>TRADING SYSTEM</p>
                 </div>
 
-                <div className='intro-features'>
-                    <div className='feature-item'>
+                <div className={`loader-features ${phase === 'loading' ? 'loader-features--visible' : ''}`}>
+                    <div className='feature'>
                         <span className='feature-icon'>⚡</span>
                         <span>AI Prediction</span>
                     </div>
-                    <div className='feature-item'>
+                    <div className='feature'>
                         <span className='feature-icon'>🎯</span>
                         <span>Smart Analysis</span>
                     </div>
-                    <div className='feature-item'>
+                    <div className='feature'>
                         <span className='feature-icon'>🚀</span>
                         <span>Auto Trading</span>
                     </div>
                 </div>
 
-                <div className='intro-progress'>
-                    <div className='progress-bar-container'>
-                        <div className='progress-bar-fill' style={{ width: `${progress}%` }}>
-                            <div className='progress-shine' />
+                <div className={`loader-progress ${phase === 'loading' ? 'loader-progress--visible' : ''}`}>
+                    <div className='progress-track'>
+                        <div className='progress-fill' style={{ width: `${progress}%` }}>
+                            <div className='progress-glow' />
                         </div>
                     </div>
-                    <div className='progress-text'>
-                        <span className='progress-percent'>{Math.round(progress)}%</span>
+                    <div className='progress-info'>
+                        <span className='progress-percent'>{progress}%</span>
                         <span className='progress-status'>
-                            {progress < 30 && 'Initializing systems...'}
-                            {progress >= 30 && progress < 60 && 'Loading prediction engine...'}
-                            {progress >= 60 && progress < 90 && 'Connecting to markets...'}
-                            {progress >= 90 && 'Almost ready...'}
+                            {progress < 25 && 'Initializing...'}
+                            {progress >= 25 && progress < 50 && 'Loading engine...'}
+                            {progress >= 50 && progress < 75 && 'Connecting...'}
+                            {progress >= 75 && progress < 100 && 'Almost ready...'}
+                            {progress === 100 && 'Complete!'}
                         </span>
                     </div>
                 </div>
             </div>
 
-            {/* Particles */}
-            <div className='particles-container'>
-                {Array.from({ length: 50 }).map((_, i) => (
+            {showCrack && (
+                <div className='crack-overlay'>
+                    <div className='crack-line crack-line--1' />
+                    <div className='crack-line crack-line--2' />
+                    <div className='crack-line crack-line--3' />
+                    <div className='crack-line crack-line--4' />
+                </div>
+            )}
+
+            <div className='loader-particles'>
+                {Array.from({ length: 30 }).map((_, i) => (
                     <div
                         key={i}
-                        className='particle'
+                        className='loader-particle'
                         style={{
-                            '--x': `${Math.random() * 100}%`,
-                            '--y': `${Math.random() * 100}%`,
-                            '--duration': `${2 + Math.random() * 3}s`,
-                            '--delay': `${Math.random() * 2}s`,
-                        } as React.CSSProperties}
+                            left: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 2}s`,
+                            animationDuration: `${2 + Math.random() * 2}s`,
+                        }}
                     />
                 ))}
+            </div>
+
+            <div className='loader-footer'>
+                <p>Powered by Deriv</p>
             </div>
         </div>
     );
