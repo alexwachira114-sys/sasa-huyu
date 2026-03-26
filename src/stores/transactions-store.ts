@@ -84,95 +84,128 @@ export default class TransactionsStore {
     }
 
     get transactions(): TTransaction[] {
-        const currentLoginId = this.core?.client?.loginid;
-        if (!currentLoginId) {
+        try {
+            const currentLoginId = this.core?.client?.loginid;
+            if (!currentLoginId) {
+                return [];
+            }
+
+            // Ensure elements is always an object
+            if (!this.elements || typeof this.elements !== 'object') {
+                this.elements = {};
+            }
+
+            const cached_transactions = getStoredItemsByUser(this.TRANSACTION_CACHE, currentLoginId, []) || [];
+            
+            // Ensure cached_transactions is always an array
+            const safeCachedTransactions = Array.isArray(cached_transactions) ? cached_transactions : [];
+            
+            if (!this.elements[currentLoginId] || !this.elements[currentLoginId].length) {
+                this.elements[currentLoginId] = safeCachedTransactions;
+            }
+
+            let currentAccountTransactions = this.elements[currentLoginId];
+            
+            // Ensure currentAccountTransactions is always an array
+            if (!Array.isArray(currentAccountTransactions)) {
+                currentAccountTransactions = [];
+                this.elements[currentLoginId] = [];
+            }
+
+            if (isSpecialCRAccount(currentLoginId)) {
+                const demoAccountId = this.getDemoAccountId();
+                if (demoAccountId) {
+                    if (!this.elements[demoAccountId] || !this.elements[demoAccountId].length) {
+                        const demoCached = getStoredItemsByUser(this.TRANSACTION_CACHE, demoAccountId, []) || [];
+                        this.elements[demoAccountId] = Array.isArray(demoCached) ? demoCached : [];
+                    }
+                    const demoTransactions = this.elements[demoAccountId] || [];
+                    const allTransactions = [...currentAccountTransactions];
+                    demoTransactions.forEach(demoTx => {
+                        if (demoTx && demoTx.type === transaction_elements.CONTRACT && typeof demoTx.data === 'object') {
+                            const demoBuyId = demoTx.data.transaction_ids?.buy;
+                            const exists = allTransactions.some(tx => {
+                                if (tx && tx.type === transaction_elements.CONTRACT && typeof tx.data === 'object') {
+                                    return tx.data.transaction_ids?.buy === demoBuyId;
+                                }
+                                return false;
+                            });
+                            if (!exists) {
+                                allTransactions.push(demoTx);
+                            }
+                        } else if (demoTx && demoTx.type === transaction_elements.DIVIDER) {
+                            const exists = allTransactions.some(tx => tx && tx.type === transaction_elements.DIVIDER && tx.data === demoTx.data);
+                            if (!exists) {
+                                allTransactions.push(demoTx);
+                            }
+                        }
+                    });
+                    const sorted = allTransactions.sort((a, b) => {
+                        if (a.type === transaction_elements.DIVIDER && b.type === transaction_elements.DIVIDER) {
+                            return 0;
+                        }
+                        if (a.type === transaction_elements.DIVIDER) return -1;
+                        if (b.type === transaction_elements.DIVIDER) return 1;
+                        const aData = a.data as TContractInfo;
+                        const bData = b.data as TContractInfo;
+                        const aDate = aData.date_start || 0;
+                        const bDate = bData.date_start || 0;
+                        return Number(bDate) - Number(aDate);
+                    });
+                    return sorted;
+                }
+            }
+            return currentAccountTransactions;
+        } catch (error) {
+            console.error('[Transactions] Error in transactions getter:', error);
             return [];
         }
-
-        const cached_transactions = getStoredItemsByUser(this.TRANSACTION_CACHE, currentLoginId, {});
-        if (!this.elements[currentLoginId] || !this.elements[currentLoginId].length) {
-            this.elements[currentLoginId] = cached_transactions;
-        }
-
-        const currentAccountTransactions = this.elements[currentLoginId] ?? [];
-
-        if (isSpecialCRAccount(currentLoginId)) {
-            const demoAccountId = this.getDemoAccountId();
-            if (demoAccountId) {
-                if (!this.elements[demoAccountId] || !this.elements[demoAccountId].length) {
-                    this.elements[demoAccountId] = getStoredItemsByUser(this.TRANSACTION_CACHE, demoAccountId, {});
-                }
-                const demoTransactions = this.elements[demoAccountId] ?? [];
-                const allTransactions = [...currentAccountTransactions];
-                demoTransactions.forEach(demoTx => {
-                    if (demoTx.type === transaction_elements.CONTRACT && typeof demoTx.data === 'object') {
-                        const demoBuyId = demoTx.data.transaction_ids?.buy;
-                        const exists = allTransactions.some(tx => {
-                            if (tx.type === transaction_elements.CONTRACT && typeof tx.data === 'object') {
-                                return tx.data.transaction_ids?.buy === demoBuyId;
-                            }
-                            return false;
-                        });
-                        if (!exists) {
-                            allTransactions.push(demoTx);
-                        }
-                    } else if (demoTx.type === transaction_elements.DIVIDER) {
-                        const exists = allTransactions.some(tx => tx.type === transaction_elements.DIVIDER && tx.data === demoTx.data);
-                        if (!exists) {
-                            allTransactions.push(demoTx);
-                        }
-                    }
-                });
-                const sorted = allTransactions.sort((a, b) => {
-                    if (a.type === transaction_elements.DIVIDER && b.type === transaction_elements.DIVIDER) {
-                        return 0;
-                    }
-                    if (a.type === transaction_elements.DIVIDER) return -1;
-                    if (b.type === transaction_elements.DIVIDER) return 1;
-                    const aData = a.data as TContractInfo;
-                    const bData = b.data as TContractInfo;
-                    const aDate = aData.date_start || 0;
-                    const bDate = bData.date_start || 0;
-                    return Number(bDate) - Number(aDate);
-                });
-                return sorted;
-            }
-        }
-        return currentAccountTransactions;
     }
 
     get statistics() {
-        let total_runs = 0;
-        const trxs = this.transactions.filter(
-            trx => trx.type === transaction_elements.CONTRACT && typeof trx.data === 'object'
-        );
-        const statistics = trxs.reduce(
-            (stats, { data }) => {
-                const { profit = 0, is_completed = false, buy_price = 0, payout, bid_price } = data as TContractInfo;
-                if (is_completed) {
-                    if (profit > 0) {
-                        stats.won_contracts += 1;
-                        stats.total_payout += payout ?? bid_price ?? 0;
-                    } else {
-                        stats.lost_contracts += 1;
+        try {
+            let total_runs = 0;
+            const trxs = (this.transactions || []).filter(
+                (trx: any) => trx && trx.type === transaction_elements.CONTRACT && typeof trx.data === 'object'
+            );
+            const statistics = trxs.reduce(
+                (stats: any, { data }: any) => {
+                    const { profit = 0, is_completed = false, buy_price = 0, payout, bid_price } = data as TContractInfo;
+                    if (is_completed) {
+                        if (profit > 0) {
+                            stats.won_contracts += 1;
+                            stats.total_payout += payout ?? bid_price ?? 0;
+                        } else {
+                            stats.lost_contracts += 1;
+                        }
+                        stats.total_profit += profit;
+                        stats.total_stake += buy_price;
+                        total_runs += 1;
                     }
-                    stats.total_profit += profit;
-                    stats.total_stake += buy_price;
-                    total_runs += 1;
+                    return stats;
+                },
+                {
+                    lost_contracts: 0,
+                    number_of_runs: 0,
+                    total_profit: 0,
+                    total_payout: 0,
+                    total_stake: 0,
+                    won_contracts: 0,
                 }
-                return stats;
-            },
-            {
+            );
+            statistics.number_of_runs = total_runs;
+            return statistics;
+        } catch (error) {
+            console.error('[Transactions] Error in statistics getter:', error);
+            return {
                 lost_contracts: 0,
                 number_of_runs: 0,
                 total_profit: 0,
                 total_payout: 0,
                 total_stake: 0,
                 won_contracts: 0,
-            }
-        );
-        statistics.number_of_runs = total_runs;
-        return statistics;
+            };
+        }
     }
 
     toggleTransactionDetailsModal = (is_open: boolean) => {
