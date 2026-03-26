@@ -22,6 +22,8 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     DTRADER: 7,
     TRADINGVIEW: 8,
     SPEEDBOT: 12,
+    MAKOTI_MAGIC: 10,
+    OVER_UNDER: 9,
     // Keep TUTORIAL as a non-active sentinel to avoid index mismatches in legacy checks
     TUTORIAL: 999,
     // Legacy tabs - kept for backward compatibility but redirect to TRADING_BOTS

@@ -78,19 +78,10 @@ const AppWrapper = observer(() => {
 
     useEffect(() => {
         MakotiMagicStore.setBotLoadCallback((xmlContent: string) => {
-            pendingXmlRef.current = xmlContent;
-            const botBuilderIndex = 1;
-            setActiveTab(botBuilderIndex);
-            navigate(`#${hash[botBuilderIndex]}`);
+            // Just load the bot without navigating
+            setPendingFreeBot({ name: 'Makoti Magic Bot', xml: xmlContent });
         });
-    }, [setActiveTab, navigate]);
-
-    useEffect(() => {
-        if (pendingXmlRef.current && active_tab === 1) {
-            setPendingFreeBot({ name: 'Makoti Magic Bot', xml: pendingXmlRef.current });
-            pendingXmlRef.current = null;
-        }
-    }, [active_tab, setPendingFreeBot]);
+    }, [setPendingFreeBot]);
 
     const GetHashedValue = (tab: number) => {
         const tab_val = location.hash?.split('#')[1];
