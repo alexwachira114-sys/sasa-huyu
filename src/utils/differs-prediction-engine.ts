@@ -506,9 +506,9 @@ export function predictNextDigits(history: number[]): PredictionResult {
     
     const recencySum = recencyBoost.reduce((a, b) => a + b, 0);
     if (recencySum > 0) {
-        recencyBoost = recencyBoost.map(v => v / recencySum);
+        const recencyNorm = recencyBoost.map(v => v / recencySum);
         final.forEach((score, digit) => {
-            final[digit] = score * 0.7 + recencyBoost[digit] * 0.3;
+            final[digit] = score * 0.7 + recencyNorm[digit] * 0.3;
         });
     }
 
