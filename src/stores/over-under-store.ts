@@ -907,8 +907,6 @@ export default class OverUnderStore {
             this.addLog(`DiffersV2: All non-predicted digits appearing too often (>${MAX_DIFFERS_FREQ}x). Skipping...`);
             return;
         }
-
-        const predictedDigit = prediction.rankedDigits[0].digit;
         
         runInAction(() => {
             this.differs_v2_predicted_digit = predictedDigit;
