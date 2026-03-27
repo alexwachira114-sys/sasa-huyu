@@ -849,11 +849,18 @@ export default class OverUnderStore {
         }
 
         const top9Digits = prediction.rankedDigits.slice(0, 9).map(d => d.digit);
+        const confidence = prediction.overallConfidence;
+        const CONFIDENCE_THRESHOLD = 0.55;
         
         runInAction(() => { 
             this.differs_predicted_top4 = top9Digits; 
         });
-        this.addLog(`DiffersV2: Predicting next tick - top 9: [${top9Digits.join(',')}]`);
+        this.addLog(`DiffersV2: Predicting next tick - top 9: [${top9Digits.join(',')}] Conf: ${(confidence * 100).toFixed(0)}%`);
+
+        if (confidence < CONFIDENCE_THRESHOLD) {
+            this.addLog(`DiffersV2: Low confidence (${(confidence * 100).toFixed(0)}% < ${CONFIDENCE_THRESHOLD * 100}%). Skipping, will re-analyze...`);
+            return;
+        }
 
         let differsDigit: number | null = null;
         
