@@ -399,6 +399,10 @@ export default class OverUnderStore {
             this.differs_v2_post_trade_ticks = 0;
             
             if (this.is_differs_v2_mode) {
+                runInAction(() => {
+                    this.differs_predicted_top4 = [];
+                    this.differs_v2_predicted_digit = null;
+                });
                 this.addLog("Tool started. Differs V2: Predicting & executing immediately...");
                 this.analyzeAndExecuteDiffersV2();
             } else {
@@ -781,8 +785,18 @@ export default class OverUnderStore {
 
         const autoSwitchOn = this.is_volatility_changer && this.is_analyzing_volatility;
         const hasPlacedTrade = this.differs_v2_predicted_digit !== null;
+        const inCooldown = hasPlacedTrade && !autoSwitchOn && this.differs_v2_post_trade_ticks < 7;
         
-        if (hasPlacedTrade && !autoSwitchOn && this.differs_v2_post_trade_ticks < 5) {
+        if (inCooldown) {
+            const predictionInput = this.tick_history.slice(-200);
+            const prediction = predictNextDigits(predictionInput);
+            
+            if (prediction.rankedDigits.length > 0) {
+                const top9Digits = prediction.rankedDigits.slice(0, 9).map(d => d.digit);
+                runInAction(() => { 
+                    this.differs_predicted_top4 = top9Digits; 
+                });
+            }
             return;
         }
 
@@ -799,7 +813,7 @@ export default class OverUnderStore {
         runInAction(() => { 
             this.differs_predicted_top4 = top9Digits; 
         });
-        this.addLog(`DiffersV2: Predicting top 9: [${top9Digits.join(',')}]`);
+        this.addLog(`DiffersV2: Predicting next tick - top 9: [${top9Digits.join(',')}]`);
 
         let differsDigit: number | null = null;
         
@@ -820,7 +834,7 @@ export default class OverUnderStore {
             this.differs_v2_post_trade_ticks = 0;
         });
 
-        this.addLog(`DiffersV2: PREDICTED [${top9Digits.join(',')}] → DIFFER on ${differsDigit}`);
+        this.addLog(`DiffersV2: Next tick prediction → DIFFER on ${differsDigit}`);
 
         this.executeTrade('DIGITDIFF', String(differsDigit));
     }
@@ -831,6 +845,14 @@ export default class OverUnderStore {
         const all_loss = Array.from(this.contract_results.values()).every(p => p < 0);
         
         this.addLog(`Round finished. Profit: ${roundProfit.toFixed(2)}, All lost: ${all_loss}`);
+
+        if (this.is_differs_v2_mode) {
+            runInAction(() => {
+                this.differs_predicted_top4 = [];
+                this.differs_v2_predicted_digit = null;
+            });
+            this.addLog(`DiffersV2: Prediction cleared, will re-predict after cooldown`);
+        }
 
         if (this.is_rise_fall_mode) {
             if (all_loss) {
