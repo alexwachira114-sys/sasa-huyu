@@ -959,7 +959,7 @@ export default class OverUnderStore {
                             this.differs_v2_5s_analysis_pending = false;
                             this.is_processing_round = false;
                         });
-                        this.addLog(`DiffersV2: Analysis complete. Predicting & executing...`);
+                        this.addLog(`DiffersV2: Starting prediction loop with confidence check...`);
                         this.analyzeAndExecuteDiffersV2();
                     }
                 }, 7000);
