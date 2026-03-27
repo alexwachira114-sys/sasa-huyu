@@ -6,7 +6,6 @@ To run the development server: next
 ###bash 1
 npm run dev
 ```
-
 To generate a build:
 ```bash
 npm run build
