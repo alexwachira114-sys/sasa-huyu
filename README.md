@@ -1,6 +1,7 @@
 # Create your Deriv V2
 
 This template was generated using  `create-deriv-v2`site.
+
 ## Getting started
 
 To run the development server: next
