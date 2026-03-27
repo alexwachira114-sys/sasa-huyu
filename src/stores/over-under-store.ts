@@ -896,8 +896,28 @@ export default class OverUnderStore {
             runInAction(() => {
                 this.differs_predicted_top4 = [];
                 this.differs_v2_predicted_digit = null;
+                this.differs_v2_analysis_ready = false;
+                this.differs_v2_5s_analysis_pending = true;
             });
-            this.addLog(`DiffersV2: Prediction cleared, will re-predict after cooldown`);
+            this.addLog(`DiffersV2: Trade settled. Re-analyzing (5s)...`);
+            
+            setTimeout(() => {
+                if (this.is_auto_running && this.is_differs_v2_mode && this.is_processing_round === false) {
+                    runInAction(() => {
+                        this.differs_v2_analysis_ready = true;
+                        this.differs_v2_5s_analysis_pending = false;
+                    });
+                    this.addLog(`DiffersV2: Analysis complete. Predicting & executing...`);
+                    this.analyzeAndExecuteDiffersV2();
+                }
+            }, 5000);
+            
+            this.contract_results.clear();
+            if (!this.is_turbo) {
+                this.setIsAutoRunning(false);
+                this.addLog('Turbo Mode is off. Stopping auto-run.');
+            }
+            return;
         }
 
         if (this.is_rise_fall_mode) {
