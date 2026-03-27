@@ -23,6 +23,26 @@ self.onmessage = (event) => {
     const calculateScore = (): number => {
         if (!ticks || ticks.length < 30) return Infinity;
 
+        // ── DIFFERS V2 ─────────────────────────────────────────────────────────────
+        // Find volatility that favors prediction engine - good pattern diversity
+        // Lower repetition rate = better for prediction engine to find patterns
+        if (strategy === 'differs_v2') {
+            const n = ticks.length;
+            let repeat_1 = 0;
+            let repeat_2 = 0;
+            let repeat_3 = 0;
+
+            for (let i = 1; i < n; i++) if (ticks[i] === ticks[i - 1]) repeat_1++;
+            for (let i = 2; i < n; i++) if (ticks[i] === ticks[i - 2]) repeat_2++;
+            for (let i = 3; i < n; i++) if (ticks[i] === ticks[i - 3]) repeat_3++;
+
+            const pct1 = (repeat_1 / (n - 1)) * 100;
+            const pct2 = (repeat_2 / (n - 2)) * 100;
+            const pct3 = (repeat_3 / (n - 3)) * 100;
+
+            return (pct1 * 2.5) + (pct2 * 2.0) + (pct3 * 1.5);
+        }
+
         // ── DIFFERS ──────────────────────────────────────────────────────────────
         // Find volatility where digits rarely repeat over the last 1000 ticks.
         // A lower repetition rate means better variety for a Differs contract.

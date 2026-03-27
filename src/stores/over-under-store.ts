@@ -51,6 +51,7 @@ export default class OverUnderStore {
     manual_contract_type = 'DIGITOVER';
     manual_barrier = '5';
     is_recovery_active = false;
+    is_recovery_enabled = false;
     recovery_contract_type = 'DIGITOVER';
     recovery_barrier = '5';
     use_recovery_delay = false;
@@ -109,6 +110,7 @@ export default class OverUnderStore {
             manual_contract_type: observable,
             manual_barrier: observable,
             is_recovery_active: observable,
+            is_recovery_enabled: observable,
             recovery_contract_type: observable,
             recovery_barrier: observable,
             use_recovery_delay: observable,
@@ -141,6 +143,7 @@ export default class OverUnderStore {
             setManualContractType: action.bound,
             setManualBarrier: action.bound,
             setIsRecoveryActive: action.bound,
+            setIsRecoveryEnabled: action.bound,
             setRecoveryContractType: action.bound,
             setRecoveryBarrier: action.bound,
             setUseRecoveryDelay: action.bound,
@@ -353,6 +356,7 @@ export default class OverUnderStore {
     setManualContractType(value: string) { this.manual_contract_type = value; }
     setManualBarrier(value: string) { this.manual_barrier = value; }
     setIsRecoveryActive(value: boolean) { this.is_recovery_active = value; }
+    setIsRecoveryEnabled(value: boolean) { this.is_recovery_enabled = value; }
     setRecoveryContractType(value: string) { this.recovery_contract_type = value; }
     setRecoveryBarrier(value: string) { this.recovery_barrier = value; }
     setUseRecoveryDelay(value: boolean) { this.use_recovery_delay = value; }
@@ -869,24 +873,31 @@ export default class OverUnderStore {
         }
         
         if (all_loss) {
-            // Update total loss to recover
-            this.total_loss_to_recover += Math.abs(roundProfit);
-            
-            // Martingale applies to current stake
-            this.stake = Number((this.stake * this.martingale).toFixed(2));
-            this.addLog(`Loss detected. Total to recover: ${this.total_loss_to_recover.toFixed(2)}. Martingale Stake: ${this.stake}`);
-            
-            this.setIsRecoveryActive(true);
-            if (this.is_differs_mode || this.is_differs_v2_mode) {
-                this.is_differs_recovery_mode = true;
-                this.differs_barrier_digit = null;
-                this.addLog(`Recovery: Waiting for trigger...`);
-            } else if (this.is_manual_mode) {
-                this.addLog(`Recovery: Executing...`);
-                this.executeTrade(this.manual_contract_type, this.manual_barrier);
+            if (this.is_recovery_enabled) {
+                this.total_loss_to_recover += Math.abs(roundProfit);
+                this.stake = Number((this.stake * this.martingale).toFixed(2));
+                this.addLog(`Loss detected. Total to recover: ${this.total_loss_to_recover.toFixed(2)}. Martingale Stake: ${this.stake}`);
+                this.setIsRecoveryActive(true);
+                
+                if (this.is_differs_mode || this.is_differs_v2_mode) {
+                    this.is_differs_recovery_mode = true;
+                    this.differs_barrier_digit = null;
+                    this.addLog(`Recovery: Waiting for trigger...`);
+                } else if (this.is_manual_mode) {
+                    this.addLog(`Recovery: Executing...`);
+                    this.executeTrade(this.manual_contract_type, this.manual_barrier);
+                } else {
+                    this.addLog(`Recovery: Executing...`);
+                    this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
+                }
             } else {
-                this.addLog(`Recovery: Executing...`);
-                this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
+                this.addLog(`Loss detected. Recovery disabled - continuing with strategy.`);
+                if (this.is_2term_mode) {
+                    const nextStake = Number((this.stake + roundProfit).toFixed(2));
+                    this.stake = nextStake;
+                    this.addLog(`2term Applied: New stake: ${this.stake}`);
+                }
+                if (this.is_volatility_changer && this.is_automate) this.startVolatilityAnalysis();
             }
         } else {
             if (this.is_recovery_active) {

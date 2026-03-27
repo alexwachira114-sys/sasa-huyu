@@ -40,14 +40,14 @@ const OverUnder = observer(() => {
         stake, martingale, is_volatility_changer,
         is_differs_mode, is_differs_v2_mode, is_2term_mode, is_rise_fall_mode, is_automate,
         use_second_trigger, is_manual_mode, manual_contract_type, manual_barrier,
-        recovery_contract_type, recovery_barrier, use_recovery_delay,
+        recovery_contract_type, recovery_barrier, use_recovery_delay, is_recovery_enabled,
         entry_digit, second_entry_digit, is_turbo, selected_symbol,
         debug_info, is_analyzing_volatility, is_authorizing,
         differs_predicted_top4,
         setStake, setMartingale, setIsVolatilityChanger,
         setIsDiffersMode, setIsDiffersV2Mode, setIs2termMode, setIsRiseFallMode, setIsAutomate,
         setUseSecondTrigger, setIsManualMode, setManualContractType, setManualBarrier,
-        setRecoveryContractType, setRecoveryBarrier, setUseRecoveryDelay,
+        setRecoveryContractType, setRecoveryBarrier, setUseRecoveryDelay, setIsRecoveryEnabled,
         setEntryDigit, setSecondEntryDigit, setIsTurbo, setSelectedSymbol,
         connectWebSocket, handleStartStop, clearDebug,
     } = over_under;
@@ -338,6 +338,28 @@ const OverUnder = observer(() => {
                                 </div>
                             )}
 
+                            {activeStrategy === 'differs_v2' && (
+                                <div className='ou-row-wrap'>
+                                    <div className='ou-row-label'><Activity size={11} /> Options</div>
+                                    <div className='ou-row-fields'>
+                                        <div className='ou-f'>
+                                            <span className='ou-fl'>2-Term Compound</span>
+                                            <div className='ou-sw-row'>
+                                                <Toggle on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#ec4899' />
+                                                <span className={`ou-sw-lbl${is_2term_mode ? ' on' : ''}`} style={is_2term_mode ? { color: '#ec4899' } : {}}>{is_2term_mode ? 'ON' : 'OFF'}</span>
+                                            </div>
+                                        </div>
+                                        <div className='ou-f'>
+                                            <span className='ou-fl'>Auto Cycle</span>
+                                            <div className='ou-sw-row'>
+                                                <Toggle on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#ec4899' />
+                                                <span className={`ou-sw-lbl${is_automate ? ' on' : ''}`} style={is_automate ? { color: '#ec4899' } : {}}>{is_automate ? 'ON' : 'OFF'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {activeStrategy === 'rise_fall' && (
                                 <div className='ou-row-wrap'>
                                     <div className='ou-row-label'><TrendingUp size={11} /> Options</div>
@@ -425,10 +447,17 @@ const OverUnder = observer(() => {
                                     exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
                                     style={{ overflow: 'hidden' }}>
                                     <div className='ou-row-fields' style={{ paddingTop: 10 }}>
+                                        <div className='ou-f'>
+                                            <span className='ou-fl'>Enable</span>
+                                            <div className='ou-sw-row'>
+                                                <Toggle on={is_recovery_enabled} onToggle={() => setIsRecoveryEnabled(!is_recovery_enabled)} disabled={disabled} color='#ef4444' />
+                                                <span className={`ou-sw-lbl${is_recovery_enabled ? ' on' : ''}`} style={is_recovery_enabled ? { color: '#ef4444' } : {}}>{is_recovery_enabled ? 'ON' : 'OFF'}</span>
+                                            </div>
+                                        </div>
                                         <div className='ou-f ou-f--grow'>
                                             <span className='ou-fl'>Type</span>
                                             <select className='ou-sel' value={recovery_contract_type}
-                                                onChange={e => setRecoveryContractType(e.target.value)} disabled={disabled}>
+                                                onChange={e => setRecoveryContractType(e.target.value)} disabled={disabled || !is_recovery_enabled}>
                                                 <option value='DIGITOVER'>Over</option>
                                                 <option value='DIGITUNDER'>Under</option>
                                                 <option value='DIGITDIFF'>Differs</option>
@@ -437,12 +466,12 @@ const OverUnder = observer(() => {
                                         <div className='ou-f'>
                                             <span className='ou-fl'>Barrier</span>
                                             <input className='ou-inp' type='number' min='0' max='9'
-                                                value={recovery_barrier} onChange={e => setRecoveryBarrier(e.target.value)} disabled={disabled} />
+                                                value={recovery_barrier} onChange={e => setRecoveryBarrier(e.target.value)} disabled={disabled || !is_recovery_enabled} />
                                         </div>
                                         <div className='ou-f'>
                                             <span className='ou-fl'>Trig. Wait</span>
                                             <div className='ou-sw-row'>
-                                                <Toggle on={use_recovery_delay} onToggle={() => setUseRecoveryDelay(!use_recovery_delay)} disabled={disabled} color='#ef4444' />
+                                                <Toggle on={use_recovery_delay} onToggle={() => setUseRecoveryDelay(!use_recovery_delay)} disabled={disabled || !is_recovery_enabled} color='#ef4444' />
                                                 <span className={`ou-sw-lbl${use_recovery_delay ? ' on' : ''}`} style={use_recovery_delay ? { color: '#ef4444' } : {}}>{use_recovery_delay ? 'ON' : 'OFF'}</span>
                                             </div>
                                         </div>
