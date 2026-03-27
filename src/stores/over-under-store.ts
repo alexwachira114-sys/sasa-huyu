@@ -971,40 +971,6 @@ export default class OverUnderStore {
             }
             return;
         }
-            } else {
-                this.stake = Number((this.stake * this.martingale).toFixed(2));
-                this.addLog(`DiffersV2: Loss! Martingale - New stake: ${this.stake}`);
-            }
-
-            this.contract_results.clear();
-            
-            this.addLog(`DiffersV2: Trade settled. Re-analyzing (7s)...`);
-            
-            setTimeout(() => {
-                if (this.is_auto_running && this.is_differs_v2_mode) {
-                    if (this.is_volatility_changer && this.is_automate) {
-                        this.addLog(`DiffersV2: Auto-switch enabled. Scanning volatility...`);
-                        this.startVolatilityAnalysis();
-                    } else {
-                        runInAction(() => {
-                            this.differs_v2_analysis_ready = true;
-                            this.differs_v2_5s_analysis_pending = false;
-                            this.is_processing_round = false;
-                        });
-                        this.addLog(`DiffersV2: Analysis complete. Predicting & executing...`);
-                        this.analyzeAndExecuteDiffersV2();
-                    }
-                }
-            }, 7000);
-
-            if (!this.is_turbo) {
-                this.setIsAutoRunning(false);
-                this.addLog('Turbo Mode is off. Stopping auto-run.');
-            } else {
-                this.addLog('DiffersV2: Waiting for next cycle...');
-            }
-            return;
-        }
 
         if (this.is_rise_fall_mode) {
             if (all_loss) {
