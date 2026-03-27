@@ -1,6 +1,6 @@
 # Create your Deriv V2
 This template was generated using `create-deriv-v2`site.
-2
+
 ## Getting started
 To run the development server: next
 ###bash 1
