@@ -827,11 +827,14 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteDiffersV2() {
-        if (this.tick_history.length < 20 || this.is_purchasing) return;
+        if (this.tick_history.length < 30 || this.is_purchasing) return;
 
-        const last15 = this.tick_history.slice(-15);
+        const LOOKBACK = 25;
+        const RECENT_CHECK = 6;
+        
+        const last25 = this.tick_history.slice(-LOOKBACK);
         const freqMap = Array(10).fill(0);
-        last15.forEach(d => { if (d >= 0 && d <= 9) freqMap[d]++; });
+        last25.forEach(d => { if (d >= 0 && d <= 9) freqMap[d]++; });
 
         let minCount = Math.min(...freqMap);
         
@@ -847,18 +850,28 @@ export default class OverUnderStore {
             return;
         }
 
+        const last6 = this.tick_history.slice(-RECENT_CHECK);
+        const recentDigits = new Set(last6);
+        
+        const validTriggers = triggerDigits.filter(d => !recentDigits.has(d));
+
+        if (validTriggers.length === 0) {
+            this.addLog(`DiffersV2: All least digits appeared recently. Waiting...`);
+            return;
+        }
+
         const lastTick = this.last_digit;
         
-        if (triggerDigits.includes(lastTick)) {
+        if (validTriggers.includes(lastTick)) {
             runInAction(() => {
                 this.differs_v2_predicted_digit = lastTick;
                 this.differs_predicted_top4 = triggerDigits;
             });
             
-            this.addLog(`DiffersV2: Trigger ${lastTick} appeared (least in last 15) → DIFFER on ${lastTick}`);
+            this.addLog(`DiffersV2: Trigger ${lastTick} (absent ${RECENT_CHECK}+ ticks) → DIFFER on ${lastTick}`);
             this.executeTrade('DIGITDIFF', String(lastTick));
         } else {
-            this.addLog(`DiffersV2: Waiting for trigger... Least: ${triggerDigits.join(',')}, Last: ${lastTick}`);
+            this.addLog(`DiffersV2: Waiting for trigger... Valid: ${validTriggers.join(',')}, Last: ${lastTick}`);
         }
     }
 
