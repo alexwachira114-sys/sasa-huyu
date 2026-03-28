@@ -998,6 +998,12 @@ export default class OverUnderStore {
                 this.is_processing_round = false;
             });
             this.contract_results.clear();
+
+            if (!this.is_turbo) {
+                this.setIsAutoRunning(false);
+                this.addLog('DiffersV2: Turbo Mode is off. Stopping auto-run.');
+                return;
+            }
             
             if (this.is_volatility_changer && this.is_automate) {
                 this.addLog(`DiffersV2: Auto-switch scanning...`);
