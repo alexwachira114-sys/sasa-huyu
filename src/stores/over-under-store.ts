@@ -825,87 +825,39 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteDiffersV2() {
-        if (this.tick_history.length < 5 || this.is_purchasing) return;
+        if (this.tick_history.length < 20 || this.is_purchasing) return;
 
-        const autoSwitchOn = this.is_volatility_changer && this.is_analyzing_volatility;
-        const hasPlacedTrade = this.differs_v2_predicted_digit !== null;
-        
-        if (hasPlacedTrade && this.differs_v2_5s_analysis_pending) {
-            return;
-        }
-        
-        if (hasPlacedTrade && !autoSwitchOn && this.differs_v2_post_trade_ticks < 7) {
-            return;
-        }
+        const last15 = this.tick_history.slice(-15);
+        const freqMap = Array(10).fill(0);
+        last15.forEach(d => { if (d >= 0 && d <= 9) freqMap[d]++; });
 
-        if (!this.differs_v2_analysis_ready && !this.differs_v2_5s_analysis_pending) {
-            return;
-        }
-
-        const predictionInput = this.tick_history.slice(-200);
-        const prediction = predictNextDigits(predictionInput);
+        let minCount = Math.min(...freqMap);
         
-        if (prediction.rankedDigits.length === 0) {
-            this.addLog(`DiffersV2: Insufficient data for prediction`);
-            return;
-        }
-
-        const rankedDigits = prediction.rankedDigits;
-        const confidence = prediction.overallConfidence;
-        const CONFIDENCE_THRESHOLD = 0.60;
-        const MAX_WAIT_MS = 20000;
-        
-        const now = Date.now();
-        const hasBeenWaiting = this.differs_v2_confidence_wait_start !== null;
-        const waitTime = hasBeenWaiting ? now - (this.differs_v2_confidence_wait_start || 0) : 0;
-        const forceExecute = hasBeenWaiting && waitTime >= MAX_WAIT_MS;
-        
-        const leastLikelyDigit = rankedDigits[rankedDigits.length - 1].digit;
-        const topDigits = rankedDigits.slice(0, 4).map(d => d.digit);
-        
-        runInAction(() => { 
-            this.differs_predicted_top4 = topDigits; 
-        });
-        this.addLog(`DiffersV2: Analysis - least likely: ${leastLikelyDigit}, Conf: ${(confidence * 100).toFixed(0)}%`);
-
-        if (confidence < CONFIDENCE_THRESHOLD && !forceExecute) {
-            if (!hasBeenWaiting) {
-                runInAction(() => {
-                    this.differs_v2_confidence_wait_start = now;
-                });
-                this.addLog(`DiffersV2: Low confidence (${(confidence * 100).toFixed(0)}% < 60%). Waiting...`);
-            } else {
-                this.addLog(`DiffersV2: Low confidence (${(waitTime/1000).toFixed(0)}s/${MAX_WAIT_MS/1000}s). Still analyzing...`);
+        const triggerDigits: number[] = [];
+        for (let d = 0; d <= 9; d++) {
+            if (freqMap[d] === minCount) {
+                triggerDigits.push(d);
             }
+        }
+
+        if (triggerDigits.length === 0) {
+            this.addLog(`DiffersV2: No trigger digit found`);
             return;
         }
 
-        if (hasBeenWaiting) {
-            this.addLog(`DiffersV2: Confidence OK or timeout. Executing...`);
-            runInAction(() => {
-                this.differs_v2_confidence_wait_start = null;
-            });
-        }
-
-        const last50 = this.tick_history.slice(-50);
-        const ticksAgo = last50.lastIndexOf(leastLikelyDigit) === -1 ? 50 : last50.length - last50.lastIndexOf(leastLikelyDigit);
+        const lastTick = this.last_digit;
         
-        if (ticksAgo < 10) {
-            this.addLog(`DiffersV2: Least likely digit ${leastLikelyDigit} appeared recently (${ticksAgo} ticks ago). Skipping...`);
-            return;
+        if (triggerDigits.includes(lastTick)) {
+            runInAction(() => {
+                this.differs_v2_predicted_digit = lastTick;
+                this.differs_predicted_top4 = triggerDigits;
+            });
+            
+            this.addLog(`DiffersV2: Trigger ${lastTick} appeared (least in last 15) → DIFFER on ${lastTick}`);
+            this.executeTrade('DIGITDIFF', String(lastTick));
+        } else {
+            this.addLog(`DiffersV2: Waiting for trigger... Least: ${triggerDigits.join(',')}, Last: ${lastTick}`);
         }
-
-        runInAction(() => {
-            this.differs_v2_predicted_digit = leastLikelyDigit;
-            this.differs_v2_post_trade_ticks = 0;
-            this.differs_v2_analysis_ready = false;
-            this.differs_v2_5s_analysis_pending = true;
-            this.differs_v2_confidence_wait_start = null;
-        });
-
-        this.addLog(`DiffersV2: ${leastLikelyDigit} least likely (absent ${ticksAgo} ticks) → DIFFER on ${leastLikelyDigit}`);
-
-        this.executeTrade('DIGITDIFF', String(leastLikelyDigit));
     }
 
     processRoundResults() {
@@ -918,53 +870,32 @@ export default class OverUnderStore {
         if (this.is_differs_v2_mode) {
             const wasWin = !all_loss;
             
-            runInAction(() => {
-                this.differs_predicted_top4 = [];
-                this.differs_v2_predicted_digit = null;
-                this.differs_v2_analysis_ready = false;
-                this.differs_v2_5s_analysis_pending = false;
-                this.differs_v2_post_trade_ticks = 0;
-                this.is_processing_round = false;
-            });
-
             if (wasWin) {
                 if (this.is_2term_mode) {
                     const nextStake = Number((this.stake + roundProfit).toFixed(2));
                     this.stake = nextStake;
-                    this.addLog(`DiffersV2: Win! 2-term ON - Stake increased to ${this.stake}`);
+                    this.addLog(`DiffersV2: Win! 2-term ON - Stake: ${this.stake}`);
                 } else {
                     this.stake = this.initial_stake;
-                    this.addLog(`DiffersV2: Win! Stake reset to ${this.stake}`);
+                    this.addLog(`DiffersV2: Win! Stake reset: ${this.stake}`);
                 }
             } else {
                 this.stake = Number((this.stake * this.martingale).toFixed(2));
-                this.addLog(`DiffersV2: Loss! Martingale - New stake: ${this.stake}`);
+                this.addLog(`DiffersV2: Loss! Martingale - Stake: ${this.stake}`);
             }
 
+            runInAction(() => {
+                this.differs_predicted_top4 = [];
+                this.differs_v2_predicted_digit = null;
+                this.is_processing_round = false;
+            });
             this.contract_results.clear();
             
             if (this.is_volatility_changer && this.is_automate) {
-                this.addLog(`DiffersV2: Trade settled. Auto-switch enabled. Scanning volatility (7s)...`);
+                this.addLog(`DiffersV2: Auto-switch scanning...`);
                 this.startVolatilityAnalysis();
             } else {
-                this.addLog(`DiffersV2: Trade settled. Re-analyzing (7s)...`);
-                
-                setTimeout(() => {
-                    if (this.is_auto_running && this.is_differs_v2_mode) {
-                        runInAction(() => {
-                            this.differs_v2_analysis_ready = true;
-                            this.differs_v2_5s_analysis_pending = false;
-                            this.is_processing_round = false;
-                        });
-                        this.addLog(`DiffersV2: Starting prediction loop with confidence check...`);
-                        this.analyzeAndExecuteDiffersV2();
-                    }
-                }, 7000);
-            }
-
-            if (!this.is_turbo) {
-                this.setIsAutoRunning(false);
-                this.addLog('Turbo Mode is off. Stopping auto-run.');
+                this.addLog(`DiffersV2: Looking for next trigger...`);
             }
             return;
         }
