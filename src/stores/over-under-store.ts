@@ -827,51 +827,22 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteDiffersV2() {
-        if (this.tick_history.length < 30 || this.is_purchasing) return;
+        if (this.tick_history.length < 5 || this.is_purchasing) return;
 
-        const LOOKBACK = 25;
-        const RECENT_CHECK = 6;
-        
-        const last25 = this.tick_history.slice(-LOOKBACK);
-        const freqMap = Array(10).fill(0);
-        last25.forEach(d => { if (d >= 0 && d <= 9) freqMap[d]++; });
-
-        let minCount = Math.min(...freqMap);
-        
-        const triggerDigits: number[] = [];
-        for (let d = 0; d <= 9; d++) {
-            if (freqMap[d] === minCount) {
-                triggerDigits.push(d);
-            }
-        }
-
-        if (triggerDigits.length === 0) {
-            this.addLog(`DiffersV2: No trigger digit found`);
-            return;
-        }
-
-        const last6 = this.tick_history.slice(-RECENT_CHECK);
-        const recentDigits = new Set(last6);
-        
-        const validTriggers = triggerDigits.filter(d => !recentDigits.has(d));
-
-        if (validTriggers.length === 0) {
-            this.addLog(`DiffersV2: All least digits appeared recently. Waiting...`);
-            return;
-        }
-
+        const history = this.tick_history;
         const lastTick = this.last_digit;
+        const secondLastTick = history[history.length - 2];
         
-        if (validTriggers.includes(lastTick)) {
+        if (lastTick === secondLastTick) {
             runInAction(() => {
                 this.differs_v2_predicted_digit = lastTick;
-                this.differs_predicted_top4 = triggerDigits;
+                this.differs_predicted_top4 = [lastTick];
             });
             
-            this.addLog(`DiffersV2: Trigger ${lastTick} (absent ${RECENT_CHECK}+ ticks) → DIFFER on ${lastTick}`);
+            this.addLog(`DiffersV2: ${lastTick},${lastTick} detected → DIFFER on ${lastTick}`);
             this.executeTrade('DIGITDIFF', String(lastTick));
         } else {
-            this.addLog(`DiffersV2: Waiting for trigger... Valid: ${validTriggers.join(',')}, Last: ${lastTick}`);
+            this.addLog(`DiffersV2: Waiting for double... Last: ${secondLastTick},${lastTick}`);
         }
     }
 
