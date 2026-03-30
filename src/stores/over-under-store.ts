@@ -1,4 +1,4 @@
-
+'''
 import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { TStores } from '@/types/stores.types';
 import RootStore from './root-store';
@@ -93,6 +93,7 @@ export default class OverUnderStore {
 
     private is_purchasing = false;
     private is_processing_round = false;
+    is_awaiting_immediate_recovery = false;
 
     private _boundAuthHandler: (event: MessageEvent) => void;
     private _loginReaction: () => void;
@@ -148,6 +149,7 @@ export default class OverUnderStore {
             differs_v2_analysis_ready: observable,
             differs_v2_5s_analysis_pending: observable,
             differs_v2_confidence_wait_start: observable,
+            is_awaiting_immediate_recovery: observable,
             setStake: action.bound,
             setIsRiseFallMode: action.bound,
             setIs2termMode: action.bound,
@@ -654,6 +656,18 @@ export default class OverUnderStore {
                             const quote_str = tick.quote.toFixed(pip_size);
                             const digit = parseInt(quote_str.slice(-1), 10);
 
+                            if (this.is_awaiting_immediate_recovery && this.is_auto_running && !this.is_purchasing) {
+                                this.is_awaiting_immediate_recovery = false; // Consume flag
+                                this.addLog(`Executing Tatu Bora immediate recovery trade.`);
+                                if (this.differs_v2_predicted_digit !== null) {
+                                    this.executeTrade('DIGITDIFF', String(this.differs_v2_predicted_digit));
+                                    this.is_processing_round = false; 
+                                } else {
+                                    this.addLog('Error: Cannot execute Tatu Bora recovery, predicted digit is lost.');
+                                    this.is_processing_round = false;
+                                }
+                            }
+
                             if (this.is_all_vol_mode) {
                                 // Defensive check to prevent crash on unexpected tick
                                 if (!this.symbol_data[symbol]) {
@@ -1002,9 +1016,22 @@ export default class OverUnderStore {
         this.addLog(`Round finished. Profit: ${roundProfit.toFixed(2)}, All lost: ${all_loss}`);
 
         if (this.is_differs_v2_mode) {
-            const wasWin = !all_loss;
-            
-            if (wasWin) {
+            if (all_loss) {
+                this.total_loss_to_recover += Math.abs(roundProfit);
+                if (this.is_tatu_bora_mode) {
+                    const new_stake = (this.total_loss_to_recover / 8.5) + 0.01;
+                    this.stake = Math.max(0.35, parseFloat(new_stake.toFixed(2)));
+                    this.addLog(`Tatu Bora: Engaging instant recovery. New stake: ${this.stake}`);
+                    this.is_awaiting_immediate_recovery = true;
+                } else {
+                    this.stake = Number((this.stake * this.martingale).toFixed(2));
+                    this.addLog(`DiffersV2: Loss! Martingale - Stake: ${this.stake}`);
+                }
+            } else { // Win
+                if (this.total_loss_to_recover > 0) {
+                    this.addLog(`Tatu Bora: Recovery successful! Cleared ${this.total_loss_to_recover.toFixed(2)} loss.`);
+                    this.total_loss_to_recover = 0;
+                }
                 if (this.is_2term_mode) {
                     const nextStake = Number((this.stake + roundProfit).toFixed(2));
                     this.stake = nextStake;
@@ -1013,28 +1040,26 @@ export default class OverUnderStore {
                     this.stake = this.initial_stake;
                     this.addLog(`DiffersV2: Win! Stake reset: ${this.stake}`);
                 }
-            } else {
-                this.stake = Number((this.stake * this.martingale).toFixed(2));
-                this.addLog(`DiffersV2: Loss! Martingale - Stake: ${this.stake}`);
             }
 
             runInAction(() => {
                 this.differs_predicted_top4 = [];
                 this.differs_v2_predicted_digit = null;
-                this.is_processing_round = false;
+                if (!this.is_awaiting_immediate_recovery) {
+                    this.is_processing_round = false;
+                }
             });
             this.contract_results.clear();
 
-            if (!this.is_turbo) {
+            if (!this.is_turbo && !this.is_awaiting_immediate_recovery) {
                 this.setIsAutoRunning(false);
                 this.addLog('DiffersV2: Turbo Mode is off. Stopping auto-run.');
                 return;
             }
             
             if (this.is_volatility_changer && this.is_automate) {
-                this.addLog(`DiffersV2: Auto-switch scanning...`);
                 this.startVolatilityAnalysis();
-            } else {
+            } else if (!this.is_awaiting_immediate_recovery) {
                 this.addLog(`DiffersV2: Looking for next trigger...`);
             }
             return;
@@ -1156,3 +1181,4 @@ export default class OverUnderStore {
         this.volatilityAnalyzer?.terminate();
     }
 }
+''
