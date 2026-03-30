@@ -91,7 +91,7 @@ export default class OverUnderStore {
 
     symbol_data: { [key: string]: { tick_history: number[], last_digit: number | null, last_last_digit: number | null, _tick_prices: number[] } } = {};
 
-    private is_purchasing = false;
+    private symbol_locks: { [key: string]: boolean } = {};
     private is_processing_round = false;
     
     // Tatu Bora Recovery State
@@ -345,12 +345,12 @@ export default class OverUnderStore {
     }
 
     // ── Safety timeouts ── prevent flags getting permanently stuck ────────
-    private _armPurchaseTimeout() {
-        if (this._purchaseTimeout) clearTimeout(this._purchaseTimeout);
+    private _armPurchaseTimeout(symbol: string) {
+        this._clearPurchaseTimeout();
         this._purchaseTimeout = setTimeout(() => {
-            if (this.is_purchasing) {
-                this.addLog('⚠️ Purchase timeout — resetting purchase lock.');
-                this.is_purchasing = false;
+            if (this.symbol_locks[symbol]) {
+                this.addLog(`⚠️ Purchase timeout on ${symbol} — resetting lock.`);
+                this.symbol_locks[symbol] = false;
             }
         }, this.PURCHASE_TIMEOUT_MS);
     }
@@ -426,7 +426,7 @@ export default class OverUnderStore {
         if (is_running) {
             this.active_contracts.clear();
             this.contract_results.clear();
-            this.is_purchasing = false;
+            this.symbol_locks = {};
             this.is_processing_round = false;
             this.differs_barrier_digit = null;
             this.is_differs_recovery_mode = false;
@@ -570,7 +570,10 @@ export default class OverUnderStore {
                     if (data.subscription?.id) this.active_subscription_id = data.subscription.id;
                     if (data.error) {
                         this.addLog(`Error: ${data.error.message}`);
-                        if (data.msg_type === 'buy') this.is_purchasing = false;
+                        if (data.msg_type === 'buy') {
+                             const symbol = data.echo_req.symbol;
+                             if(symbol) this.symbol_locks[symbol] = false;
+                        }
                     }
                     switch (data.msg_type) {
                         case 'history':
@@ -626,12 +629,14 @@ export default class OverUnderStore {
                             this.subscribeToTicks(this.selected_symbol);
                             break;
                         case 'buy':
-                            if (!data.error) {
+                            const symbol = data.echo_req.parameters.symbol;
+                            if (data.error) {
+                                if (symbol) this.symbol_locks[symbol] = false;
+                            } else {
                                 const contract_id = data.buy.contract_id;
-                                this.addLog(`Purchase Sent: ${contract_id}`);
+                                this.addLog(`Purchase Sent: ${contract_id} on ${symbol}`);
                                 this.active_contracts.add(String(contract_id));
                             }
-                            this.is_purchasing = false;
                             break;
                         case 'proposal_open_contract':
                             const contract = data.proposal_open_contract;
@@ -645,9 +650,10 @@ export default class OverUnderStore {
                             if (this.root_store.transactions) this.root_store.transactions.onBotContractEvent(formattedContract);
                             if (contract.is_sold) {
                                 const contract_id = String(contract.contract_id);
+                                const symbol = contract.underlying;
+                                if (symbol) this.symbol_locks[symbol] = false;
                                 if (this.active_contracts.has(contract_id)) {
                                     const profit = contract.profit;
-                                    const symbol = contract.underlying;
                                     this.contract_results.set(contract_id, { profit, symbol });
                                     this.addLog(`Trade Result [${contract_id}] on ${symbol}: ${profit >= 0 ? 'WON' : 'LOST'} ($${profit})`);
                                     this.active_contracts.delete(contract_id);
@@ -659,8 +665,8 @@ export default class OverUnderStore {
                             break;
                         case 'tick':
                             const tick = data.tick;
-                            const symbol = tick.symbol;
-                            const pip_size = tick.pip_size || pip_sizes[symbol] || 2;
+                            const tick_symbol = tick.symbol;
+                            const pip_size = tick.pip_size || pip_sizes[tick_symbol] || 2;
                             const quote_str = tick.quote.toFixed(pip_size);
                             const digit = parseInt(quote_str.slice(-1), 10);
 
@@ -668,14 +674,14 @@ export default class OverUnderStore {
                             if (
                                 this.is_awaiting_immediate_recovery &&
                                 this.is_auto_running &&
-                                !this.is_purchasing &&
-                                symbol === this.last_lost_contract_symbol
+                                !this.symbol_locks[tick_symbol] &&
+                                tick_symbol === this.last_lost_contract_symbol
                             ) {
                                 this.is_awaiting_immediate_recovery = false; // Consume flag
-                                this.addLog(`Executing Tatu Bora immediate recovery on ${symbol}.`);
+                                this.addLog(`Executing Tatu Bora immediate recovery on ${tick_symbol}.`);
 
                                 if (this.last_lost_contract_digit !== null) {
-                                    this.executeTrade('DIGITDIFF', String(this.last_lost_contract_digit), symbol);
+                                    this.executeTrade('DIGITDIFF', String(this.last_lost_contract_digit), tick_symbol);
                                     runInAction(() => {
                                         this.is_processing_round = false;
                                         this.differs_v2_predicted_digit = null; 
@@ -694,11 +700,11 @@ export default class OverUnderStore {
 
                             if (this.is_all_vol_mode) {
                                 // Defensive check to prevent crash on unexpected tick
-                                if (!this.symbol_data[symbol]) {
-                                    this.symbol_data[symbol] = { tick_history: [], last_digit: null, last_last_digit: null, _tick_prices: [] };
-                                    this.addLog(`Received tick for unsubscribed symbol ${symbol} in All Vol mode. Initializing...`);
+                                if (!this.symbol_data[tick_symbol]) {
+                                    this.symbol_data[tick_symbol] = { tick_history: [], last_digit: null, last_last_digit: null, _tick_prices: [] };
+                                    this.addLog(`Received tick for unsubscribed symbol ${tick_symbol} in All Vol mode. Initializing...`);
                                 }
-                                const current_symbol_data = this.symbol_data[symbol];
+                                const current_symbol_data = this.symbol_data[tick_symbol];
                                 current_symbol_data.last_last_digit = current_symbol_data.last_digit;
                                 current_symbol_data.last_digit = digit;
                                 current_symbol_data.tick_history = [...current_symbol_data.tick_history.slice(-MAX_TICKS + 1), digit];
@@ -714,8 +720,10 @@ export default class OverUnderStore {
                                 this.differs_v2_post_trade_ticks++;
                             }
                             
-                            if (this.is_auto_running && !this.is_analyzing_volatility && !this.is_purchasing && !this.is_processing_round && this.active_contracts.size === 0) {
-                                const active_symbol = this.is_all_vol_mode ? symbol : undefined;
+                            const is_busy = this.is_analyzing_volatility || this.symbol_locks[tick_symbol] || this.is_processing_round || this.active_contracts.size > 0;
+
+                            if (this.is_auto_running && !is_busy) {
+                                const active_symbol = this.is_all_vol_mode ? tick_symbol : undefined;
                                 if (this.is_rise_fall_mode) {
                                     this.analyzeAndExecuteRiseFall();
                                 } else if (this.is_differs_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
@@ -788,10 +796,7 @@ export default class OverUnderStore {
     }
 
     analyzeAndExecuteRiseFall() {
-        // Require at least 300 ticks so that all EMAs (12, 26, 9) are fully
-        // warmed up — matching the 1000-tick pre-loaded history the XML DBot
-        // always has before its first signal fires.
-        if (this._tick_prices.length < 300 || this.is_purchasing) return;
+        if (this._tick_prices.length < 300 || this.symbol_locks[this.selected_symbol]) return;
 
         const fast_ema = this.calculateEMA(this._tick_prices, 12);
         const slow_ema = this.calculateEMA(this._tick_prices, 26);
@@ -811,9 +816,6 @@ export default class OverUnderStore {
         const sc = signal_line[signal_line.length - 1];
         const sp = signal_line[signal_line.length - 2];
 
-        // Exact same conditions as the XML bot:
-        // FALL (PUT):  previous MACD above signal → current MACD below signal, MACD still positive
-        // RISE (CALL): previous MACD below signal → current MACD above signal, MACD still negative
         if (mp > sp && mc < sc && mc > 0) {
             this.addLog(`Rise/Fall: MACD crossed BELOW signal (mc=${mc.toFixed(6)}, sc=${sc.toFixed(6)}). FALL!`);
             this.executeRiseFallTrade('PUT');
@@ -824,10 +826,11 @@ export default class OverUnderStore {
     }
 
     executeRiseFallTrade(contract_type: 'CALL' | 'PUT') {
-        if (this.is_purchasing) return;
+        const symbol = this.selected_symbol;
+        if (this.symbol_locks[symbol]) return;
         const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
-        this.is_purchasing = true;
+        this.symbol_locks[symbol] = true;
         const tradeAmount = Number(this.stake);
         this.addLog(`Rise/Fall Trade: ${contract_type === 'CALL' ? 'RISE' : 'FALL'} @ $${tradeAmount}`);
         this.ws.send(JSON.stringify({
@@ -839,7 +842,7 @@ export default class OverUnderStore {
                 currency: 'USD',
                 duration: 1,
                 duration_unit: 't',
-                symbol: this.selected_symbol,
+                symbol: symbol,
                 contract_type,
             },
         }));
@@ -849,7 +852,7 @@ export default class OverUnderStore {
         const current_symbol = symbol || this.selected_symbol;
         const data = this.is_all_vol_mode ? this.symbol_data[current_symbol] : this;
     
-        if (!data || data.tick_history.length < 36 || this.is_purchasing) return;
+        if (!data || data.tick_history.length < 36 || this.symbol_locks[current_symbol]) return;
     
         const digits = data.tick_history;
         const n = digits.length;
@@ -940,7 +943,7 @@ export default class OverUnderStore {
         const current_symbol = symbol || this.selected_symbol;
         const data = this.is_all_vol_mode ? this.symbol_data[current_symbol] : this;
 
-        if (!data || data.tick_history.length < 4 || this.is_purchasing) return;
+        if (!data || data.tick_history.length < 4 || this.symbol_locks[current_symbol]) return;
 
         const history = data.tick_history;
         const lastTick = data.last_digit;
@@ -1200,24 +1203,25 @@ export default class OverUnderStore {
     }
 
     executeTrade(contract_type: string, barrier: string, symbol?: string) {
-        if (this.is_purchasing) return;
+        const tradeSymbol = symbol || this.selected_symbol;
+        if (this.symbol_locks[tradeSymbol]) return;
         const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
-        this.is_purchasing = true;
-        this._armPurchaseTimeout();
+        this.symbol_locks[tradeSymbol] = true;
+        this._armPurchaseTimeout(tradeSymbol);
         
         const tradeAmount = Number(this.stake.toFixed(2));
-        const tradeSymbol = symbol || this.selected_symbol;
         this.addLog(`Trade: ${contract_type} ${barrier} on ${tradeSymbol} @ ${tradeAmount}`);
         this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: tradeSymbol, contract_type, barrier } }));
     }
 
     executeMultiTrade() {
-        if (this.is_purchasing) return;
+        const symbol = this.selected_symbol;
+        if (this.symbol_locks[symbol]) return;
         const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
-        this.is_purchasing = true;
-        this._armPurchaseTimeout();
+        this.symbol_locks[symbol] = true;
+        this._armPurchaseTimeout(symbol);
         const tradeAmount = Number(this.stake.toFixed(2));
         this.addLog(`Trade: O5/U4 @ ${tradeAmount}`);
         const baseParams = { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: this.selected_symbol };
