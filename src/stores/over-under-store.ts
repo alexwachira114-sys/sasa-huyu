@@ -93,6 +93,9 @@ export default class OverUnderStore {
 
     private symbol_locks: { [key: string]: boolean } = {};
     private is_processing_round = false;
+    private is_purchasing = false;
+    private pending_instant_result_check: { [symbol: string]: { barrier: string, stake: number, contract_type: string } } = {};
+
 
     private _boundAuthHandler: (event: MessageEvent) => void;
     private _loginReaction: () => void;
@@ -344,6 +347,7 @@ export default class OverUnderStore {
             if (this.symbol_locks[symbol]) {
                 this.addLog(`⚠️ Purchase timeout on ${symbol} — resetting lock.`);
                 this.symbol_locks[symbol] = false;
+                this.is_purchasing = false;
             }
         }, this.PURCHASE_TIMEOUT_MS);
     }
@@ -426,6 +430,8 @@ export default class OverUnderStore {
             this.differs_v2_predicted_digit = null;
             this.differs_v2_post_trade_ticks = 0;
         }
+        this.is_purchasing = false;
+        this.pending_instant_result_check = {};
     }
 
     handleStartStop() {
@@ -566,6 +572,7 @@ export default class OverUnderStore {
                         if (data.msg_type === 'buy') {
                              const symbol = data.echo_req.symbol;
                              if(symbol) this.symbol_locks[symbol] = false;
+                             this.is_purchasing = false;
                         }
                     }
                     switch (data.msg_type) {
@@ -622,6 +629,7 @@ export default class OverUnderStore {
                             this.subscribeToTicks(this.selected_symbol);
                             break;
                         case 'buy':
+                            this.is_purchasing = false;
                             const symbol = data.echo_req.parameters.symbol;
                             if (data.error) {
                                 if (symbol) this.symbol_locks[symbol] = false;
@@ -680,11 +688,30 @@ export default class OverUnderStore {
                                 this._tick_prices = [...this._tick_prices.slice(-MAX_TICKS + 1), Number(tick.quote)];
                             }
                             
-                            if (this.is_differs_v2_mode && !this.is_differs_recovery_mode && !this.is_recovery_active && this.differs_v2_predicted_digit !== null) {
-                                this.differs_v2_post_trade_ticks++;
+                            // Fast Recovery for Differs V2
+                            const pending_check = this.pending_instant_result_check[tick_symbol];
+                            if (pending_check) {
+                                const last_digit_for_check = this.is_all_vol_mode ? this.symbol_data[tick_symbol].last_digit : this.last_digit;
+                                const barrier = pending_check.barrier;
+
+                                if (String(last_digit_for_check) === barrier) {
+                                    // INSTANT LOSS
+                                    this.addLog(`⚡ Instant Result on ${tick_symbol}: LOST (Digit: ${last_digit_for_check}, Barrier: ${barrier})`);
+                                    const next_stake = Number((pending_check.stake * this.martingale).toFixed(2));
+                                    this.addLog(`⚡ Fast Recovery on ${tick_symbol}: Martingale triggered. New stake: ${next_stake}`);
+
+                                    // Immediately set up the check for the *next* trade, then execute it.
+                                    this.pending_instant_result_check[tick_symbol] = { ...pending_check, stake: next_stake };
+                                    this.executeTrade(pending_check.contract_type, barrier, tick_symbol, next_stake, true);
+                                } else {
+                                    // INSTANT WIN
+                                    this.addLog(`⚡ Instant Result on ${tick_symbol}: WON (Digit: ${last_digit_for_check}, Barrier: ${barrier})`);
+                                    delete this.pending_instant_result_check[tick_symbol];
+                                }
+                                return; // IMPORTANT: Stop further processing of this tick to avoid conflicts.
                             }
                             
-                            const is_general_busy = this.is_analyzing_volatility || this.is_processing_round || this.active_contracts.size > 0;
+                            const is_general_busy = this.is_analyzing_volatility || this.is_processing_round || this.active_contracts.size > 0 || this.is_purchasing;
 
                             if (this.is_auto_running && !is_general_busy) {
                                 if (this.is_all_vol_mode) {
@@ -694,11 +721,11 @@ export default class OverUnderStore {
                                     const symbol_data = this.symbol_data[active_symbol];
                                     if (!symbol_data) return;
 
-                                    if (this.is_differs_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
+                                    if (this.is_differs_mode) {
                                         this.analyzeAndExecuteDiffers(active_symbol);
-                                    } else if (this.is_differs_v2_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
+                                    } else if (this.is_differs_v2_mode) {
                                         this.analyzeAndExecuteDiffersV2(active_symbol);
-                                    } else if (!this.is_differs_mode && !this.is_differs_v2_mode && !this.is_rise_fall_mode && !this.is_manual_mode && !this.is_recovery_active) {
+                                    } else if (!this.is_rise_fall_mode && !this.is_manual_mode) {
                                         const is_triggered = this.use_second_trigger
                                             ? (symbol_data.last_digit === this.entry_digit && symbol_data.last_last_digit === this.second_entry_digit)
                                             : (symbol_data.last_digit === this.entry_digit);
@@ -713,41 +740,20 @@ export default class OverUnderStore {
 
                                     if (this.is_rise_fall_mode) {
                                         this.analyzeAndExecuteRiseFall();
-                                    } else if (this.is_differs_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
+                                    } else if (this.is_differs_mode) {
                                         this.analyzeAndExecuteDiffers();
-                                    } else if (this.is_differs_v2_mode && !this.is_differs_recovery_mode && !this.is_recovery_active) {
+                                    } else if (this.is_differs_v2_mode) {
                                         this.analyzeAndExecuteDiffersV2();
                                     } else {
-                                        if (this.is_recovery_active && this.use_recovery_delay) {
-                                            const recoveryTrigger = this.use_second_trigger 
-                                                ? (this.last_digit === this.recovery_entry_digit && this.last_last_digit === this.recovery_second_entry_digit)
-                                                : (this.last_digit === this.recovery_entry_digit);
-                                            if (recoveryTrigger) {
-                                                this.addLog(`Recovery Trigger: ${this.recovery_contract_type} ${this.recovery_barrier}`);
-                                                this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
+                                        // Standard Over/Under and Manual modes (no fast recovery)
+                                        const is_triggered = this.use_second_trigger ? (this.last_digit === this.entry_digit && this.last_last_digit === this.second_entry_digit) : (this.last_digit === this.entry_digit);
+                                        if (is_triggered) {
+                                            if (this.is_manual_mode) {
+                                                this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier}`);
+                                                this.executeTrade(this.manual_contract_type, this.manual_barrier);
                                             } else {
-                                                const waitType = this.use_second_trigger ? `${this.recovery_entry_digit},${this.recovery_second_entry_digit}` : this.recovery_entry_digit;
-                                                this.addLog(`Recovery: Waiting trigger ${waitType}...`);
-                                            }
-                                        } else if (this.is_recovery_active && !this.is_differs_mode && !this.is_differs_v2_mode) {
-                                            this.addLog(`Recovery: Executing immediately...`);
-                                            this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
-                                        } else if (this.is_manual_mode && this.is_recovery_active) {
-                                            this.addLog(`Recovery: Executing immediately...`);
-                                            this.executeTrade(this.manual_contract_type, this.manual_barrier);
-                                        } else {
-                                            const is_triggered = this.use_second_trigger ? (this.last_digit === this.entry_digit && this.last_last_digit === this.second_entry_digit) : (this.last_digit === this.entry_digit);
-                                            if (is_triggered) {
-                                                if (this.is_recovery_active) {
-                                                    this.addLog(`Trigger: Recovery ${this.recovery_contract_type} ${this.recovery_barrier}`);
-                                                    this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
-                                                } else if (this.is_manual_mode) {
-                                                    this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier}`);
-                                                    this.executeTrade(this.manual_contract_type, this.manual_barrier);
-                                                } else if (!this.is_differs_mode && !this.is_rise_fall_mode && !this.is_differs_v2_mode) {
-                                                    this.addLog(`Trigger: O5/U4`);
-                                                    this.executeMultiTrade();
-                                                }
+                                                this.addLog(`Trigger: O5/U4`);
+                                                this.executeMultiTrade();
                                             }
                                         }
                                     }
@@ -924,6 +930,12 @@ export default class OverUnderStore {
             this.addLog(`Differs on ${current_symbol}: Watching... ${surge_count}x ${surge_direction} (need 2+ consecutive)`);
         }
     }
+
+    executeDiffersV2Trade(contract_type: string, barrier: string, symbol: string, stake: number) {
+        // Set up the instant check for the fast recovery system.
+        this.pending_instant_result_check[symbol] = { barrier, stake, contract_type };
+        this.executeTrade(contract_type, barrier, symbol, stake);
+    }
     
     analyzeAndExecuteDiffersV2(symbol?: string) {
         const current_symbol = symbol || this.selected_symbol;
@@ -1011,7 +1023,7 @@ export default class OverUnderStore {
                 });
 
                 this.addLog(`DiffersV2: ${trigger_name} ${lastTick} detected on ${current_symbol} → DIFFER on ${lastTick}`);
-                this.executeTrade('DIGITDIFF', String(lastTick), current_symbol);
+                this.executeDiffersV2Trade('DIGITDIFF', String(lastTick), current_symbol, Number(this.stake.toFixed(2)));
             }
         } else {
             const sequence_length = this.is_nne_kwisha_mode ? 4 : (this.is_tatu_bora_mode ? 3 : 2);
@@ -1098,57 +1110,26 @@ export default class OverUnderStore {
         }
         
         if (all_loss) {
-            if (this.is_recovery_enabled) {
-                this.total_loss_to_recover += Math.abs(roundProfit);
-                this.stake = Number((this.stake * this.martingale).toFixed(2));
-                this.addLog(`Loss detected. Total to recover: ${this.total_loss_to_recover.toFixed(2)}. Martingale Stake: ${this.stake}`);
-                this.setIsRecoveryActive(true);
-                
-                if (this.is_differs_mode || this.is_differs_v2_mode) {
-                    this.is_differs_recovery_mode = true;
-                    this.differs_barrier_digit = null;
-                    this.addLog(`Recovery: Waiting for trigger...`);
-                } else if (this.is_manual_mode) {
-                    this.addLog(`Recovery: Executing...`);
-                    this.executeTrade(this.manual_contract_type, this.manual_barrier);
-                } else {
-                    this.addLog(`Recovery: Executing...`);
-                    this.executeTrade(this.recovery_contract_type, this.recovery_barrier);
-                }
-            } else {
-                this.addLog(`Loss detected. Recovery disabled - continuing with strategy.`);
+                this.addLog(`Loss detected. Standard recovery disabled for this mode.`);
                 if (this.is_2term_mode) {
                     const nextStake = Number((this.stake + roundProfit).toFixed(2));
-                    this.stake = nextStake;
-                    this.addLog(`2term Applied: New stake: ${this.stake}`);
+                    this.stake = nextStake > 0 ? nextStake : this.initial_stake;
+                    this.addLog(`2term Applied on Loss: New stake: ${this.stake}`);
+                } else {
+                     this.stake = Number((this.stake * this.martingale).toFixed(2));
+                     this.addLog(`Standard Martingale on Loss: New stake: ${this.stake}`);
                 }
                 if (this.is_volatility_changer && this.is_automate) this.startVolatilityAnalysis();
-            }
-        } else {
-            if (this.is_recovery_active) {
-                this.total_loss_to_recover -= roundProfit;
-                if (this.total_loss_to_recover <= 0) {
-                    this.total_loss_to_recover = 0;
-                    this.setIsRecoveryActive(false);
-                    this.is_differs_recovery_mode = false;
-                    this.stake = this.initial_stake;
-                    this.addLog(`Recovery complete! Resetting to initial stake: ${this.stake}`);
-                    if (this.is_volatility_changer) this.startVolatilityAnalysis();
-                } else {
-                    this.addLog(`Recovery in progress. Remaining loss: ${this.total_loss_to_recover.toFixed(2)}. Continuing with stake: ${this.stake}`);
-                }
-            } else {
+        } else { // Win
                 if (this.is_2term_mode) {
                     const nextStake = Number((this.stake + roundProfit).toFixed(2));
-                    this.addLog(`2term Applied: Stake updated with profit ${roundProfit.toFixed(2)}. New stake: ${nextStake}`);
+                    this.addLog(`2term Applied on Win: Stake updated with profit ${roundProfit.toFixed(2)}. New stake: ${nextStake}`);
                     this.stake = nextStake;
-                    this.addLog(`Win detected. 2-term mode is ON, stake increased to: ${this.stake}`);
                 } else {
                     this.stake = this.initial_stake;
-                    this.addLog(`Win detected. 2-term mode is OFF, resetting to initial stake: ${this.stake}`);
+                    this.addLog(`Win detected. Stake reset to initial: ${this.stake}`);
                 }
                 if (this.is_volatility_changer) this.startVolatilityAnalysis();
-            }
         }
         
         this.contract_results.clear();
@@ -1159,16 +1140,28 @@ export default class OverUnderStore {
         } else { this.addLog("Waiting for next trigger..."); }
     }
 
-    executeTrade(contract_type: string, barrier: string, symbol?: string) {
+    executeTrade(contract_type: string, barrier: string, symbol?: string, stake?: number, is_fast_recovery = false) {
         const tradeSymbol = symbol || this.selected_symbol;
-        if (this.symbol_locks[tradeSymbol]) return;
+
+        // For fast recovery, we bypass the lock check because we need to trade immediately.
+        if (!is_fast_recovery && this.symbol_locks[tradeSymbol]) {
+            return;
+        }
+
         const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) {
+            return;
+        }
+        
+        if (!is_fast_recovery) {
+             this.is_purchasing = true;
+        }
+
         this.symbol_locks[tradeSymbol] = true;
         this._armPurchaseTimeout(tradeSymbol);
         
-        const tradeAmount = Number(this.stake.toFixed(2));
-        this.addLog(`Trade: ${contract_type} ${barrier} on ${tradeSymbol} @ ${tradeAmount}`);
+        const tradeAmount = stake ?? Number(this.stake.toFixed(2));
+        this.addLog(`Trade: ${is_fast_recovery ? '⚡Fast Recovery' : ''} ${contract_type} ${barrier} on ${tradeSymbol} @ ${tradeAmount}`);
         this.ws.send(JSON.stringify({ buy: 1, price: tradeAmount, parameters: { amount: tradeAmount, basis: 'stake', currency: 'USD', duration: 1, duration_unit: 't', symbol: tradeSymbol, contract_type, barrier } }));
     }
 
@@ -1177,6 +1170,7 @@ export default class OverUnderStore {
         if (this.symbol_locks[tradeSymbol]) return;
         const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        this.is_purchasing = true;
         this.symbol_locks[tradeSymbol] = true;
         this._armPurchaseTimeout(tradeSymbol);
         const tradeAmount = Number(this.stake.toFixed(2));
