@@ -945,6 +945,8 @@ export default class OverUnderStore {
         const current_symbol = symbol || this.selected_symbol;
         const data = this.is_all_vol_mode ? this.symbol_data[current_symbol] : this;
 
+        if (this.pending_instant_result_check[current_symbol]) return;
+
         if (!data || data.tick_history.length < 4 || this.symbol_locks[current_symbol]) return;
 
         const history = data.tick_history;
