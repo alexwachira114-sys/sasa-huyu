@@ -1,22 +1,24 @@
 {
-  "short_name": "MAKOTI",
-  "name": "MAKOTI - Professional Trading Bot Builder",
-  "icons": [
-    {
-      "src": "/makoti-logo.jpg",
-      "type": "image/jpeg",
-      "sizes": "192x192"
-    },
-    {
-      "src": "/makoti-logo.jpg",
-      "type": "image/jpeg",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": "/",
-  "background_color": "#ffffff",
-  "display": "standalone",
-  "theme_color": "#ffffff",
-  "scope": "/",
-  "description": "Create profitable trading bots without coding. Professional Deriv trading bot builder with copy trading, free bots, and advanced strategies."
+    "short_name": "MAKOTI",
+    "name": "MAKOTI - Professional Trading Bot Builder",
+    "description": "Create profitable trading bots without coding. Professional Deriv trading bot builder with copy trading, free bots, and advanced strategies.",
+    "icons": [
+        {
+            "src": "/makoti-logo.jpg",
+            "type": "image/jpeg",
+            "sizes": "192x192",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/makoti-logo.jpg",
+            "type": "image/jpeg",
+            "sizes": "512x512",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": "/",
+    "background_color": "#ffffff",
+    "display_override": ["standalone", "minimal-ui"],
+    "display": "standalone",
+    "theme_color": "#ffffff"
 }

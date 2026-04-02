@@ -1,105 +1,86 @@
-/* Simple Service Worker to pre-cache Free Bots XMLs for instant repeat visits */
-const CACHE_NAME = 'freebots-cache-v1';
-const getManifestURL = () => {
-    try {
-        const url = new URL(self.location);
-        const params = new URLSearchParams(url.search);
-        const override = (params.get('bots_domain') || '').toLowerCase().replace(/^www\./, '');
-        const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
-        const domain = override || hostname;
-        return `/xml/${encodeURIComponent(domain)}/bots.json`;
-    } catch (_) {
-        return '/xml/bots.json';
-    }
-};
+// A service worker to make the app installable (PWA) and work offline.
 
-const MANIFEST_URL = getManifestURL();
+const CACHE_NAME = 'makoti-pwa-cache-v1';
+// These are the files that make up the "app shell".
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/makoti-logo.jpg'
+  // NOTE: JS and CSS files are usually added here, but without knowing the build output,
+  // we'll let them be cached dynamically during the first visit.
+];
 
+// Install the service worker and cache the app shell.
 self.addEventListener('install', event => {
-    self.skipWaiting();
-    event.waitUntil(
-        (async () => {
-            const cache = await caches.open(CACHE_NAME);
-            // Pre-cache the manifest first
-            try {
-                await cache.add(new Request(MANIFEST_URL, { cache: 'no-cache' }));
-            } catch (_) {}
-
-            // Try to fetch manifest and pre-cache XMLs
-            try {
-                const res = await fetch(MANIFEST_URL, { cache: 'no-cache' });
-                if (res.ok) {
-                    const items = await res.json();
-                    const files = Array.isArray(items) ? items.map(i => `/xml/${encodeURIComponent(i.file)}`) : [];
-                    // Batch cache XML files to avoid long install stalls
-                    for (let i = 0; i < files.length; i += 5) {
-                        const batch = files.slice(i, i + 5);
-                        await Promise.all(
-                            batch.map(async url => {
-                                try {
-                                    const resp = await fetch(url, { cache: 'no-cache' });
-                                    if (resp.ok) await cache.put(url, resp.clone());
-                                } catch (_) {}
-                            })
-                        );
-                    }
-                }
-            } catch (e) {
-                // Ignore; caching will happen lazily in fetch handler
-            }
-        })()
-    );
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
+      .then(() => self.skipWaiting()) // Activate worker immediately
+  );
 });
 
+// Clean up old caches on activation.
 self.addEventListener('activate', event => {
-    event.waitUntil(
-        (async () => {
-            // Clean up old caches
-            const keys = await caches.keys();
-            await Promise.all(
-                keys.map(key => {
-                    if (key !== CACHE_NAME) return caches.delete(key);
-                })
-            );
-            self.clients.claim();
-        })()
-    );
+  const cacheWhitelist = [CACHE_NAME];
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheWhitelist.indexOf(cacheName) === -1) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim()) // Take control of open clients
+  );
 });
 
-// Cache-first for XML and manifest; network fallback and cache update
+// Serve cached content when offline.
 self.addEventListener('fetch', event => {
-    const { request } = event;
-    const url = new URL(request.url);
+  // We only care about GET requests.
+  if (event.request.method !== 'GET') {
+    return;
+  }
 
-    const isXml = url.pathname.startsWith('/xml/');
-    const isManifest = url.pathname === MANIFEST_URL;
-    if (!isXml && !isManifest) return; // Only handle XML and manifest
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Cache hit - return the response from the cache.
+        if (response) {
+          return response;
+        }
 
-    event.respondWith(
-        (async () => {
-            const cache = await caches.open(CACHE_NAME);
-            const cached = await cache.match(request);
-            if (cached) {
-                // Update cache in background
-                event.waitUntil(
-                    (async () => {
-                        try {
-                            const fresh = await fetch(request, { cache: 'no-cache' });
-                            if (fresh && fresh.ok) await cache.put(request, fresh.clone());
-                        } catch (_) {}
-                    })()
-                );
-                return cached;
+        // Not in cache - fetch from the network, and cache it for next time.
+        return fetch(event.request).then(
+          response => {
+            // Check if we received a valid response
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
             }
-            // No cache -> fetch and cache
-            try {
-                const resp = await fetch(request, { cache: 'no-cache' });
-                if (resp && resp.ok) await cache.put(request, resp.clone());
-                return resp;
-            } catch (e) {
-                // Last resort: return cached even if stale (handled above), else error
-                return new Response('Offline', { status: 503, statusText: 'Offline' });
+
+            // IMPORTANT: Clone the response. A response is a stream
+            // and because we want the browser to consume the response
+            // as well as the cache consuming the response, we need
+            // to clone it so we have two streams.
+            const responseToCache = response.clone();
+
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          }
+        ).catch(() => {
+            // If the request is for a page navigation, show the offline page.
+            if (event.request.mode === 'navigate') {
+                return caches.match('/index.html');
             }
-        })()
-    );
+        });
+      })
+  );
 });
