@@ -1,7 +1,7 @@
 
 // ═══════════════════════════════════════════════════════════
-//  Makoti AI - Advanced Over/Under Analysis Engine v2.5
-//  (Multi-Strategy Hybrid Engine with Duration Analysis)
+//  Makoti AI - Advanced Over/Under Analysis Engine v2.7
+//  (Edge Analysis Engine)
 // ═══════════════════════════════════════════════════════════
 
 // ── Type Definitions ────────────────────────────────────────
@@ -15,13 +15,35 @@ export interface GoldenEntry {
     barrier: string;
     duration: number;
     winRate: number;
+    edge: number; // The statistical edge provided by the trigger
     analysis: string;
     triggerDigits: number[];
-    confidence: number;
+    confidence: number; // A composite score including edge and other factors
     triggerType: 'single';
 }
 
 // ── Main Analysis Functions ──────────────────────────────────
+
+const calculateBaselineWinRate = (
+    history: number[],
+    contractType: 'DIGITOVER' | 'DIGITUNDER',
+    barrier: number,
+    duration: number
+): number => {
+    let wins = 0;
+    let trades = 0;
+    if (history.length <= duration) return 0;
+    for (let i = 0; i < history.length - duration; i++) {
+        trades++;
+        const outcome_tick = history[i + duration -1];
+        if (contractType === 'DIGITOVER' && outcome_tick > barrier) {
+            wins++;
+        } else if (contractType === 'DIGITUNDER' && outcome_tick < barrier) {
+            wins++;
+        }
+    }
+    return trades > 0 ? wins / trades : 0;
+};
 
 const simulateTriggerTrade = (
     history: number[],
@@ -63,7 +85,7 @@ const calculateDigitDistribution = (history: number[], period: number): number[]
 export const analyzeDigits = (history: number[], symbol: string): AnalysisResult => {
     const analysis_period = 200;
     if (history.length < analysis_period) {
-        return { bestEntry: null, goldenEntries: [{ contractType: 'DIGITOVER', barrier: '4', triggerDigits: [], duration: 5, winRate: 0, confidence: 0, analysis: `Fallback: Not enough data (need ${analysis_period} ticks).`, triggerType: 'single' }] };
+        return { bestEntry: null, goldenEntries: [] };
     }
 
     const recent_history = history.slice(-analysis_period);
@@ -73,36 +95,48 @@ export const analyzeDigits = (history: number[], symbol: string): AnalysisResult
     const potential_contracts: { type: 'DIGITOVER' | 'DIGITUNDER', barrier: number }[] = [];
     for (let barrier = 0; barrier <= 8; barrier++) potential_contracts.push({ type: 'DIGITOVER', barrier });
     for (let barrier = 1; barrier <= 9; barrier++) potential_contracts.push({ type: 'DIGITUNDER', barrier });
+    
+    const baselines = new Map<string, number>();
 
     for (const contract of potential_contracts) {
         for (let triggerDigit = 0; triggerDigit <= 9; triggerDigit++) {
             let best_duration_for_pattern = { duration: 0, winRate: 0, wins: 0, trades: 0 };
 
-            // NEW: Loop through durations to find the optimal one for this pattern
             for (let duration = 1; duration <= 5; duration++) {
                 const simulation = simulateTriggerTrade(recent_history, contract.type, contract.barrier, triggerDigit, duration);
                 if (simulation.winRate > best_duration_for_pattern.winRate) {
                     best_duration_for_pattern = { duration, ...simulation };
                 }
             }
+            
+            if (best_duration_for_pattern.winRate > 0) { 
+                const baseline_key = `${contract.type}-${contract.barrier}-${best_duration_for_pattern.duration}`;
+                if (!baselines.has(baseline_key)) {
+                    const baseline_win_rate = calculateBaselineWinRate(recent_history, contract.type, contract.barrier, best_duration_for_pattern.duration);
+                    baselines.set(baseline_key, baseline_win_rate);
+                }
+                const baseline = baselines.get(baseline_key)!;
+                const edge = best_duration_for_pattern.winRate - baseline;
 
-            if (best_duration_for_pattern.winRate > 0.75) { // Pre-filter for high-probability patterns
-                allPotentialEntries.push({
-                    contractType: contract.type,
-                    barrier: String(contract.barrier),
-                    duration: best_duration_for_pattern.duration,
-                    winRate: best_duration_for_pattern.winRate,
-                    analysis: `${contract.type.replace('DIGIT','')} ${contract.barrier} on trigger ${triggerDigit} for ${best_duration_for_pattern.duration}t (${(best_duration_for_pattern.winRate * 100).toFixed(0)}%)`,
-                    triggerDigits: [triggerDigit],
-                    confidence: best_duration_for_pattern.winRate, // Start with winRate as base confidence
-                    triggerType: 'single',
-                });
+                if (edge > 0.20) { // Only consider patterns that provide at least a 20% edge
+                    allPotentialEntries.push({
+                        contractType: contract.type,
+                        barrier: String(contract.barrier),
+                        duration: best_duration_for_pattern.duration,
+                        winRate: best_duration_for_pattern.winRate,
+                        edge: edge,
+                        analysis: ``, // Will be populated later
+                        triggerDigits: [triggerDigit],
+                        confidence: edge, // Start with edge as the base confidence
+                        triggerType: 'single',
+                    });
+                }
             }
         }
     }
 
     if (allPotentialEntries.length === 0) {
-        return { bestEntry: null, goldenEntries: [{ contractType: 'DIGITOVER', barrier: '4', triggerDigits: [], duration: 5, winRate: 0, confidence: 0, analysis: 'No high-win-rate trigger patterns found.', triggerType: 'single' }] };
+        return { bestEntry: null, goldenEntries: [{ contractType: 'DIGITOVER', barrier: '4', triggerDigits: [], duration: 5, winRate: 0, edge: 0, confidence: 0, analysis: 'No high-edge trigger patterns found.', triggerType: 'single' }] };
     }
 
     // 2. Run supplementary analysis strategies to score confidence
@@ -112,46 +146,42 @@ export const analyzeDigits = (history: number[], symbol: string): AnalysisResult
     const distribution = calculateDigitDistribution(long_term_history, 1000);
     const volatility = Math.sqrt(recent_history.map(x => Math.pow(x - ma_short, 2)).reduce((a, b) => a + b) / recent_history.length);
 
-    // Score each potential entry based on other strategies
     for (const entry of allPotentialEntries) {
-        let confidence_score = entry.winRate; // Base score
-        let reasons = [ `Win Rate: ${(entry.winRate * 100).toFixed(0)}%` ];
+        let confidence_score = entry.edge; // Base score is the statistical edge
+        let reasons = [ `Edge: +${(entry.edge * 100).toFixed(0)}%`];
 
-        // STRATEGY: Trend & Momentum Analysis
         const is_up_trend = ma_short > ma_long;
         if (entry.contractType === 'DIGITOVER' && is_up_trend) {
-            confidence_score *= 1.1; // 10% boost for aligning with trend
-            reasons.push('Strong uptrend');
+            confidence_score *= 1.1; 
+            reasons.push('Uptrend');
         } else if (entry.contractType === 'DIGITUNDER' && !is_up_trend) {
-            confidence_score *= 1.1; // 10% boost for aligning with trend
-            reasons.push('Strong downtrend');
+            confidence_score *= 1.1; 
+            reasons.push('Downtrend');
         }
 
-        // STRATEGY: Digit Frequency & Distribution (from dollawise-strategies.tsx)
         const barrier = parseInt(entry.barrier, 10);
         if (entry.contractType === 'DIGITUNDER' && barrier >= 6) {
             const hot_digits = distribution.slice(barrier).reduce((a, b) => a + b, 0);
-            if (hot_digits < 30) { // e.g., for Under 7, digits 7,8,9 make up < 30% of ticks
-                confidence_score *= 1.15; // 15% boost
-                reasons.push('Favorable cold digits');
+            if (hot_digits < 30) {
+                confidence_score *= 1.15; 
+                reasons.push('Cold Digits');
             }
         }
         if (entry.contractType === 'DIGITOVER' && barrier <= 3) {
             const cold_digits = distribution.slice(0, barrier + 1).reduce((a, b) => a + b, 0);
-            if (cold_digits < 30) { // e.g., for Over 2, digits 0,1,2 make up < 30% of ticks
-                confidence_score *= 1.15; // 15% boost
-                reasons.push('Favorable cold digits');
+            if (cold_digits < 30) { 
+                confidence_score *= 1.15;
+                reasons.push('Cold Digits');
             }
         }
 
-        // STRATEGY: Volatility Analysis
-        if (volatility < 2.5) { // Low volatility is good for prediction
-            confidence_score *= 1.05; // 5% boost
-            reasons.push('Low volatility');
+        if (volatility < 2.5) { 
+            confidence_score *= 1.05;
+            reasons.push('Low Volatility');
         }
 
-        entry.confidence = Math.min(confidence_score, 1.0); // Cap confidence at 1.0
-        entry.analysis = `${entry.analysis} | Confidence: ${(entry.confidence * 100).toFixed(0)}% (${reasons.join(', ')})`;
+        entry.confidence = confidence_score;
+        entry.analysis = `${entry.contractType.replace('DIGIT','')} ${entry.barrier} on trigger ${entry.triggerDigits[0]} for ${entry.duration}t (Edge: +${(entry.edge * 100).toFixed(0)}%, Win Rate: ${(entry.winRate*100).toFixed(0)}%). Reasons: ${reasons.join(', ')}`;
     }
 
     // 3. Sort by the final confidence score
