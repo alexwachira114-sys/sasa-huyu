@@ -7,20 +7,18 @@ interface AppLoaderProps {
 }
 
 const AppLoader: React.FC<AppLoaderProps> = ({ onLoadingComplete }) => {
-    const [started, setStarted] = useState(false);
     const [show, setShow] = useState(true);
     const clangSoundRef = useRef<HTMLAudioElement | null>(null);
     const sirenSoundRef = useRef<HTMLAudioElement | null>(null);
     const logoText = "MAKOTI TRADERS";
 
-    const startSequence = () => {
-        setStarted(true);
-        // Initialize and play sounds
+    useEffect(() => {
+        // Attempt to play sounds automatically
         try {
             sirenSoundRef.current = new Audio('/assets/media/siren.mp3');
             sirenSoundRef.current.loop = true;
             sirenSoundRef.current.volume = 0.3;
-            sirenSoundRef.current.play().catch(() => {});
+            sirenSoundRef.current.play().catch(e => console.warn("Audio autoplay was blocked. User interaction is required to hear sound."));
         } catch (e) {
             console.error('Siren sound not found. Place it in /public/assets/media/siren.mp3');
         }
@@ -62,36 +60,23 @@ const AppLoader: React.FC<AppLoaderProps> = ({ onLoadingComplete }) => {
             sirenSoundRef.current?.pause();
             clangSoundRef.current?.pause();
         };
-    }
+    }, [onLoadingComplete]);
 
     if (!show) return null;
 
     return (
-        <div className='gta-loader' onClick={!started ? startSequence : undefined}>
-            {!started && <div className='click-to-start'>Click to Start</div>}
-            {started && (
-                 <>
-                    <div className='scene'>
-                        <div className='asphalt'></div>
-                        <div className='siren-light red'></div>
-                        <div className='siren-light blue'></div>
-                    </div>
+        <div className='gta-loader'>
+            <div className='scene'>
+                <div className='asphalt'></div>
+                <div className='siren-light red'></div>
+                <div className='siren-light blue'></div>
+            </div>
 
-                    <div className='logo-container'>
-                        {logoText.split('').map((char, index) => (
-                            <span
-                                key={index}
-                                className='logo-text-char'
-                                style={{ animationDelay: `${2 + index * 0.1}s` }}
-                            >
-                                {char === ' ' ? '\u00A0' : char}
-                            </span>
-                        ))}
-                    </div>
+            <div className='logo-container'>
+                <h1 className='logo-text' data-text={logoText}>{logoText}</h1>
+            </div>
 
-                    <div className='film-grain'></div>
-                </>
-            )}
+            <div className='film-grain'></div>
         </div>
     );
 };
