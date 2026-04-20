@@ -49,7 +49,7 @@ export default class OverUnderStore {
     is_tatu_bora_mode = false;
     is_nne_kwisha_mode = false;
     is_all_vol_mode = false;
-    is_trigger_enabled = true;
+    is_trigger_enabled = false;
     is_automate = false;
     use_second_trigger = true;
     is_manual_mode = false;
@@ -896,6 +896,10 @@ export default class OverUnderStore {
                 if (this.is_manual_mode) {
                     this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol}`);
                     this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
+                } else if (this.is_differs_mode || this.is_differs_v2_mode) {
+                    const barrier = String(data.last_digit);
+                    this.addLog(`Trigger: Differs on ${barrier} for ${symbol}`);
+                    this.executeTrade('DIGITDIFF', barrier, symbol);
                 } else {
                     this.addLog(`Trigger: O5/U4 on ${symbol}`);
                     this.executeMultiTrade(symbol);
@@ -977,7 +981,7 @@ export default class OverUnderStore {
     
         if (!data || data.tick_history.length < 36 || this.symbol_locks[current_symbol]) return;
 
-        if (this.is_trigger_enabled) {
+        if (this.is_trigger_enabled && !this.is_differs_mode && !this.is_differs_v2_mode) {
             this.handleOverUnderLogic(data);
             return;
         }
@@ -1080,7 +1084,7 @@ export default class OverUnderStore {
 
         if (!data || data.tick_history.length < 4 || this.symbol_locks[current_symbol]) return;
 
-        if (this.is_trigger_enabled) {
+        if (this.is_trigger_enabled && !this.is_differs_mode && !this.is_differs_v2_mode) {
             this.handleOverUnderLogic(data);
             return;
         }

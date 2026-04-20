@@ -362,6 +362,22 @@ const OverUnder = observer(() => {
                                     <div className='ou-row-label'><Activity size={11} /> Options</div>
                                     <div className='ou-row-fields'>
                                         <div className='ou-f'>
+                                            <span className='ou-fl'>Digit Trigger</span>
+                                            <div className='ou-trig-row'>
+                                                <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} color='#a855f7' />
+                                                {is_trigger_enabled && (
+                                                    <>
+                                                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
+                                                        {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
+                                                        <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
+                                                            onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled} style={use_second_trigger ? { backgroundColor: '#a855f7' } : {}}>
+                                                            2ND
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className='ou-f'>
                                             <span className='ou-fl'>2-Term Compound</span>
                                             <div className='ou-sw-row'>
                                                 <Toggle on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#a855f7' />
@@ -390,6 +406,22 @@ const OverUnder = observer(() => {
                                 <div className='ou-row-wrap'>
                                     <div className='ou-row-label'><Activity size={11} /> Options</div>
                                     <div className='ou-row-fields'>
+                                        <div className='ou-f'>
+                                            <span className='ou-fl'>Digit Trigger</span>
+                                            <div className='ou-trig-row'>
+                                                <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} color='#ec4899' />
+                                                {is_trigger_enabled && (
+                                                    <>
+                                                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
+                                                        {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
+                                                        <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
+                                                            onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled} style={use_second_trigger ? { backgroundColor: '#ec4899' } : {}}>
+                                                            2ND
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
                                         <div className='ou-f'>
                                             <span className='ou-fl'>Tatu Bora</span>
                                             <div className='ou-sw-row'>
