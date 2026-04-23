@@ -2,8 +2,8 @@
 @use 'components/shared/styles/mixins' as *;
 
 .app-header {
-    background-color: #f5f5f5 !important; // Light grey like Binarytool
-    border-bottom: 1px solid #e0e0e0; // Light grey border
+    background-color: var(--general-main-1) !important;
+    border-bottom: 1px solid var(--general-section-1);
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible; // Allow dropdowns (account switcher) to show
@@ -44,8 +44,8 @@
         padding: 0.4rem 1.2rem;
         border-radius: 0.4rem;
         position: relative;
-        background-color: #f5f5f5; // Light grey like Binarytool
-        color: #4a5568; // Dark grey text
+        background-color: var(--general-section-2);
+        color: var(--text-general);
         flex-shrink: 0; // Prevent shrinking on mobile
         min-width: 0; // Allow flex items to shrink if needed
 
@@ -246,26 +246,26 @@ body.theme--light .app-header .powered-by-deriv-header {
 }
 
 body.theme--dark .app-header .powered-by-deriv-header {
-    background-color: #f5f5f5; // Light grey like Binarytool (same for dark theme)
+    background-color: var(--general-section-2);
 
     .powered-by-deriv-header__label {
-        color: #6b7280;
+        color: var(--text-general);
     }
 
     .deriv-word {
-        color: #1e40af !important;
+        color: #60a5fa !important;
     }
 
     .whatsapp-dropdown {
-        background-color: #ffffff; // White background
-        border-color: #e0e0e0; // Light grey border
+        background-color: var(--general-main-2);
+        border-color: var(--general-section-1);
 
         a {
-            color: #4a5568; // Dark grey text
+            color: var(--text-general);
 
             &:hover {
-                background-color: #f5f5f5; // Light grey hover
-                color: #1e40af; // Dark blue on hover
+                background-color: var(--general-hover);
+                color: #60a5fa;
             }
         }
     }

@@ -104,10 +104,6 @@ export default class OverUnderStore {
     private is_processing_round = false;
     private is_purchasing = false;
     private pending_instant_result_check: { [symbol: string]: { barrier: string, stake: number, contract_type: string, ticks_to_check: number } } = {};
-    // Instant tick-based result evaluation for MANUAL+RECOVERY trades so the
-    // recovery trade can fire on the very next tick after a loss instead of
-    // waiting for the slower proposal_open_contract → is_sold round-trip.
-    private pending_manual_check: { [symbol: string]: { contract_type: string, barrier: string, ticks_remaining: number, contract_id?: string } } = {};
 
     is_digit_occurrence_filter_active = false;
     is_ai_scanning = false;
@@ -582,7 +578,6 @@ export default class OverUnderStore {
         }
         this.is_purchasing = false;
         this.pending_instant_result_check = {};
-        this.pending_manual_check = {};
         this.rebounce_sequences = {};
     }
 
@@ -793,9 +788,6 @@ export default class OverUnderStore {
                                 const contract_id = data.buy.contract_id;
                                 this.addLog(`Purchase Sent: ${contract_id} on ${symbol}`);
                                 this.active_contracts.add(String(contract_id));
-                                if (symbol && this.pending_manual_check[symbol]) {
-                                    this.pending_manual_check[symbol].contract_id = String(contract_id);
-                                }
                             }
                             break;
                         case 'proposal_open_contract':
@@ -813,39 +805,46 @@ export default class OverUnderStore {
                                 const symbol = contract.underlying;
                                 if (symbol) this.symbol_locks[symbol] = false;
 
-                                // Slow-path fallback for manual+recovery trades:
-                                // if the instant tick handler hasn't already
-                                // resolved this one, arm recovery NOW from the
-                                // contract profit so we don't lose the round.
+                                // Manual + Recovery fast path: arm recovery the
+                                // instant the contract result lands (bypassing
+                                // the round-results aggregator) so the very
+                                // next tick on this symbol fires recovery.
                                 if (
                                     symbol &&
-                                    this.pending_manual_check[symbol] &&
-                                    (!this.pending_manual_check[symbol].contract_id ||
-                                        this.pending_manual_check[symbol].contract_id === contract_id)
+                                    this.is_manual_mode &&
+                                    this.is_recovery_enabled &&
+                                    this.active_contracts.has(contract_id)
                                 ) {
                                     const profit = contract.profit;
                                     const is_loss = profit < 0;
-                                    this.addLog(`Manual result (slow path) on ${symbol}: ${is_loss ? 'LOST' : 'WON'} ($${profit})`);
-                                    if (is_loss && this.is_recovery_enabled) {
+                                    this.addLog(`Manual result on ${symbol}: ${is_loss ? 'LOST' : 'WON'} ($${profit})`);
+                                    if (is_loss) {
                                         this.is_recovery_active = true;
                                         this.recovery_symbol = symbol;
-                                        if (!this.is_2term_mode) {
+                                        if (this.is_2term_mode) {
+                                            const nextStake = Number((this.stake + profit).toFixed(2));
+                                            this.stake = nextStake > 0 ? nextStake : this.initial_stake;
+                                            this.addLog(`2term on loss: stake → ${this.stake}. Recovery armed on ${symbol} — fires next tick.`);
+                                        } else {
                                             this.stake = Number((this.stake * this.martingale).toFixed(2));
-                                            this.addLog(`Martingale on loss: stake → ${this.stake}. Recovery armed on ${symbol}.`);
+                                            this.addLog(`Martingale on loss: stake → ${this.stake}. Recovery armed on ${symbol} — fires next tick.`);
                                         }
-                                    } else if (!is_loss) {
+                                    } else {
                                         if (this.is_recovery_active) {
                                             this.is_recovery_active = false;
                                             this.recovery_symbol = null;
                                             this.addLog(`Win — recovery deactivated.`);
                                         }
-                                        if (!this.is_2term_mode) {
+                                        if (this.is_2term_mode) {
+                                            this.stake = Number((this.stake + profit).toFixed(2));
+                                        } else {
                                             this.stake = this.initial_stake;
                                         }
                                     }
-                                    delete this.pending_manual_check[symbol];
-                                    if (this.active_contracts.has(contract_id)) {
-                                        this.active_contracts.delete(contract_id);
+                                    this.active_contracts.delete(contract_id);
+                                    if (!this.is_turbo) {
+                                        this.setIsAutoRunning(false);
+                                        this.addLog('Turbo Mode is off. Stopping auto-run.');
                                     }
                                     break;
                                 }
@@ -885,57 +884,6 @@ export default class OverUnderStore {
                                 this._tick_prices = [...this._tick_prices.slice(-MAX_TICKS + 1), Number(tick.quote)];
                             }
                             
-                            // ── INSTANT MANUAL+RECOVERY result evaluation ──
-                            // Detect win/loss from the very tick that ends the
-                            // contract (no waiting for proposal_open_contract).
-                            // The next tick will then fire recovery via the
-                            // top-priority recovery branch below.
-                            const manual_check = this.pending_manual_check[tick_symbol];
-                            if (manual_check) {
-                                manual_check.ticks_remaining -= 1;
-                                if (manual_check.ticks_remaining <= 0) {
-                                    const result = this._evaluateManualResult(
-                                        manual_check.contract_type,
-                                        manual_check.barrier,
-                                        digit,
-                                    );
-                                    if (result === 'loss') {
-                                        this.addLog(`⚡ Instant Manual on ${tick_symbol}: LOST (digit ${digit} vs ${manual_check.contract_type} ${manual_check.barrier})`);
-                                        if (manual_check.contract_id && this.active_contracts.has(manual_check.contract_id)) {
-                                            this.active_contracts.delete(manual_check.contract_id);
-                                        }
-                                        if (this.is_recovery_enabled) {
-                                            this.is_recovery_active = true;
-                                            this.recovery_symbol = tick_symbol;
-                                            if (!this.is_2term_mode) {
-                                                this.stake = Number((this.stake * this.martingale).toFixed(2));
-                                                this.addLog(`⚡ Martingale: stake → ${this.stake}. Recovery armed on ${tick_symbol} — fires next tick.`);
-                                            }
-                                        }
-                                        delete this.pending_manual_check[tick_symbol];
-                                        return;
-                                    } else if (result === 'win') {
-                                        this.addLog(`⚡ Instant Manual on ${tick_symbol}: WON (digit ${digit})`);
-                                        if (manual_check.contract_id && this.active_contracts.has(manual_check.contract_id)) {
-                                            this.active_contracts.delete(manual_check.contract_id);
-                                        }
-                                        if (this.is_recovery_active) {
-                                            this.is_recovery_active = false;
-                                            this.recovery_symbol = null;
-                                            this.addLog(`Win — recovery deactivated.`);
-                                        }
-                                        if (!this.is_2term_mode) {
-                                            this.stake = this.initial_stake;
-                                        }
-                                        delete this.pending_manual_check[tick_symbol];
-                                        return;
-                                    } else {
-                                        // Unsupported contract type — fall back to slow path
-                                        delete this.pending_manual_check[tick_symbol];
-                                    }
-                                }
-                            }
-
                             const pending_check = this.pending_instant_result_check[tick_symbol];
                             if (pending_check) {
                                 const last_digit_for_check = this.is_all_vol_mode ? this.symbol_data[tick_symbol].last_digit : this.last_digit;
@@ -969,31 +917,35 @@ export default class OverUnderStore {
                                 return;
                             }
                             
+                            // ── MANUAL + RECOVERY: fire IMMEDIATELY on the next tick of the
+                            // volatility the loss occurred on, ignoring trigger digits and
+                            // even when All Vol mode is on. Highest priority — runs even
+                            // if other busy flags are set, since the prior contract is
+                            // already settled (recovery was armed in proposal_open_contract).
+                            if (
+                                this.is_auto_running &&
+                                this.is_manual_mode &&
+                                this.is_recovery_active &&
+                                this.recovery_symbol &&
+                                tick_symbol === this.recovery_symbol &&
+                                !this.symbol_locks[tick_symbol] &&
+                                !this.is_purchasing
+                            ) {
+                                this.addLog(`Recovery: Immediate trade on ${tick_symbol} (${this.recovery_contract_type} ${this.recovery_barrier}) — bypassing trigger.`);
+                                this.executeTrade(
+                                    this.recovery_contract_type,
+                                    this.recovery_barrier,
+                                    tick_symbol,
+                                    undefined,
+                                    false,
+                                    this.manual_duration,
+                                );
+                                return;
+                            }
+
                             const is_general_busy = this.is_analyzing_volatility || this.is_processing_round || this.active_contracts.size > 0 || this.is_purchasing;
 
                             if (this.is_auto_running && !is_general_busy) {
-                                // ── MANUAL + RECOVERY: fire IMMEDIATELY on the next tick of the
-                                // volatility the loss occurred on, ignoring trigger digits and
-                                // even when All Vol mode is on. Highest priority.
-                                if (
-                                    this.is_manual_mode &&
-                                    this.is_recovery_active &&
-                                    this.recovery_symbol &&
-                                    tick_symbol === this.recovery_symbol &&
-                                    !this.symbol_locks[tick_symbol]
-                                ) {
-                                    this.addLog(`Recovery: Immediate trade on ${tick_symbol} (${this.recovery_contract_type} ${this.recovery_barrier}) — bypassing trigger.`);
-                                    this._registerManualInstantCheck(tick_symbol, this.recovery_contract_type, this.recovery_barrier);
-                                    this.executeTrade(
-                                        this.recovery_contract_type,
-                                        this.recovery_barrier,
-                                        tick_symbol,
-                                        undefined,
-                                        false,
-                                        this.manual_duration,
-                                    );
-                                    return;
-                                }
 
                                 if (this.is_all_vol_mode) {
                                     const active_symbol = tick_symbol;
@@ -1050,11 +1002,9 @@ export default class OverUnderStore {
             if (this.is_manual_mode) {
                 if (this.is_recovery_active) {
                     this.addLog(`Trigger: Recovery ${this.recovery_contract_type} ${this.recovery_barrier} on ${symbol} (No trigger digit)`);
-                    this._registerManualInstantCheck(symbol, this.recovery_contract_type, this.recovery_barrier);
                     this.executeTrade(this.recovery_contract_type, this.recovery_barrier, symbol, undefined, false, this.manual_duration);
                 } else {
                     this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol} (No trigger digit)`);
-                    this._registerManualInstantCheck(symbol, this.manual_contract_type, this.manual_barrier);
                     this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
                 }
             } else if (this.is_differs_mode || this.is_differs_v2_mode) {
@@ -1091,11 +1041,9 @@ export default class OverUnderStore {
                 if (this.is_manual_mode) {
                     if (this.is_recovery_active) {
                         this.addLog(`Trigger: Recovery ${this.recovery_contract_type} ${this.recovery_barrier} on ${symbol}`);
-                        this._registerManualInstantCheck(symbol, this.recovery_contract_type, this.recovery_barrier);
                         this.executeTrade(this.recovery_contract_type, this.recovery_barrier, symbol, undefined, false, this.manual_duration);
                     } else {
                         this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol}`);
-                        this._registerManualInstantCheck(symbol, this.manual_contract_type, this.manual_barrier);
                         this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
                     }
                 } else if (this.is_differs_mode || this.is_differs_v2_mode) {
@@ -1513,32 +1461,6 @@ export default class OverUnderStore {
             this.setIsAutoRunning(false);
             this.addLog('Turbo Mode is off. Stopping auto-run.');
         } else { this.addLog("Waiting for next trigger..."); }
-    }
-
-    private _registerManualInstantCheck(symbol: string, contract_type: string, barrier: string) {
-        if (!this.is_recovery_enabled || !this.is_manual_mode) return;
-        // Don't register for unsupported contract types
-        if (this._evaluateManualResult(contract_type, barrier, 0) === null) return;
-        // Wait `duration + 1` ticks before evaluating to give the contract
-        // time to enter and settle on the venue.
-        this.pending_manual_check[symbol] = {
-            contract_type,
-            barrier,
-            ticks_remaining: (this.manual_duration || 1) + 1,
-        };
-    }
-
-    private _evaluateManualResult(contract_type: string, barrier: string, digit: number): 'win' | 'loss' | null {
-        const b = parseInt(barrier, 10);
-        switch (contract_type) {
-            case 'DIGITOVER': return digit > b ? 'win' : 'loss';
-            case 'DIGITUNDER': return digit < b ? 'win' : 'loss';
-            case 'DIGITDIFF': return digit !== b ? 'win' : 'loss';
-            case 'DIGITMATCH': return digit === b ? 'win' : 'loss';
-            case 'DIGITEVEN': return digit % 2 === 0 ? 'win' : 'loss';
-            case 'DIGITODD': return digit % 2 !== 0 ? 'win' : 'loss';
-            default: return null;
-        }
     }
 
     executeTrade(contract_type: string, barrier: string, symbol?: string, stake?: number, is_fast_recovery = false, duration?: number) {
