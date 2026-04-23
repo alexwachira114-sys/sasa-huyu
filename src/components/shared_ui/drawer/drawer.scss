@@ -69,14 +69,22 @@
 
     &__toggle {
         align-items: center;
+        justify-content: center;
         border-left: 1px solid var(--border-disabled);
         border-right: 1px solid var(--border-disabled);
         display: flex;
         position: absolute;
+        top: 0;
+        left: 0;
         width: $toggler-width;
         height: 100%;
         background-color: var(--general-section-5);
         cursor: pointer;
+        z-index: 2;
+
+        &:hover {
+            background-color: var(--general-hover);
+        }
 
         @include mobile-or-tablet-screen {
             position: unset;
