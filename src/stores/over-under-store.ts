@@ -85,6 +85,7 @@ export default class OverUnderStore {
     private _tick_prices: number[] = [];
     total_loss_to_recover = 0;
     differs_digit_appearance_count = 0;
+    private rise_fall_trade_count = 0;
 
     is_analyzing_volatility = false;
     analysis_queue: string[] = [];
@@ -512,6 +513,7 @@ export default class OverUnderStore {
             this.is_differs_recovery_mode = false;
             this.differs_v2_predicted_digit = null;
             this.differs_v2_post_trade_ticks = 0;
+            this.rise_fall_trade_count = 0;
         }
         this.is_purchasing = false;
         this.pending_instant_result_check = {};
@@ -1258,7 +1260,19 @@ export default class OverUnderStore {
             }
             this.contract_results.clear();
             this.is_processing_round = false;
-            this.addLog('Rise/Fall: Monitoring MACD for next signal...');
+
+            this.rise_fall_trade_count += 1;
+            if (this.is_volatility_changer && this.rise_fall_trade_count >= 4) {
+                this.rise_fall_trade_count = 0;
+                this.addLog('Rise/Fall: 4 trades completed — re-voting best volatility...');
+                this.startVolatilityAnalysis();
+            } else {
+                if (this.is_volatility_changer) {
+                    this.addLog(`Rise/Fall: Trade ${this.rise_fall_trade_count}/4 since last vote. Monitoring MACD...`);
+                } else {
+                    this.addLog('Rise/Fall: Monitoring MACD for next signal...');
+                }
+            }
             return;
         }
         

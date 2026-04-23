@@ -65,14 +65,30 @@ self.onmessage = (event) => {
         }
 
         // ── RISE / FALL ───────────────────────────────────────────────────────────
-        // Find volatility whose MACD histograms are mostly tall (strong momentum).
-        // A higher average absolute histogram value = stronger trending behaviour.
+        // Vote across volatilities: the winner is the one whose LAST 15 MACD
+        // histogram bars are the tallest (strongest momentum / longest bars).
+        //
+        // The histogram is normalised against the symbol's own price level so
+        // that volatilities trading at very different prices (e.g. R_10 vs
+        // 1HZ25V) are scored on a fair, comparable basis instead of the symbol
+        // with the largest raw price always winning.
         if (strategy === 'rise_fall') {
             if (!prices || prices.length < 35) return Infinity;
             const histogram = calcMACDHistogram(prices);
-            if (histogram.length === 0) return Infinity;
-            const avgAbsHistogram = histogram.reduce((sum, h) => sum + Math.abs(h), 0) / histogram.length;
-            return -avgAbsHistogram; // negate — lower score wins; higher avg abs = better
+            if (histogram.length < 15) return Infinity;
+
+            const last15 = histogram.slice(-15);
+            const last15Prices = prices.slice(-15);
+            const avgPrice =
+                last15Prices.reduce((s, p) => s + Math.abs(p), 0) / last15Prices.length;
+            if (!avgPrice || !isFinite(avgPrice)) return Infinity;
+
+            // Average absolute histogram size, expressed as a fraction of price.
+            const avgAbsNormalized =
+                last15.reduce((sum, h) => sum + Math.abs(h), 0) / last15.length / avgPrice;
+
+            // Lower score wins → negate so the tallest bars produce the lowest score.
+            return -avgAbsNormalized;
         }
 
         // ── MANUAL ────────────────────────────────────────────────────────────────
