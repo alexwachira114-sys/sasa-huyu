@@ -998,15 +998,18 @@ export default class OverUnderStore {
     
         if (!symbol) return;
 
+        // When manual + recovery is armed, ONLY the recovery_symbol may
+        // trade. The dedicated immediate-recovery branch in the tick handler
+        // takes care of firing it; we suppress all other manual triggers
+        // here so we never start parallel trades on different volatilities.
+        if (this.is_manual_mode && this.is_recovery_active) {
+            return;
+        }
+
         if (!this.is_trigger_enabled) {
             if (this.is_manual_mode) {
-                if (this.is_recovery_active) {
-                    this.addLog(`Trigger: Recovery ${this.recovery_contract_type} ${this.recovery_barrier} on ${symbol} (No trigger digit)`);
-                    this.executeTrade(this.recovery_contract_type, this.recovery_barrier, symbol, undefined, false, this.manual_duration);
-                } else {
-                    this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol} (No trigger digit)`);
-                    this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
-                }
+                this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol} (No trigger digit)`);
+                this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
             } else if (this.is_differs_mode || this.is_differs_v2_mode) {
                 const barrier = String(data.last_digit);
                 this.addLog(`Trigger: Differs on ${barrier} for ${symbol} (No trigger digit)`);
@@ -1039,13 +1042,8 @@ export default class OverUnderStore {
             const is_triggered = this.use_second_trigger ? (data.last_digit === this.entry_digit && data.last_last_digit === this.second_entry_digit) : (data.last_digit === this.entry_digit);
             if (is_triggered) {
                 if (this.is_manual_mode) {
-                    if (this.is_recovery_active) {
-                        this.addLog(`Trigger: Recovery ${this.recovery_contract_type} ${this.recovery_barrier} on ${symbol}`);
-                        this.executeTrade(this.recovery_contract_type, this.recovery_barrier, symbol, undefined, false, this.manual_duration);
-                    } else {
-                        this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol}`);
-                        this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
-                    }
+                    this.addLog(`Trigger: Manual ${this.manual_contract_type} ${this.manual_barrier} on ${symbol}`);
+                    this.executeTrade(this.manual_contract_type, this.manual_barrier, symbol, undefined, false, this.manual_duration);
                 } else if (this.is_differs_mode || this.is_differs_v2_mode) {
                     const barrier = String(data.last_digit);
                     this.addLog(`Trigger: Differs on ${barrier} for ${symbol}`);

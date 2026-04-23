@@ -149,4 +149,51 @@
             transform: translateY(calc(-100% + 3.6rem));
         }
     }
+
+    // Always-visible floating "reopen" handle that's rendered outside the
+    // drawer flow so it's not affected by any clipping/transform on the
+    // drawer itself.
+    &__reopen {
+        position: fixed;
+        top: 50%;
+        width: 22px;
+        height: 80px;
+        background-color: #ff444f;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        transform: translateY(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-top: 7px solid transparent;
+            border-bottom: 7px solid transparent;
+        }
+
+        &--right {
+            right: 0;
+            border-radius: 6px 0 0 6px;
+
+            &::after {
+                border-right: 9px solid #ffffff;
+            }
+        }
+
+        &--left {
+            left: 0;
+            border-radius: 0 6px 6px 0;
+
+            &::after {
+                border-left: 9px solid #ffffff;
+            }
+        }
+
+        &:hover {
+            background-color: #ff6b75;
+        }
+    }
 }
