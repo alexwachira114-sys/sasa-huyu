@@ -90,13 +90,7 @@ export default defineConfig({
         },
     },
     dev: {
-        // Disable hot-module-replacement and live-reload. When the app runs
-        // behind Replit's proxy the HMR client can fail to load update
-        // chunks and falls back to a full page reload, which silently wipes
-        // websocket state, balance, and any DOM tweaks the user made via
-        // dev-tools. We don't need code-change reloads while using the app.
-        hmr: false,
-        liveReload: false,
+        hmr: true,
     },
     tools: {
         rspack: {
