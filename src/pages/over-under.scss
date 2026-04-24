@@ -327,11 +327,46 @@ $cyan:    #06b6d4;
     display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap;
 }
 
+// ── Uniform 2-column responsive grid for fields & tiles ──────
+.ou-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+
+    @media (max-width: 380px) { grid-template-columns: 1fr; }
+}
+
 // ── Individual field ─────────────────────────────────────────
 .ou-f {
     display: flex; flex-direction: column; gap: 5px;
     min-width: 0;
     &--grow { flex: 1; }
+    &--full { grid-column: 1 / -1; }
+}
+
+// ── Toggle tile (label + switch) ─────────────────────────────
+.ou-tile {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    height: 44px; padding: 0 12px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid $b1;
+    border-radius: 9px;
+    transition: border-color .18s, background .18s, box-shadow .18s;
+
+    &__lbl {
+        font-size: 12px; font-weight: 700; color: $sub;
+        letter-spacing: .3px; line-height: 1.2;
+        flex: 1; min-width: 0;
+    }
+
+    &--on {
+        border-color: rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.04);
+        box-shadow: inset 0 0 0 1px var(--tc, #{$blue}), 0 0 14px rgba(0,0,0,0.22);
+
+        .ou-tile__lbl { color: var(--tc, #{$blue}); }
+    }
 }
 
 .ou-fl {
@@ -356,6 +391,7 @@ $cyan:    #06b6d4;
 }
 
 .ou-inp { width: 80px; text-align: center; font-weight: 700; }
+.ou-inp--full { width: 100%; }
 
 .ou-sel {
     width: 100%; cursor: pointer; padding-right: 28px;
@@ -413,6 +449,45 @@ $cyan:    #06b6d4;
 
 // ── Trigger digit box ─────────────────────────────────────────
 .ou-trig-row { display: flex; align-items: center; gap: 6px; }
+
+// ── Framed Trigger panel (label + switch + digit input(s) + chip) ──
+.ou-trig-panel {
+    border: 1px solid $b1; border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    transition: border-color .2s, box-shadow .2s, background .2s;
+
+    &--on {
+        border-color: rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.045);
+        box-shadow: inset 0 0 0 1px var(--tc, #{$blue});
+    }
+
+    &__head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 10px;
+    }
+
+    &__lbl {
+        font-size: 12px; font-weight: 700; letter-spacing: .3px;
+        color: $sub;
+    }
+    &--on &__lbl { color: var(--tc, #{$blue}); }
+
+    &__body {
+        display: flex; align-items: flex-end; justify-content: space-between;
+        gap: 10px; margin-top: 10px; flex-wrap: wrap;
+    }
+
+    &__digits { display: flex; gap: 10px; align-items: flex-end; }
+
+    &__slot { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    &__cap {
+        font-size: 9px; font-weight: 800; letter-spacing: 1px;
+        color: $dim; text-transform: uppercase;
+    }
+}
 
 .ou-dbox {
     position: relative; width: 50px;

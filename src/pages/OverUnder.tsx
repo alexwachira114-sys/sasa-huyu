@@ -34,6 +34,69 @@ const Toggle = ({ on, onToggle, disabled, color = '#3b82f6' }: {
     </button>
 );
 
+// Compact "label + switch" tile — uniform size so all options sit on a tidy grid.
+const SwitchTile = ({ label, on, onToggle, disabled, color = '#3b82f6' }: {
+    label: string; on: boolean; onToggle: () => void; disabled?: boolean; color?: string;
+}) => (
+    <div
+        className={`ou-tile${on ? ' ou-tile--on' : ''}`}
+        style={on ? { '--tc': color } as React.CSSProperties : {}}
+    >
+        <span className='ou-tile__lbl'>{label}</span>
+        <Toggle on={on} onToggle={onToggle} disabled={disabled} color={color} />
+    </div>
+);
+
+// Trigger panel: a single, framed control group containing the trigger
+// switch + digit input(s) + 2nd-trigger chip. Replaces the inline ad-hoc
+// row that used to sit beside other fields.
+const TriggerPanel = observer(({
+    color, is_trigger_enabled, setIsTriggerEnabled,
+    use_second_trigger, setUseSecondTrigger, over_under, disabled,
+}: {
+    color: string;
+    is_trigger_enabled: boolean;
+    setIsTriggerEnabled: (v: boolean) => void;
+    use_second_trigger: boolean;
+    setUseSecondTrigger: (v: boolean) => void;
+    over_under: any;
+    disabled: boolean;
+}) => (
+    <div
+        className={`ou-trig-panel${is_trigger_enabled ? ' ou-trig-panel--on' : ''}`}
+        style={{ '--tc': color } as React.CSSProperties}
+    >
+        <div className='ou-trig-panel__head'>
+            <span className='ou-trig-panel__lbl'>Digit Trigger</span>
+            <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} color={color} />
+        </div>
+        {is_trigger_enabled && (
+            <div className='ou-trig-panel__body'>
+                <div className='ou-trig-panel__digits'>
+                    <div className='ou-trig-panel__slot'>
+                        <span className='ou-trig-panel__cap'>1ST</span>
+                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
+                    </div>
+                    {use_second_trigger && (
+                        <div className='ou-trig-panel__slot'>
+                            <span className='ou-trig-panel__cap'>2ND</span>
+                            <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />
+                        </div>
+                    )}
+                </div>
+                <button
+                    className={`ou-chip${use_second_trigger ? ' on' : ''}`}
+                    onClick={() => setUseSecondTrigger(!use_second_trigger)}
+                    disabled={disabled}
+                    style={use_second_trigger ? { backgroundColor: color, color: '#fff', borderColor: color } : {}}
+                >
+                    {use_second_trigger ? 'REMOVE 2ND' : 'ADD 2ND'}
+                </button>
+            </div>
+        )}
+    </div>
+));
+
 // Observe the store so typing into the trigger field updates immediately
 const TriggerInput = observer(({ field = 'primary', over_under, disabled }: {
     field?: 'primary' | 'secondary';
@@ -282,40 +345,33 @@ const OverUnder = observer(() => {
                     {/* ── ROW: Market ── */}
                     <div className='ou-row-wrap'>
                         <div className='ou-row-label'><BarChart2 size={11} /> Market</div>
-                        <div className='ou-row-fields'>
-                            <div className='ou-f ou-f--grow'>
-                                <span className='ou-fl'>Index</span>
+                        <div className='ou-grid'>
+                            <div className='ou-f ou-f--full'>
+                                <span className='ou-fl'>Volatility Index</span>
                                 <select className='ou-sel' value={selected_symbol}
                                     onChange={e => setSelectedSymbol(e.target.value)} disabled={disabled || is_all_vol_mode}>
                                     {volatilityOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
                                 </select>
                             </div>
-                            <div className='ou-f'>
-                                <span className='ou-fl'>Auto Switch</span>
-                                <div className='ou-sw-row'>
-                                    <Toggle on={is_volatility_changer} onToggle={() => setIsVolatilityChanger(!is_volatility_changer)} disabled={disabled} />
-                                    <span className={`ou-sw-lbl${is_volatility_changer ? ' on' : ''}`}>{is_volatility_changer ? 'ON' : 'OFF'}</span>
-                                </div>
-                            </div>
+                            <SwitchTile label='Auto Switch Volatility' on={is_volatility_changer}
+                                onToggle={() => setIsVolatilityChanger(!is_volatility_changer)} disabled={disabled} />
                         </div>
                     </div>
 
                     {/* ── ROW: Strategy ── */}
                     <div className='ou-row-wrap'>
                         <div className='ou-row-label'><Layers size={11} /> Strategy</div>
-                        <div className='ou-row-fields'>
-                            <div className='ou-f ou-f--grow'>
-                                <span className='ou-fl'>Mode</span>
-                                <select className='ou-sel ou-sel--strat'
-                                    value={activeStrategy}
-                                    onChange={e => selectStrategy(e.target.value as Strategy)}
-                                    disabled={disabled}
-                                    style={{ borderColor: meta.color, color: meta.color }}>
-                                    {(Object.entries(STRAT_META) as [Strategy, typeof STRAT_META[Strategy]][]).map(([val, s]) => (
-                                        <option key={val} value={val}>{s.label}</option>
-                                    ))}
-                                </select>
-                            </div>
+                        <div className='ou-f ou-f--full'>
+                            <span className='ou-fl'>Mode</span>
+                            <select className='ou-sel ou-sel--strat'
+                                value={activeStrategy}
+                                onChange={e => selectStrategy(e.target.value as Strategy)}
+                                disabled={disabled}
+                                style={{ borderColor: meta.color, color: meta.color }}>
+                                {(Object.entries(STRAT_META) as [Strategy, typeof STRAT_META[Strategy]][]).map(([val, s]) => (
+                                    <option key={val} value={val}>{s.label}</option>
+                                ))}
+                            </select>
                         </div>
                         {/* Strategy description badge */}
                         <div className='ou-strat-info' style={{ '--c': meta.color } as React.CSSProperties}>
@@ -334,152 +390,65 @@ const OverUnder = observer(() => {
                             style={{ overflow: 'hidden' }}>
 
                             {activeStrategy === 'over_under' && (
-                                 <div className='ou-row-wrap'>
-                                 <div className='ou-row-label'><Zap size={11} /> Trigger</div>
-                                 <div className='ou-row-fields'>
-                                     <div className='ou-f'>
-                                         <span className='ou-fl'>Digit Trigger</span>
-                                         <div className='ou-trig-row'>
-                                             <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} />
-                                             {is_trigger_enabled && (
-                                                 <>
-                                                     <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
-                                                     {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
-                                                     <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
-                                                         onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled}>
-                                                         2ND
-                                                     </button>
-                                                 </>
-                                             )}
-                                         </div>
-                                     </div>
-                                     <div className='ou-f'>
-                                         <span className='ou-fl'>All Vol Mode</span>
-                                         <div className='ou-sw-row'>
-                                             <Toggle on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} />
-                                             <span className={`ou-sw-lbl${is_all_vol_mode ? ' on' : ''}`}>{is_all_vol_mode ? 'ON' : 'OFF'}</span>
-                                         </div>
-                                     </div>
-                                     <div className='ou-f'>
-                                        <span className='ou-fl'>Digit Filter</span>
-                                        <div className='ou-sw-row'>
-                                            <Toggle on={is_digit_occurrence_filter_active} onToggle={() => setIsDigitOccurrenceFilterActive(!is_digit_occurrence_filter_active)} disabled={disabled} />
-                                            <span className={`ou-sw-lbl${is_digit_occurrence_filter_active ? ' on' : ''}`}>{is_digit_occurrence_filter_active ? 'ON' : 'OFF'}</span>
-                                        </div>
+                                <div className='ou-row-wrap'>
+                                    <div className='ou-row-label'><Zap size={11} /> Trigger &amp; Options</div>
+                                    <TriggerPanel
+                                        color='#3b82f6'
+                                        is_trigger_enabled={is_trigger_enabled}
+                                        setIsTriggerEnabled={setIsTriggerEnabled}
+                                        use_second_trigger={use_second_trigger}
+                                        setUseSecondTrigger={setUseSecondTrigger}
+                                        over_under={over_under}
+                                        disabled={disabled}
+                                    />
+                                    <div className='ou-grid'>
+                                        <SwitchTile label='All Volatilities' on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} />
+                                        <SwitchTile label='Digit Filter' on={is_digit_occurrence_filter_active} onToggle={() => setIsDigitOccurrenceFilterActive(!is_digit_occurrence_filter_active)} disabled={disabled} />
+                                        {use_second_trigger && (
+                                            <SwitchTile label='Rebounce' on={is_rebounce_active} onToggle={() => setIsRebounceActive(!is_rebounce_active)} disabled={disabled} />
+                                        )}
                                     </div>
-                                    {use_second_trigger && (
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Rebounce</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_rebounce_active} onToggle={() => setIsRebounceActive(!is_rebounce_active)} disabled={disabled} />
-                                                <span className={`ou-sw-lbl${is_rebounce_active ? ' on' : ''}`}>{is_rebounce_active ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                 </div>
-                             </div>
+                                </div>
                             )}
 
                             {activeStrategy === 'differs' && (
                                 <div className='ou-row-wrap'>
-                                    <div className='ou-row-label'><Activity size={11} /> Options</div>
-                                    <div className='ou-row-fields'>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Digit Trigger</span>
-                                            <div className='ou-trig-row'>
-                                                <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} color='#a855f7' />
-                                                {is_trigger_enabled && (
-                                                    <>
-                                                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
-                                                        {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
-                                                        <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
-                                                            onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled} style={use_second_trigger ? { backgroundColor: '#a855f7' } : {}}>
-                                                            2ND
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>2-Term Compound</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#a855f7' />
-                                                <span className={`ou-sw-lbl${is_2term_mode ? ' on' : ''}`} style={is_2term_mode ? { color: '#a855f7' } : {}}>{is_2term_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Auto Cycle</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#a855f7' />
-                                                <span className={`ou-sw-lbl${is_automate ? ' on' : ''}`} style={is_automate ? { color: '#a855f7' } : {}}>{is_automate ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>All Vol Mode</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#a855f7' />
-                                                <span className={`ou-sw-lbl${is_all_vol_mode ? ' on' : ''}`} style={is_all_vol_mode ? { color: '#a855f7' } : {}}>{is_all_vol_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
+                                    <div className='ou-row-label'><Activity size={11} /> Trigger &amp; Options</div>
+                                    <TriggerPanel
+                                        color='#a855f7'
+                                        is_trigger_enabled={is_trigger_enabled}
+                                        setIsTriggerEnabled={setIsTriggerEnabled}
+                                        use_second_trigger={use_second_trigger}
+                                        setUseSecondTrigger={setUseSecondTrigger}
+                                        over_under={over_under}
+                                        disabled={disabled}
+                                    />
+                                    <div className='ou-grid'>
+                                        <SwitchTile label='2-Term Compound' on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#a855f7' />
+                                        <SwitchTile label='Auto Cycle' on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#a855f7' />
+                                        <SwitchTile label='All Volatilities' on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#a855f7' />
                                     </div>
                                 </div>
                             )}
 
                             {activeStrategy === 'differs_v2' && (
                                 <div className='ou-row-wrap'>
-                                    <div className='ou-row-label'><Activity size={11} /> Options</div>
-                                    <div className='ou-row-fields'>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Digit Trigger</span>
-                                            <div className='ou-trig-row'>
-                                                <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} color='#ec4899' />
-                                                {is_trigger_enabled && (
-                                                    <>
-                                                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
-                                                        {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
-                                                        <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
-                                                            onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled} style={use_second_trigger ? { backgroundColor: '#ec4899' } : {}}>
-                                                            2ND
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Tatu Bora</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_tatu_bora_mode} onToggle={() => setIsTatuBoraMode(!is_tatu_bora_mode)} disabled={disabled} color='#ec4899' />
-                                                <span className={`ou-sw-lbl${is_tatu_bora_mode ? ' on' : ''}`} style={is_tatu_bora_mode ? { color: '#ec4899' } : {}}>{is_tatu_bora_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Nne Kwisha</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_nne_kwisha_mode} onToggle={() => setIsNneKwishaMode(!is_nne_kwisha_mode)} disabled={disabled} color='#ec4899' />
-                                                <span className={`ou-sw-lbl${is_nne_kwisha_mode ? ' on' : ''}`} style={is_nne_kwisha_mode ? { color: '#ec4899' } : {}}>{is_nne_kwisha_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>2-Term Compound</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#ec4899' />
-                                                <span className={`ou-sw-lbl${is_2term_mode ? ' on' : ''}`} style={is_2term_mode ? { color: '#ec4899' } : {}}>{is_2term_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Auto Cycle</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#ec4899' />
-                                                <span className={`ou-sw-lbl${is_automate ? ' on' : ''}`} style={is_automate ? { color: '#ec4899' } : {}}>{is_automate ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>All Vol Mode</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#ec4899' />
-                                                <span className={`ou-sw-lbl${is_all_vol_mode ? ' on' : ''}`} style={is_all_vol_mode ? { color: '#ec4899' } : {}}>{is_all_vol_mode ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
+                                    <div className='ou-row-label'><Activity size={11} /> Trigger &amp; Options</div>
+                                    <TriggerPanel
+                                        color='#ec4899'
+                                        is_trigger_enabled={is_trigger_enabled}
+                                        setIsTriggerEnabled={setIsTriggerEnabled}
+                                        use_second_trigger={use_second_trigger}
+                                        setUseSecondTrigger={setUseSecondTrigger}
+                                        over_under={over_under}
+                                        disabled={disabled}
+                                    />
+                                    <div className='ou-grid'>
+                                        <SwitchTile label='Tatu Bora' on={is_tatu_bora_mode} onToggle={() => setIsTatuBoraMode(!is_tatu_bora_mode)} disabled={disabled} color='#ec4899' />
+                                        <SwitchTile label='Nne Kwisha' on={is_nne_kwisha_mode} onToggle={() => setIsNneKwishaMode(!is_nne_kwisha_mode)} disabled={disabled} color='#ec4899' />
+                                        <SwitchTile label='2-Term Compound' on={is_2term_mode} onToggle={() => setIs2termMode(!is_2term_mode)} disabled={disabled} color='#ec4899' />
+                                        <SwitchTile label='Auto Cycle' on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#ec4899' />
+                                        <SwitchTile label='All Volatilities' on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#ec4899' />
                                     </div>
                                 </div>
                             )}
@@ -487,85 +456,71 @@ const OverUnder = observer(() => {
                             {activeStrategy === 'rise_fall' && (
                                 <div className='ou-row-wrap'>
                                     <div className='ou-row-label'><TrendingUp size={11} /> Options</div>
-                                    <div className='ou-row-fields'>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Auto Cycle</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#10b981' />
-                                                <span className={`ou-sw-lbl${is_automate ? ' on' : ''}`} style={is_automate ? { color: '#10b981' } : {}}>{is_automate ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
+                                    <div className='ou-grid'>
+                                        <SwitchTile label='Auto Cycle' on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#10b981' />
                                     </div>
                                 </div>
                             )}
 
                             {activeStrategy === 'manual' && (
-                                <div className='ou-row-wrap'>
-                                    <div className='ou-row-label'><Settings size={11} /> Contract</div>
-                                    <div className='ou-row-fields'>
-                                        <div className='ou-f ou-f--grow'>
-                                            <span className='ou-fl'>Type</span>
-                                            <select className='ou-sel' value={manual_contract_type}
-                                                onChange={e => setManualContractType(e.target.value)} disabled={disabled}>
-                                                <option value='DIGITOVER'>Over</option>
-                                                <option value='DIGITUNDER'>Under</option>
-                                                <option value='DIGITDIFF'>Differs</option>
-                                            </select>
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Barrier</span>
-                                            <input className='ou-inp' type='number' min='0' max='9'
-                                                value={manual_barrier} onChange={e => setManualBarrier(e.target.value)} disabled={disabled} />
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Ticks</span>
-                                            <input className='ou-inp' type='number' min='1' max='10'
-                                                value={manual_duration} onChange={e => setManualDuration(Number(e.target.value))} disabled={disabled} />
-                                        </div>
-                                         <div className='ou-f'>
-                                             <span className='ou-fl'>Digit Trigger</span>
-                                             <div className='ou-trig-row'>
-                                                <Toggle on={is_trigger_enabled} onToggle={() => setIsTriggerEnabled(!is_trigger_enabled)} disabled={disabled} />
-                                                {is_trigger_enabled && (
-                                                    <>
-                                                        <TriggerInput field='primary' over_under={over_under} disabled={disabled} />
-                                                        {use_second_trigger && <TriggerInput field='secondary' over_under={over_under} disabled={disabled} />}
-                                                        <button className={`ou-chip${use_second_trigger ? ' on' : ''}`}
-                                                            onClick={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled}>
-                                                            2ND
-                                                        </button>
-                                                    </>
-                                                )}
-                                             </div>
-                                         </div>
-                                         <div className='ou-f'>
-                                             <span className='ou-fl'>All Vol Mode</span>
-                                             <div className='ou-sw-row'>
-                                                 <Toggle on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} />
-                                                 <span className={`ou-sw-lbl${is_all_vol_mode ? ' on' : ''}`}>{is_all_vol_mode ? 'ON' : 'OFF'}</span>
-                                             </div>
-                                         </div>
-                                        <div className='ou-f ou-f--grow'>
-                                            <span className='ou-fl'>AI Scan</span>
-                                            <motion.button 
-                                                className={`ou-ai-btn ${is_ai_scanning ? 'scanning' : ''}`}
-                                                onClick={() => over_under.startAiManualScan()}
-                                                disabled={disabled || is_ai_scanning}
-                                                whileHover={{ y: -1, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-                                            >
-                                                <span className='ou-ai-btn__bg' />
-                                                <span className='ou-ai-btn__ico'>
-                                                    {is_ai_scanning ? <RefreshCw size={14} className='ou-spin' /> : <Bot size={14} />}
-                                                </span>
-                                                <span className='ou-ai-btn__txt'>
-                                                    {is_ai_scanning ? 'ANALYSING...' : 'SCAN AI'}
-                                                </span>
-                                            </motion.button>
+                                <>
+                                    <div className='ou-row-wrap'>
+                                        <div className='ou-row-label'><Settings size={11} /> Contract</div>
+                                        <div className='ou-grid'>
+                                            <div className='ou-f ou-f--full'>
+                                                <span className='ou-fl'>Contract Type</span>
+                                                <select className='ou-sel' value={manual_contract_type}
+                                                    onChange={e => setManualContractType(e.target.value)} disabled={disabled}>
+                                                    <option value='DIGITOVER'>Over</option>
+                                                    <option value='DIGITUNDER'>Under</option>
+                                                    <option value='DIGITDIFF'>Differs</option>
+                                                </select>
+                                            </div>
+                                            <div className='ou-f'>
+                                                <span className='ou-fl'>Barrier</span>
+                                                <input className='ou-inp ou-inp--full' type='number' min='0' max='9'
+                                                    value={manual_barrier} onChange={e => setManualBarrier(e.target.value)} disabled={disabled} />
+                                            </div>
+                                            <div className='ou-f'>
+                                                <span className='ou-fl'>Duration (Ticks)</span>
+                                                <input className='ou-inp ou-inp--full' type='number' min='1' max='10'
+                                                    value={manual_duration} onChange={e => setManualDuration(Number(e.target.value))} disabled={disabled} />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                    <div className='ou-row-wrap'>
+                                        <div className='ou-row-label'><Zap size={11} /> Trigger &amp; Options</div>
+                                        <TriggerPanel
+                                            color='#f97316'
+                                            is_trigger_enabled={is_trigger_enabled}
+                                            setIsTriggerEnabled={setIsTriggerEnabled}
+                                            use_second_trigger={use_second_trigger}
+                                            setUseSecondTrigger={setUseSecondTrigger}
+                                            over_under={over_under}
+                                            disabled={disabled}
+                                        />
+                                        <div className='ou-grid'>
+                                            <SwitchTile label='All Volatilities' on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#f97316' />
+                                        </div>
+                                        <motion.button
+                                            className={`ou-ai-btn ${is_ai_scanning ? 'scanning' : ''}`}
+                                            onClick={() => over_under.startAiManualScan()}
+                                            disabled={disabled || is_ai_scanning}
+                                            whileHover={{ y: -1, scale: 1.01 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            transition={{ type: 'spring', stiffness: 350, damping: 20 }}
+                                            style={{ marginTop: 10, width: '100%' }}
+                                        >
+                                            <span className='ou-ai-btn__bg' />
+                                            <span className='ou-ai-btn__ico'>
+                                                {is_ai_scanning ? <RefreshCw size={14} className='ou-spin' /> : <Bot size={14} />}
+                                            </span>
+                                            <span className='ou-ai-btn__txt'>
+                                                {is_ai_scanning ? 'ANALYSING…' : 'SCAN AI FOR BEST CONTRACT'}
+                                            </span>
+                                        </motion.button>
+                                    </div>
+                                </>
                             )}
                         </motion.div>
                     </AnimatePresence>
@@ -573,24 +528,18 @@ const OverUnder = observer(() => {
                     {/* ── ROW: Stake & Risk ── */}
                     <div className='ou-row-wrap'>
                         <div className='ou-row-label'><BarChart2 size={11} /> Stake &amp; Risk</div>
-                        <div className='ou-row-fields'>
+                        <div className='ou-grid'>
                             <div className='ou-f'>
                                 <span className='ou-fl'>Stake ($)</span>
-                                <input className='ou-inp' type='number' min='0.35' step='0.1'
+                                <input className='ou-inp ou-inp--full' type='number' min='0.35' step='0.1'
                                     value={stake} onChange={e => setStake(Number(e.target.value))} disabled={disabled} />
                             </div>
                             <div className='ou-f'>
                                 <span className='ou-fl'>Martingale ×</span>
-                                <input className='ou-inp' type='number' min='1' step='0.1'
+                                <input className='ou-inp ou-inp--full' type='number' min='1' step='0.1'
                                     value={martingale} onChange={e => setMartingale(Number(e.target.value))} disabled={disabled} />
                             </div>
-                            <div className='ou-f'>
-                                <span className='ou-fl'>Turbo</span>
-                                <div className='ou-sw-row'>
-                                    <Toggle on={is_turbo} onToggle={() => setIsTurbo(!is_turbo)} disabled={disabled} color='#f59e0b' />
-                                    <span className={`ou-sw-lbl${is_turbo ? ' on' : ''}`} style={is_turbo ? { color: '#f59e0b' } : {}}>{is_turbo ? 'ON' : 'OFF'}</span>
-                                </div>
-                            </div>
+                            <SwitchTile label='Turbo Mode' on={is_turbo} onToggle={() => setIsTurbo(!is_turbo)} disabled={disabled} color='#f59e0b' />
                         </div>
                     </div>
 
@@ -606,16 +555,11 @@ const OverUnder = observer(() => {
                                     initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
                                     style={{ overflow: 'hidden' }}>
-                                    <div className='ou-row-fields' style={{ paddingTop: 10 }}>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Enable</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={is_recovery_enabled} onToggle={() => setIsRecoveryEnabled(!is_recovery_enabled)} disabled={disabled} color='#ef4444' />
-                                                <span className={`ou-sw-lbl${is_recovery_enabled ? ' on' : ''}`} style={is_recovery_enabled ? { color: '#ef4444' } : {}}>{is_recovery_enabled ? 'ON' : 'OFF'}</span>
-                                            </div>
-                                        </div>
-                                        <div className='ou-f ou-f--grow'>
-                                            <span className='ou-fl'>Type</span>
+                                    <div className='ou-grid' style={{ paddingTop: 10 }}>
+                                        <SwitchTile label='Enable Recovery' on={is_recovery_enabled} onToggle={() => setIsRecoveryEnabled(!is_recovery_enabled)} disabled={disabled} color='#ef4444' />
+                                        <SwitchTile label='Wait For Trigger' on={use_recovery_delay} onToggle={() => setUseRecoveryDelay(!use_recovery_delay)} disabled={disabled || !is_recovery_enabled} color='#ef4444' />
+                                        <div className='ou-f ou-f--full'>
+                                            <span className='ou-fl'>Recovery Contract</span>
                                             <select className='ou-sel' value={recovery_contract_type}
                                                 onChange={e => setRecoveryContractType(e.target.value)} disabled={disabled || !is_recovery_enabled}>
                                                 <option value='DIGITOVER'>Over</option>
@@ -625,34 +569,22 @@ const OverUnder = observer(() => {
                                         </div>
                                         <div className='ou-f'>
                                             <span className='ou-fl'>Barrier</span>
-                                            <input className='ou-inp' type='number' min='0' max='9'
+                                            <input className='ou-inp ou-inp--full' type='number' min='0' max='9'
                                                 value={recovery_barrier} onChange={e => setRecoveryBarrier(e.target.value)} disabled={disabled || !is_recovery_enabled} />
-                                        </div>
-                                        <div className='ou-f'>
-                                            <span className='ou-fl'>Trig. Wait</span>
-                                            <div className='ou-sw-row'>
-                                                <Toggle on={use_recovery_delay} onToggle={() => setUseRecoveryDelay(!use_recovery_delay)} disabled={disabled || !is_recovery_enabled} color='#ef4444' />
-                                                <span className={`ou-sw-lbl${use_recovery_delay ? ' on' : ''}`} style={use_recovery_delay ? { color: '#ef4444' } : {}}>{use_recovery_delay ? 'ON' : 'OFF'}</span>
-                                            </div>
                                         </div>
                                     </div>
                                     {use_recovery_delay && (
-                                        <div className='ou-row-fields' style={{ paddingTop: 8 }}>
+                                        <div className='ou-grid' style={{ paddingTop: 10 }}>
                                             <div className='ou-f'>
-                                                <span className='ou-fl'>Trigger</span>
-                                                <input className='ou-inp' type='number' min='0' max='9'
+                                                <span className='ou-fl'>1st Trigger Digit</span>
+                                                <input className='ou-inp ou-inp--full' type='number' min='0' max='9'
                                                     value={recovery_entry_digit} onChange={e => setRecoveryEntryDigit(Number(e.target.value))} disabled={disabled || !is_recovery_enabled} />
                                             </div>
-                                            <div className='ou-f'>
-                                                <span className='ou-fl'>2ND</span>
-                                                <div className='ou-sw-row'>
-                                                    <Toggle on={use_second_trigger} onToggle={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled || !is_recovery_enabled || !use_recovery_delay} color='#ef4444' />
-                                                </div>
-                                            </div>
+                                            <SwitchTile label='Use 2nd Trigger' on={use_second_trigger} onToggle={() => setUseSecondTrigger(!use_second_trigger)} disabled={disabled || !is_recovery_enabled || !use_recovery_delay} color='#ef4444' />
                                             {use_second_trigger && (
                                                 <div className='ou-f'>
-                                                    <span className='ou-fl'>2nd Trigger</span>
-                                                    <input className='ou-inp' type='number' min='0' max='9'
+                                                    <span className='ou-fl'>2nd Trigger Digit</span>
+                                                    <input className='ou-inp ou-inp--full' type='number' min='0' max='9'
                                                         value={recovery_second_entry_digit} onChange={e => setRecoverySecondEntryDigit(Number(e.target.value))} disabled={disabled || !is_recovery_enabled} />
                                                 </div>
                                             )}
