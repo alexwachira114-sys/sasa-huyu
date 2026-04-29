@@ -1,3 +1,4 @@
+
 import { website_name } from '@/utils/site-config';
 import { getAppId } from '../config/config';
 import { CookieStorage, isStorageSupported, LocalStore } from '../storage/storage';
@@ -41,5 +42,5 @@ export const loginUrl = ({ language }: TLoginUrl) => {
         return `https://${server_url}/oauth2/authorize?app_id=${getAppId()}&l=${language}&redirect_uri=${redirect_uri}${marketing_queries}&brand=${website_name.toLowerCase()}`;
     }
 
-    return urlForCurrentDomain(getOAuthUrl());
+    return getOAuthUrl();
 };
