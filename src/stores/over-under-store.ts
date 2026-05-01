@@ -76,6 +76,7 @@ export default class OverUnderStore {
     is_differs_recovery_mode = false;
     is_2term_mode = false;
     is_rise_fall_mode = false;
+    is_rise_fall_v2_mode = false;
     last_profit = 0;
     differs_predicted_top4: number[] = [];
     differs_v2_predicted_digit: number | null = null;
@@ -87,6 +88,8 @@ export default class OverUnderStore {
     total_loss_to_recover = 0;
     differs_digit_appearance_count = 0;
     private rise_fall_trade_count = 0;
+    private rise_fall_v2_growth_counters: { [symbol: string]: number } = {};
+    private rise_fall_v2_prev_histogram: { [symbol: string]: number } = {};
 
     is_analyzing_volatility = false;
     analysis_queue: string[] = [];
@@ -158,6 +161,7 @@ export default class OverUnderStore {
             is_differs_recovery_mode: observable,
             is_2term_mode: observable,
             is_rise_fall_mode: observable,
+            is_rise_fall_v2_mode: observable,
             is_differs_v2_mode: observable,
             is_tatu_bora_mode: observable,
             is_nne_kwisha_mode: observable,
@@ -176,6 +180,7 @@ export default class OverUnderStore {
             last_ai_signal_analysis: observable,
             setStake: action.bound,
             setIsRiseFallMode: action.bound,
+            setIsRiseFallV2Mode: action.bound,
             setIs2termMode: action.bound,
             setMartingale: action.bound,
             setIsVolatilityChanger: action.bound,
@@ -297,6 +302,7 @@ export default class OverUnderStore {
         const symbols = Object.keys(pip_sizes);
         const strategy = this.is_differs_mode ? 'differs'
             : this.is_differs_v2_mode ? 'differs_v2'
+            : this.is_rise_fall_v2_mode ? 'rise_fall_v2'
             : this.is_rise_fall_mode ? 'rise_fall'
             : this.is_manual_mode ? 'manual'
             : 'over_under';
@@ -477,6 +483,7 @@ export default class OverUnderStore {
 
     setIs2termMode(value: boolean) { this.is_2term_mode = value; }
     setIsRiseFallMode(value: boolean) { this.is_rise_fall_mode = value; }
+    setIsRiseFallV2Mode(value: boolean) { this.is_rise_fall_v2_mode = value; }
     setIsAutomate(value: boolean) { this.is_automate = value; }
     setUseSecondTrigger(value: boolean) { this.use_second_trigger = value; }
     setIsManualMode(value: boolean) { this.is_manual_mode = value; }
@@ -579,6 +586,8 @@ export default class OverUnderStore {
         this.is_purchasing = false;
         this.pending_instant_result_check = {};
         this.rebounce_sequences = {};
+        this.rise_fall_v2_growth_counters = {};
+        this.rise_fall_v2_prev_histogram = {};
     }
 
     handleStartStop() {
@@ -616,6 +625,9 @@ export default class OverUnderStore {
                         this.analyzeAndExecuteDiffersV2();
                     }
                 }, 7000);
+            } else if (this.is_rise_fall_v2_mode) {
+                this.addLog('Rise/Fall V2: Loading all volatilities — scanning MACD histograms (3s)...');
+                this.startRiseFallV2VolatilityScan();
             } else {
                 this.addLog("Tool started. Waiting for trigger...");
                 if (this.is_volatility_changer) this.startVolatilityAnalysis();
@@ -752,6 +764,7 @@ export default class OverUnderStore {
                                 const strategy = this.analysis_strategy ?? (
                                     this.is_differs_mode ? 'differs'
                                     : this.is_differs_v2_mode ? 'differs_v2'
+                                    : this.is_rise_fall_v2_mode ? 'rise_fall_v2'
                                     : this.is_rise_fall_mode ? 'rise_fall'
                                     : this.is_manual_mode ? 'manual'
                                     : 'over_under'
@@ -966,9 +979,11 @@ export default class OverUnderStore {
                                 } else {
                                     if (this.symbol_locks[this.selected_symbol]) return;
 
-                                    if (this.is_rise_fall_mode) {
-                                        this.analyzeAndExecuteRiseFall();
-                                    } else if (this.is_differs_mode) {
+                    if (this.is_rise_fall_v2_mode) {
+                        this.analyzeAndExecuteRiseFallV2();
+                    } else if (this.is_rise_fall_mode) {
+                        this.analyzeAndExecuteRiseFall();
+                    } else if (this.is_differs_mode) {
                                         this.analyzeAndExecuteDiffers();
                                     } else if (this.is_differs_v2_mode) {
                                         this.analyzeAndExecuteDiffersV2();
@@ -1148,6 +1163,195 @@ export default class OverUnderStore {
                 duration: 1,
                 duration_unit: 't',
                 symbol: symbol,
+                contract_type,
+            },
+        }));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RISE / FALL V2  —  MACD Histogram momentum strategy
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * On startup: fetch tick history for every volatility in parallel,
+     * compute each one's MACD (12,26,9) histogram, and after 3 seconds
+     * select the symbol whose latest histogram bar has the greatest
+     * absolute magnitude (longest bar = most momentum).
+     */
+    startRiseFallV2VolatilityScan() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.addLog('Rise/Fall V2: WebSocket not ready — retrying in 500ms...');
+            setTimeout(() => {
+                if (this.is_auto_running && this.is_rise_fall_v2_mode) this.startRiseFallV2VolatilityScan();
+            }, 500);
+            return;
+        }
+
+        const symbols = Object.keys(pip_sizes);
+        const scores: Map<string, number> = new Map();
+        let received = 0;
+
+        // Temporary one-shot message handler that collects history responses
+        // for the scan without interfering with the live tick subscription.
+        const scanHandler = (event: MessageEvent) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.msg_type !== 'history' || data.echo_req?.subscribe === 1) return;
+                const sym: string = data.echo_req.ticks_history;
+                if (!symbols.includes(sym)) return;
+
+                const rawPrices: number[] = data.history.prices.map((p: string | number) => Number(p));
+                if (rawPrices.length >= 35) {
+                    const histogram = this.calcMACDHistogram(rawPrices);
+                    if (histogram.length > 0) {
+                        const lastBar = histogram[histogram.length - 1];
+                        scores.set(sym, Math.abs(lastBar));
+                    }
+                }
+
+                received++;
+                if (received >= symbols.length) {
+                    this.ws?.removeEventListener('message', scanHandler);
+                }
+            } catch (_) { /* ignore parse errors */ }
+        };
+
+        this.ws.addEventListener('message', scanHandler);
+
+        // Request tick history for all symbols (no subscribe flag — one-shot)
+        symbols.forEach(sym => {
+            this.ws!.send(JSON.stringify({ ticks_history: sym, count: 1000, end: 'latest', style: 'ticks' }));
+        });
+
+        // After 3 seconds, pick the winner and start trading
+        setTimeout(() => {
+            this.ws?.removeEventListener('message', scanHandler);
+
+            if (!this.is_auto_running || !this.is_rise_fall_v2_mode) return;
+
+            if (scores.size === 0) {
+                this.addLog('Rise/Fall V2: No MACD data available — defaulting to R_100.');
+                this.setSelectedSymbol('R_100');
+            } else {
+                let bestSym = '';
+                let bestScore = -Infinity;
+                scores.forEach((score, sym) => {
+                    const pct = ((score / [...scores.values()].reduce((a, b) => a + b, 0)) * 100);
+                    this.addLog(`Rise/Fall V2 scan — ${sym}: histogram magnitude ${score.toExponential(3)} (${pct.toFixed(1)}%)`);
+                    if (score > bestScore) { bestScore = score; bestSym = sym; }
+                });
+                this.addLog(`Rise/Fall V2: Selected ${bestSym} — strongest MACD histogram bar. Waiting for entry signal...`);
+                this.setSelectedSymbol(bestSym);
+            }
+
+            // Reset growth counters for the chosen symbol
+            this.rise_fall_v2_growth_counters = {};
+            this.rise_fall_v2_prev_histogram = {};
+        }, 3000);
+    }
+
+    /**
+     * Helper: compute MACD (12,26,9) histogram array from raw price series.
+     */
+    calcMACDHistogram(prices: number[]): number[] {
+        if (prices.length < 35) return [];
+        const ema12 = this.calculateEMA(prices, 12);
+        const ema26 = this.calculateEMA(prices, 26);
+        // Align: ema26 is shorter; offset ema12 to match
+        const offset = ema12.length - ema26.length;
+        const macdLine: number[] = ema26.map((v, i) => ema12[offset + i] - v);
+        const signal = this.calculateEMA(macdLine, 9);
+        const sigOffset = macdLine.length - signal.length;
+        return signal.map((s, i) => macdLine[sigOffset + i] - s);
+    }
+
+    /**
+     * Called on every tick when Rise/Fall V2 is active.
+     * Tracks 4 consecutive growing histogram bars and fires a trade on the 4th.
+     */
+    analyzeAndExecuteRiseFallV2() {
+        const symbol = this.selected_symbol;
+        if (this.symbol_locks[symbol]) return;
+        if (this._tick_prices.length < 35) return;
+
+        const histogram = this.calcMACDHistogram(this._tick_prices);
+        if (histogram.length < 2) return;
+
+        const currentBar = histogram[histogram.length - 1];
+        const prevBar = this.rise_fall_v2_prev_histogram[symbol];
+
+        // Store current bar for next tick comparison
+        this.rise_fall_v2_prev_histogram[symbol] = currentBar;
+
+        // Initialise counter if needed
+        if (this.rise_fall_v2_growth_counters[symbol] === undefined) {
+            this.rise_fall_v2_growth_counters[symbol] = 0;
+        }
+
+        if (prevBar === undefined) {
+            // First tick — nothing to compare yet
+            return;
+        }
+
+        const isAboveZero = currentBar > 0;
+        const isBelowZero = currentBar < 0;
+
+        // ── FALL condition: histogram above 0 and growing upward ──────────────
+        if (isAboveZero && currentBar > prevBar) {
+            // Growth sequence is valid only if we were already above 0 last tick
+            if (prevBar > 0) {
+                this.rise_fall_v2_growth_counters[symbol]++;
+                this.addLog(`Rise/Fall V2 [${symbol}]: FALL growth ${this.rise_fall_v2_growth_counters[symbol]}/4 (hist=${currentBar.toExponential(3)})`);
+                if (this.rise_fall_v2_growth_counters[symbol] >= 4) {
+                    this.addLog(`Rise/Fall V2 [${symbol}]: 4 consecutive FALL growth bars detected. Placing FALL contract.`);
+                    this.rise_fall_v2_growth_counters[symbol] = 0;
+                    this.executeRiseFallV2Trade('PUT', symbol);
+                }
+            } else {
+                // Crossed zero — reset
+                this.rise_fall_v2_growth_counters[symbol] = 1;
+            }
+        // ── RISE condition: histogram below 0 and growing downward ────────────
+        } else if (isBelowZero && currentBar < prevBar) {
+            // Growth sequence is valid only if we were already below 0 last tick
+            if (prevBar < 0) {
+                this.rise_fall_v2_growth_counters[symbol]++;
+                this.addLog(`Rise/Fall V2 [${symbol}]: RISE growth ${this.rise_fall_v2_growth_counters[symbol]}/4 (hist=${currentBar.toExponential(3)})`);
+                if (this.rise_fall_v2_growth_counters[symbol] >= 4) {
+                    this.addLog(`Rise/Fall V2 [${symbol}]: 4 consecutive RISE growth bars detected. Placing RISE contract.`);
+                    this.rise_fall_v2_growth_counters[symbol] = 0;
+                    this.executeRiseFallV2Trade('CALL', symbol);
+                }
+            } else {
+                // Crossed zero — reset
+                this.rise_fall_v2_growth_counters[symbol] = 1;
+            }
+        } else {
+            // Growth sequence broke — reset counter
+            if (this.rise_fall_v2_growth_counters[symbol] > 0) {
+                this.addLog(`Rise/Fall V2 [${symbol}]: Growth sequence broken. Counter reset.`);
+            }
+            this.rise_fall_v2_growth_counters[symbol] = 0;
+        }
+    }
+
+    executeRiseFallV2Trade(contract_type: 'CALL' | 'PUT', symbol: string) {
+        if (this.symbol_locks[symbol]) return;
+        const is_logged_in = this.is_authorized || this.root_store.client.is_logged_in || !!localStorage.getItem('active_loginid');
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
+        this.symbol_locks[symbol] = true;
+        const tradeAmount = Number(this.stake.toFixed(2));
+        this.addLog(`Rise/Fall V2 Trade: ${contract_type === 'CALL' ? 'RISE' : 'FALL'} @ $${tradeAmount} on ${symbol} (4 ticks)`);
+        this.ws.send(JSON.stringify({
+            buy: 1,
+            price: tradeAmount,
+            parameters: {
+                amount: tradeAmount,
+                basis: 'stake',
+                currency: 'USD',
+                duration: 4,
+                duration_unit: 't',
+                symbol,
                 contract_type,
             },
         }));
@@ -1440,6 +1644,22 @@ export default class OverUnderStore {
             } else {
                 this.addLog('Rise/Fall: Monitoring MACD for next signal...');
             }
+            return;
+        }
+
+        if (this.is_rise_fall_v2_mode) {
+            if (all_loss) {
+                this.stake = Number((this.stake * this.martingale).toFixed(2));
+                this.addLog(`Rise/Fall V2: Loss. Martingale stake → ${this.stake}`);
+            } else {
+                this.stake = this.initial_stake;
+                this.addLog(`Rise/Fall V2: Win. Stake reset to ${this.stake}`);
+            }
+            this.contract_results.clear();
+            this.is_processing_round = false;
+            // Reset growth counter so we don't re-enter on the same move
+            this.rise_fall_v2_growth_counters[this.selected_symbol] = 0;
+            this.addLog('Rise/Fall V2: Monitoring MACD histogram for next entry signal...');
             return;
         }
         

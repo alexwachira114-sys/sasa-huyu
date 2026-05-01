@@ -64,6 +64,25 @@ self.onmessage = (event) => {
             return (pct1 * 3.0) + (pct2 * 2.0) + (pct3 * 1.0);
         }
 
+        // ── RISE / FALL V2 ────────────────────────────────────────────────────────
+        // Select the volatility whose LATEST single MACD histogram bar has the
+        // greatest absolute magnitude — i.e. the symbol with the most momentum
+        // RIGHT NOW, not averaged over the last 15 bars.
+        // Normalised by average price so high-priced symbols don't dominate.
+        if (strategy === 'rise_fall_v2') {
+            if (!prices || prices.length < 35) return Infinity;
+            const histogram = calcMACDHistogram(prices);
+            if (histogram.length < 1) return Infinity;
+
+            const lastBar = Math.abs(histogram[histogram.length - 1]);
+            const avgPrice: number =
+                (prices.slice(-15) as number[]).reduce((s: number, p: number) => s + Math.abs(p), 0) / Math.min(15, prices.length);
+            if (!avgPrice || !isFinite(avgPrice)) return Infinity;
+
+            // Lower score wins → negate so the tallest bar produces the lowest score.
+            return -(lastBar / avgPrice);
+        }
+
         // ── RISE / FALL ───────────────────────────────────────────────────────────
         // Vote across volatilities: the winner is the one whose LAST 15 MACD
         // histogram bars are the tallest (strongest momentum / longest bars).
@@ -80,7 +99,7 @@ self.onmessage = (event) => {
             const last15 = histogram.slice(-15);
             const last15Prices = prices.slice(-15);
             const avgPrice =
-                last15Prices.reduce((s, p) => s + Math.abs(p), 0) / last15Prices.length;
+                last15Prices.reduce((s: number, p: number) => s + Math.abs(p), 0) / last15Prices.length;
             if (!avgPrice || !isFinite(avgPrice)) return Infinity;
 
             // Average absolute histogram size, expressed as a fraction of price.
@@ -133,10 +152,21 @@ self.onmessage = (event) => {
 
     const score = calculateScore();
 
-    // For rise/fall we also send back the raw average-absolute-normalised
+    // For rise/fall and rise_fall_v2 we also send back the raw normalised
     // momentum so the store can express the vote as a percentage share
     // across all volatilities.
     let momentum: number | null = null;
+    if (strategy === 'rise_fall_v2' && prices && prices.length >= 35) {
+        const histogram = calcMACDHistogram(prices);
+        if (histogram.length >= 1) {
+            const lastBar = Math.abs(histogram[histogram.length - 1]);
+            const avgPrice =
+                prices.slice(-15).reduce((s: number, p: number) => s + Math.abs(p), 0) / Math.min(15, prices.length);
+            if (avgPrice && isFinite(avgPrice)) {
+                momentum = lastBar / avgPrice;
+            }
+        }
+    }
     if (strategy === 'rise_fall' && prices && prices.length >= 35) {
         const histogram = calcMACDHistogram(prices);
         if (histogram.length >= 15) {

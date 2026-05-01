@@ -10,13 +10,14 @@ import {
 import { useStore } from '@/hooks/useStore';
 import './over-under.scss';
 
-type Strategy = 'over_under' | 'differs' | 'differs_v2' | 'rise_fall' | 'manual';
+type Strategy = 'over_under' | 'differs' | 'differs_v2' | 'rise_fall' | 'rise_fall_v2' | 'manual';
 
 const STRAT_META: Record<Strategy, { label: string; color: string; glow: string; desc: string }> = {
     over_under: { label: 'Over 5 / Under 4', color: '#3b82f6', glow: 'rgba(59,130,246,0.4)', desc: 'Fires Over 5 & Under 4 simultaneously on trigger digit' },
     differs:    { label: 'Differs', color: '#a855f7', glow: 'rgba(168,85,247,0.4)', desc: 'Detects pushback reversal pattern (3+ ticks + reversal)' },
     differs_v2: { label: 'Differs V2', color: '#ec4899', glow: 'rgba(236,72,153,0.4)', desc: 'Trades on doubles (e.g., 7,7) or triples (7,7,7)' },
     rise_fall:  { label: 'Rise / Fall', color: '#10b981', glow: 'rgba(16,185,129,0.4)', desc: 'MACD-based trend momentum — places Rise or Fall contract' },
+    rise_fall_v2: { label: 'Rise / Fall V2', color: '#06b6d4', glow: 'rgba(6,182,212,0.4)', desc: 'MACD histogram momentum — 4 consecutive growing bars trigger a 4-tick Rise or Fall' },
     manual:     { label: 'Manual', color: '#f97316', glow: 'rgba(249,115,22,0.4)', desc: 'You choose contract type, barrier digit and trigger' },
 };
 
@@ -153,7 +154,7 @@ const OverUnder = observer(() => {
     const {
         connection_status, tick_history, last_digit,
         is_auto_running, stake, martingale, is_volatility_changer,
-        is_differs_mode, is_differs_v2_mode, is_tatu_bora_mode, is_nne_kwisha_mode, is_all_vol_mode, is_2term_mode, is_rise_fall_mode, is_automate,
+        is_differs_mode, is_differs_v2_mode, is_tatu_bora_mode, is_nne_kwisha_mode, is_all_vol_mode, is_2term_mode, is_rise_fall_mode, is_rise_fall_v2_mode, is_automate,
         use_second_trigger, is_manual_mode, manual_contract_type, manual_barrier, manual_duration, is_ai_scanning,
         recovery_contract_type, recovery_barrier, use_recovery_delay, is_recovery_enabled,
         recovery_entry_digit, recovery_second_entry_digit,
@@ -161,7 +162,7 @@ const OverUnder = observer(() => {
         differs_predicted_top4, is_digit_occurrence_filter_active, is_rebounce_active,
         is_trigger_enabled,
         setStake, setMartingale, setIsVolatilityChanger,
-        setIsDiffersMode, setIsDiffersV2Mode, setIsTatuBoraMode, setIsNneKwishaMode, setIsAllVolMode, setIs2termMode, setIsRiseFallMode, setIsAutomate,
+        setIsDiffersMode, setIsDiffersV2Mode, setIsTatuBoraMode, setIsNneKwishaMode, setIsAllVolMode, setIs2termMode, setIsRiseFallMode, setIsRiseFallV2Mode, setIsAutomate,
         setUseSecondTrigger, setIsManualMode, setManualContractType, setManualBarrier, setManualDuration,
         setRecoveryContractType, setRecoveryBarrier, setUseRecoveryDelay, setIsRecoveryEnabled,
         setRecoveryEntryDigit, setRecoverySecondEntryDigit,
@@ -175,6 +176,7 @@ const OverUnder = observer(() => {
 
     const activeStrategy: Strategy = is_differs_mode ? 'differs'
         : is_differs_v2_mode ? 'differs_v2'
+        : is_rise_fall_v2_mode ? 'rise_fall_v2'
         : is_rise_fall_mode ? 'rise_fall'
         : is_manual_mode ? 'manual'
         : 'over_under';
@@ -187,6 +189,7 @@ const OverUnder = observer(() => {
         setIsDiffersMode(s === 'differs');
         setIsDiffersV2Mode(s === 'differs_v2');
         setIsRiseFallMode(s === 'rise_fall');
+        setIsRiseFallV2Mode(s === 'rise_fall_v2');
         setIsManualMode(s === 'manual');
     };
 
@@ -301,6 +304,15 @@ const OverUnder = observer(() => {
                                         '<b>FALL (PUT):</b> MACD line crosses BELOW the signal line while BOTH lines are above the zero line — a turn from an uptrend.',
                                         '<b>Anti-Wobble Filter:</b> The cross is only taken if the gap between the lines on the bar before the cross was at least 25% of the average gap over the last 5 bars — so two lines hugging each other won\'t produce a false signal.',
                                         '<b>Auto Cycle:</b> After at least 3 trades AND only when the last trade was a WIN, the volatility vote is re-run and the bot may switch indices. A losing streak holds the current index until a win returns.',
+                                    ] },
+                                    { c: 'cyan', t: 'Rise / Fall V2', items: [
+                                        '<b>Goal:</b> Enter trades on sustained MACD histogram momentum, not just crossovers.',
+                                        '<b>Startup Scan (3 seconds):</b> On start, the bot fetches tick history for all 10 volatility indices simultaneously. After 3 seconds it computes the MACD (12,26,9) histogram for each and selects the one whose <b>latest histogram bar</b> has the greatest absolute magnitude — the symbol with the strongest momentum right now.',
+                                        '<b>FALL (PUT) Entry:</b> The histogram must be <b>above zero</b> and each bar must be <b>higher than the previous</b> for 4 consecutive ticks. On the 4th consecutive increase, a <b>FALL</b> contract is placed.',
+                                        '<b>RISE (CALL) Entry:</b> The histogram must be <b>below zero</b> and each bar must be <b>more negative</b> than the previous for 4 consecutive ticks. On the 4th consecutive increase in downward momentum, a <b>RISE</b> contract is placed.',
+                                        '<b>Contract Duration:</b> All trades are exactly <b>4 ticks</b>.',
+                                        '<b>Growth Counter:</b> Resets to 0 immediately after a purchase or if the growth sequence breaks at any point — preventing multiple entries on the same move.',
+                                        '<b>Auto Switch Volatility:</b> Optionally re-run the 3-second scan after each trade to stay on the most active index.',
                                     ] },
                                     { c: 'orange', t: 'Manual', items: [
                                         '<b>Goal:</b> You decide everything — contract type, barrier, duration, trigger.',
@@ -533,11 +545,24 @@ const OverUnder = observer(() => {
                                 <div className='ou-row-wrap'>
                                     <div className='ou-row-label'><TrendingUp size={11} /> Options</div>
                                     <div className='ou-grid'>
+                               
                                         <SwitchTile label='Auto Cycle' on={is_automate} onToggle={() => setIsAutomate(!is_automate)} disabled={disabled} color='#10b981' />
                                     </div>
                                 </div>
                             )}
 
+                            {activeStrategy === 'rise_fall_v2' && (
+                                <div className='ou-row-wrap'>
+                                    <div className='ou-row-label'><TrendingUp size={11} /> Options</div>
+                                    <div className='ou-strat-info' style={{ '--c': '#06b6d4' } as React.CSSProperties}>
+                                        <span className='ou-strat-info__dot' />
+                                        <span>Scans all volatilities for 3 seconds on start, selects the one with the longest MACD histogram bar, then waits for 4 consecutive growing bars before placing a 4-tick Rise or Fall contract.</span>
+                                    </div>
+                                    <div className='ou-grid' style={{ marginTop: 8 }}>
+                                        <SwitchTile label='Auto Switch Volatility' on={is_volatility_changer} onToggle={() => setIsVolatilityChanger(!is_volatility_changer)} disabled={disabled} color='#06b6d4' />
+                                    </div>
+                                </div>
+                            )}
                             {activeStrategy === 'manual' && (
                                 <>
                                     <div className='ou-row-wrap'>
