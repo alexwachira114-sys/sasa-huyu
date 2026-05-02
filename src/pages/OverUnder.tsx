@@ -544,10 +544,6 @@ const OverUnder = observer(() => {
                             {activeStrategy === 'rise_fall_v2' && (
                                 <div className='ou-row-wrap'>
                                     <div className='ou-row-label'><TrendingUp size={11} /> Options</div>
-                                    <div className='ou-strat-info' style={{ '--c': '#06b6d4' } as React.CSSProperties}>
-                                        <span className='ou-strat-info__dot' />
-                                        <span>Scans all volatilities for 3 seconds on start, selects the one with the longest MACD histogram bar, then fires a 4-tick Rise or Fall contract on the <b>exact same tick</b> the 5th consecutive growing bar is detected — zero delay. When <b>Auto Switch Volatility</b> is ON, a fresh volatility scan runs automatically after every WIN to pick the best momentum index before the next signal. When <b>All Volatilities</b> is ON, it scans every index in parallel and fires whenever any index hits the 5-bar growth.</span>
-                                    </div>
                                     <div className='ou-grid' style={{ marginTop: 8 }}>
                                         <SwitchTile label='Auto Switch Volatility' on={is_volatility_changer} onToggle={() => setIsVolatilityChanger(!is_volatility_changer)} disabled={disabled} color='#06b6d4' />
                                         <SwitchTile label='All Volatilities' on={is_all_vol_mode} onToggle={() => setIsAllVolMode(!is_all_vol_mode)} disabled={disabled} color='#06b6d4' />

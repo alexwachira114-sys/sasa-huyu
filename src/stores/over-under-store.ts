@@ -1358,7 +1358,7 @@ export default class OverUnderStore {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !is_logged_in) return;
         this.symbol_locks[symbol] = true;
         const tradeAmount = Number(this.stake.toFixed(2));
-        this.addLog(`Rise/Fall V2 Trade: ${contract_type === 'CALL' ? 'RISE' : 'FALL'} @ $${tradeAmount} on ${symbol} (4 ticks)`);
+        this.addLog(`Rise/Fall V2 Trade: ${contract_type === 'CALL' ? 'RISE' : 'FALL'} @ $${tradeAmount} on ${symbol} (1 tick)`);
         this.ws.send(JSON.stringify({
             buy: 1,
             price: tradeAmount,
@@ -1366,7 +1366,7 @@ export default class OverUnderStore {
                 amount: tradeAmount,
                 basis: 'stake',
                 currency: 'USD',
-                duration: 4,
+                duration: 1,
                 duration_unit: 't',
                 symbol,
                 contract_type,
