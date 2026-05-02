@@ -53,6 +53,8 @@ const FreeBots = observer(() => {
                 'Advanced Under 8 trading bot with R67 recovery system. Designed for optimal performance with sophisticated pattern recognition and recovery.',
             'MAKOTIV3RISE FALL':
                 'Premium Rise/Fall trading bot with MACD analysis and intelligent recovery. Optimized for consistent returns in trending markets.',
+            'MAKOTIRISE FALLV4':
+                'Latest version of the Makoti Rise Fall bot. Enhanced with improved entry signals and advanced recovery management for maximum stability.',
         };
 
         // Try exact match first
@@ -85,6 +87,7 @@ const FreeBots = observer(() => {
             'UNDER8_R67 PRO.xml',
             'UNDER7_R56 PRO.xml',
             'MAKOTIV3RISE_FALL.xml',
+            'MAKOTIRISE_FALLV4.xml',
         ];
     };
 
