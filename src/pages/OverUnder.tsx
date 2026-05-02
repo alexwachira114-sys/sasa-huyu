@@ -17,7 +17,7 @@ const STRAT_META: Record<Strategy, { label: string; color: string; glow: string;
     differs:    { label: 'Differs', color: '#a855f7', glow: 'rgba(168,85,247,0.4)', desc: 'Detects pushback reversal pattern (3+ ticks + reversal)' },
     differs_v2: { label: 'Differs V2', color: '#ec4899', glow: 'rgba(236,72,153,0.4)', desc: 'Trades on doubles (e.g., 7,7) or triples (7,7,7)' },
     rise_fall:  { label: 'Rise / Fall', color: '#10b981', glow: 'rgba(16,185,129,0.4)', desc: 'MACD-based trend momentum — places Rise or Fall contract' },
-    rise_fall_v2: { label: 'Rise / Fall V2', color: '#06b6d4', glow: 'rgba(6,182,212,0.4)', desc: 'MACD histogram momentum — fires trade on the exact 4th consecutive growth bar (zero delay). Auto Switch Volatility re-scans all indices after each WIN.' },
+    rise_fall_v2: { label: 'Rise / Fall V2', color: '#06b6d4', glow: 'rgba(6,182,212,0.4)', desc: 'MACD histogram momentum — fires trade on the exact 5th consecutive growth bar (with 1-bar crossover delay). Auto Switch Volatility re-scans all indices after each WIN.' },
     manual:     { label: 'Manual', color: '#f97316', glow: 'rgba(249,115,22,0.4)', desc: 'You choose contract type, barrier digit and trigger' },
 };
 

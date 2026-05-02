@@ -1277,7 +1277,7 @@ export default class OverUnderStore {
 
     /**
      * Called on every tick when Rise/Fall V2 is active.
-     * Tracks 4 consecutive growing histogram bars and fires a trade on the 4th.
+     * Tracks 5 consecutive growing histogram bars and fires a trade on the 5th (with 1-bar crossover delay).
      */
     analyzeAndExecuteRiseFallV2() {
         const symbol = this.selected_symbol;
@@ -1313,15 +1313,15 @@ export default class OverUnderStore {
             // Growth sequence is valid only if we were already above 0 last tick
             if (prevBar > 0) {
                 this.rise_fall_v2_growth_counters[symbol]++;
-                this.addLog(`Rise/Fall V2 [${symbol}]: FALL growth ${this.rise_fall_v2_growth_counters[symbol]}/4 (hist=${currentBar.toExponential(3)})`);
-                if (this.rise_fall_v2_growth_counters[symbol] >= 4) {
-                    this.addLog(`Rise/Fall V2 [${symbol}]: 4 consecutive FALL growth bars detected. Placing FALL contract (overbought exhaustion).`);
+                this.addLog(`Rise/Fall V2 [${symbol}]: FALL growth ${this.rise_fall_v2_growth_counters[symbol]}/5 (hist=${currentBar.toExponential(3)})`);
+                if (this.rise_fall_v2_growth_counters[symbol] >= 5) {
+                    this.addLog(`Rise/Fall V2 [${symbol}]: 5 consecutive FALL growth bars detected. Placing FALL contract (overbought exhaustion).`);
                     this.rise_fall_v2_growth_counters[symbol] = 0;
                     this.executeRiseFallV2Trade('PUT', symbol);
                 }
             } else {
-                // Crossed zero — reset
-                this.rise_fall_v2_growth_counters[symbol] = 1;
+                // Crossed zero — wait for next bar to start counting
+                this.rise_fall_v2_growth_counters[symbol] = 0;
             }
         // ── RISE (Oversold Reversion) ──────────────────────────────
         // Histogram below 0 and growing downward (-0.1 → -0.2 → -0.3 → -0.4)
@@ -1330,15 +1330,15 @@ export default class OverUnderStore {
             // Growth sequence is valid only if we were already below 0 last tick
             if (prevBar < 0) {
                 this.rise_fall_v2_growth_counters[symbol]++;
-                this.addLog(`Rise/Fall V2 [${symbol}]: RISE growth ${this.rise_fall_v2_growth_counters[symbol]}/4 (hist=${currentBar.toExponential(3)})`);
-                if (this.rise_fall_v2_growth_counters[symbol] >= 4) {
-                    this.addLog(`Rise/Fall V2 [${symbol}]: 4 consecutive RISE growth bars detected. Placing RISE contract (oversold exhaustion).`);
+                this.addLog(`Rise/Fall V2 [${symbol}]: RISE growth ${this.rise_fall_v2_growth_counters[symbol]}/5 (hist=${currentBar.toExponential(3)})`);
+                if (this.rise_fall_v2_growth_counters[symbol] >= 5) {
+                    this.addLog(`Rise/Fall V2 [${symbol}]: 5 consecutive RISE growth bars detected. Placing RISE contract (oversold exhaustion).`);
                     this.rise_fall_v2_growth_counters[symbol] = 0;
                     this.executeRiseFallV2Trade('CALL', symbol);
                 }
             } else {
-                // Crossed zero — reset
-                this.rise_fall_v2_growth_counters[symbol] = 1;
+                // Crossed zero — wait for next bar to start counting
+                this.rise_fall_v2_growth_counters[symbol] = 0;
             }
         } else {
             // Growth sequence broke — reset counter
