@@ -166,7 +166,11 @@ export default class TransactionsStore {
         try {
             let total_runs = 0;
             const trxs = (this.transactions || []).filter(
-                (trx: any) => trx && trx.type === transaction_elements.CONTRACT && typeof trx.data === 'object'
+                (trx: any) => 
+                    trx && 
+                    trx.type === transaction_elements.CONTRACT && 
+                    typeof trx.data === 'object' &&
+                    !(trx.data as any).is_virtual // Exclude virtual hook trades from statistics
             );
             const statistics = trxs.reduce(
                 (stats: any, { data }: any) => {

@@ -183,21 +183,21 @@ export default Engine =>
                 underlying: this.tradeOptions.symbol,
             };
 
-            // Update internal statistics so martingale logic can see the virtual results
-            this.updateTotals(virtual_contract);
+            // CRITICAL: We DO NOT call this.updateTotals(virtual_contract) here.
+            // This ensures virtual trades do not affect global statistics, total profit/loss,
+            // run counts, or Martingale logic which relies on those statistics.
 
-            // Emit events to update the UI (Trade Summary, Transactions, etc.)
+            // Emit events to update the UI (Transactions tab)
+            // Note: We still emit this so the user can see the virtual trade in the transactions list
             globalObserver.emit('bot.contract', {
                 ...virtual_contract,
                 is_sold: true,
+                is_virtual: true, // Explicitly mark as virtual
             });
 
-            info({
-                profit: contract.profit,
-                contract: virtual_contract,
-                accountID: 'VIRTUAL',
-                is_virtual: true,
-            });
+            // We do NOT call info() with statistics update for virtual trades
+            // This keeps the summary panel totals clean from virtual results.
+            console.log('🤖 [VIRTUAL HOOK] Virtual trade completed. Statistics and Martingale bypassed.');
 
             this.store.dispatch(sell());
 

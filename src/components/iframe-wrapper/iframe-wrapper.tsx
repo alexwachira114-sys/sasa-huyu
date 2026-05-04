@@ -127,6 +127,7 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
                             display_name: tradeData.display_name || tradeData.underlying || tradeData.symbol || '',
                             date_start: tradeData.date_start || Math.floor(Date.now() / 1000),
                             status: tradeData.status || 'open',
+                            is_virtual: tradeData.is_virtual || false,
                         };
 
                         console.log(`📝 [${title}] Calling onBotContractEvent with:`, contractData);
