@@ -82,23 +82,23 @@ export default Engine =>
             if (!to_buy) {
                 throw new Error(localize('Selected proposal does not exist'));
             }
-
             // Use isolated VH stake if in virtual mode
-            let askPrice = to_buy.ask_price;
+            let askPrice = Number(to_buy.ask_price);
             if (this.vh_state.enabled) {
                 if (this.vh_state.is_virtual) {
                     // In virtual mode, use the tracked VH stake (which should be the original stake)
                     if (this.vh_state.current_stake) {
-                        askPrice = this.vh_state.current_stake;
+                        askPrice = Number(this.vh_state.current_stake);
                     }
                     console.log(`🤖 [VIRTUAL HOOK] Virtual mode: Using stake ${askPrice}`);
                 } else {
                     // In real mode, use the original stake from trade options
                     // This ensures we don't use any multiplied stake from previous trades
-                    askPrice = this.tradeOptions.amount;
+                    askPrice = Number(this.tradeOptions.amount);
                     console.log(`🤖 [VIRTUAL HOOK] Real mode: Using original stake ${askPrice}`);
                 }
             }
+
             return {
                 id: to_buy.id,
                 askPrice: askPrice,

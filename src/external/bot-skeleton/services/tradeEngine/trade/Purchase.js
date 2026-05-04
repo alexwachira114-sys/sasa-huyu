@@ -68,63 +68,64 @@ export default Engine =>
 
             const entry_spot = proposal.spot;
 
-            const onContractEnd = end_spot => {
-                let is_win;
-                const last_digit = Number(String(end_spot).slice(-1));
+            return new Promise(resolve => {
+                const onContractEnd = end_spot => {
+                    let is_win;
+                    const last_digit = Number(String(end_spot).slice(-1));
 
-                switch (trade_contract_type) {
-                    case 'CALL': is_win = end_spot > entry_spot; break;
-                    case 'PUT': is_win = end_spot < entry_spot; break;
-                    case 'DIGITMATCH': is_win = last_digit === prediction; break;
-                    case 'DIGITDIFF': is_win = last_digit !== prediction; break;
-                    case 'DIGITOVER': is_win = last_digit > prediction; break;
-                    case 'DIGITUNDER': is_win = last_digit < prediction; break;
-                    case 'DIGITODD': is_win = last_digit % 2 !== 0; break;
-                    case 'DIGITEVEN': is_win = last_digit % 2 === 0; break;
-                    default: is_win = Math.random() > 0.5; break;
-                }
+                    switch (trade_contract_type) {
+                        case 'CALL': is_win = end_spot > entry_spot; break;
+                        case 'PUT': is_win = end_spot < entry_spot; break;
+                        case 'DIGITMATCH': is_win = last_digit === prediction; break;
+                        case 'DIGITDIFF': is_win = last_digit !== prediction; break;
+                        case 'DIGITOVER': is_win = last_digit > prediction; break;
+                        case 'DIGITUNDER': is_win = last_digit < prediction; break;
+                        case 'DIGITODD': is_win = last_digit % 2 !== 0; break;
+                        case 'DIGITEVEN': is_win = last_digit % 2 === 0; break;
+                        default: is_win = Math.random() > 0.5; break;
+                    }
 
-                const simulated_contract = {
-                    ...proposal,
-                    profit: is_win ? Number(proposal.payout) - Number(proposal.ask_price) : -Number(proposal.ask_price),
-                    status: 'sold',
-                    entry_spot,
-                    exit_spot: end_spot,
-                    is_virtual: true,
+                    const simulated_contract = {
+                        ...proposal,
+                        profit: is_win ? Number(proposal.payout) - Number(proposal.ask_price) : -Number(proposal.ask_price),
+                        status: 'sold',
+                        entry_spot,
+                        exit_spot: end_spot,
+                        is_virtual: true,
+                    };
+
+                    this.updateVirtualTotals(simulated_contract);
+                    resolve();
                 };
 
-                this.updateVirtualTotals(simulated_contract);
-            };
-
-            // Simulated wait for contract duration
-            if (duration_unit === 't') {
-                let tick_count = 0;
-                const tick_subscriber = api_base.api.onMessage().subscribe(({ data }) => {
-                    if (data.msg_type === 'tick' && data.tick.symbol === symbol) {
-                        tick_count++;
-                        if (tick_count >= duration) {
-                            tick_subscriber.unsubscribe();
-                            onContractEnd(data.tick.quote);
-                        }
-                    }
-                });
-                api_base.pushSubscription(tick_subscriber);
-                api_base.api.send({ ticks: symbol, subscribe: 1 });
-            } else {
-                let duration_ms = duration * 1000 * (duration_unit === 'm' ? 60 : 1);
-                setTimeout(() => {
+                // Simulated wait for contract duration
+                if (duration_unit === 't') {
+                    let tick_count = 0;
                     const tick_subscriber = api_base.api.onMessage().subscribe(({ data }) => {
                         if (data.msg_type === 'tick' && data.tick.symbol === symbol) {
-                            tick_subscriber.unsubscribe();
-                            onContractEnd(data.tick.quote);
+                            tick_count++;
+                            if (tick_count >= duration) {
+                                tick_subscriber.unsubscribe();
+                                onContractEnd(data.tick.quote);
+                            }
                         }
                     });
                     api_base.pushSubscription(tick_subscriber);
                     api_base.api.send({ ticks: symbol, subscribe: 1 });
-                }, duration_ms);
-            }
-
-            return Promise.resolve();
+                } else {
+                    let duration_ms = duration * 1000 * (duration_unit === 'm' ? 60 : 1);
+                    setTimeout(() => {
+                        const tick_subscriber = api_base.api.onMessage().subscribe(({ data }) => {
+                            if (data.msg_type === 'tick' && data.tick.symbol === symbol) {
+                                tick_subscriber.unsubscribe();
+                                onContractEnd(data.tick.quote);
+                            }
+                        });
+                        api_base.pushSubscription(tick_subscriber);
+                        api_base.api.send({ ticks: symbol, subscribe: 1 });
+                    }, duration_ms);
+                }
+            });
         }
 
         updateVirtualTotals(contract) {
@@ -168,7 +169,7 @@ export default Engine =>
                 display_transaction_ids: { buy: String(virtual_id), sell: String(virtual_id + 1) },
                 entry_tick: contract.entry_spot,
                 exit_tick: contract.exit_spot,
-                date_start: now - 1,
+                date_start: now,
                 display_name: win ? localize('Virtual Win') : localize('Virtual Loss'),
                 is_virtual: true,
                 is_completed: true,

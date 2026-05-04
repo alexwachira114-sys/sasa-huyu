@@ -152,14 +152,27 @@ export default class TransactionsStore {
                         // Handle potential null/undefined data or date_start
                         if (!aData || !bData) return 0;
                         
-                        const aDate = aData.date_start || 0;
-                        const bDate = bData.date_start || 0;
+                        const aDate = aData.date_start;
+                        const bDate = bData.date_start;
                         
-                        // If dates are strings, try to parse them or compare as strings
-                        const aTime = typeof aDate === 'number' ? aDate : new Date(aDate).getTime() || 0;
-                        const bTime = typeof bDate === 'number' ? bDate : new Date(bDate).getTime() || 0;
+                        const parseDate = (date: any) => {
+                            if (!date) return 0;
+                            if (typeof date === 'number') return date;
+                            if (typeof date === 'string') {
+                                // Try parsing common formats
+                                const parsed = new Date(date).getTime();
+                                if (!isNaN(parsed)) return parsed;
+                                // Fallback for custom formats if needed
+                                return 0;
+                            }
+                            return 0;
+                        };
+
+                        const aTime = parseDate(aDate);
+                        const bTime = parseDate(bDate);
                         
-                        return Number(bTime) - Number(aTime);
+                        if (aTime === bTime) return 0;
+                        return bTime - aTime;
                     });
                     return sorted;
                 }
@@ -333,11 +346,11 @@ export default class TransactionsStore {
             },
             is_completed,
             run_id,
-            date_start: formatDate(data.date_start, 'YYYY-M-D HH:mm:ss [GMT]'),
+            date_start: data.date_start ? formatDate(data.date_start, 'YYYY-M-D HH:mm:ss [GMT]') : undefined,
             entry_tick: data.entry_tick_display_value,
-            entry_tick_time: data.entry_tick_time && formatDate(data.entry_tick_time, 'YYYY-M-D HH:mm:ss [GMT]'),
+            entry_tick_time: data.entry_tick_time ? formatDate(data.entry_tick_time, 'YYYY-M-D HH:mm:ss [GMT]') : undefined,
             exit_tick: data.exit_tick_display_value,
-            exit_tick_time: data.exit_tick_time && formatDate(data.exit_tick_time, 'YYYY-M-D HH:mm:ss [GMT]'),
+            exit_tick_time: data.exit_tick_time ? formatDate(data.exit_tick_time, 'YYYY-M-D HH:mm:ss [GMT]') : undefined,
             profit: is_completed ? data.profit : 0,
         } as TContractInfo & { original_transaction_ids?: { buy?: number; sell?: number } };
 
