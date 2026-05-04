@@ -171,6 +171,8 @@ export default Engine =>
                 display_transaction_ids: { buy: String(virtual_id), sell: String(virtual_id + 1) },
                 entry_tick: contract.entry_spot,
                 exit_tick: contract.exit_spot,
+                entry_tick_display_value: String(contract.entry_spot),
+                exit_tick_display_value: String(contract.exit_spot),
                 entry_tick_time: now - 1,
                 exit_tick_time: now,
                 date_start: now - 1,

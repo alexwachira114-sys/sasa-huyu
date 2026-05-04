@@ -271,7 +271,7 @@ export default class TransactionsStore {
             } else {
                 displayCurrency = 'USD';
             }
-            if (data.transaction_ids) {
+            if (data.transaction_ids && typeof data.transaction_ids.buy !== 'undefined') {
                 displayTransactionIds = {
                     buy: transformTransactionIdForSpecialCR(data.transaction_ids.buy) ?? data.transaction_ids.buy,
                     sell: data.transaction_ids.sell ? (transformTransactionIdForSpecialCR(data.transaction_ids.sell) ?? data.transaction_ids.sell) : undefined
@@ -293,7 +293,7 @@ export default class TransactionsStore {
                     if (real_account) {
                         displayCurrency = real_account.currency || 'USD';
                     }
-                    if (data.transaction_ids) {
+                    if (data.transaction_ids && typeof data.transaction_ids.buy !== 'undefined') {
                         displayTransactionIds = {
                             buy: transformTransactionIdForAdmin(data.transaction_ids.buy, true) ?? data.transaction_ids.buy,
                             sell: data.transaction_ids.sell ? (transformTransactionIdForAdmin(data.transaction_ids.sell, true) ?? data.transaction_ids.sell) : undefined
@@ -301,7 +301,7 @@ export default class TransactionsStore {
                     }
                 }
             } else {
-                if (data.transaction_ids) {
+                if (data.transaction_ids && typeof data.transaction_ids.buy !== 'undefined') {
                     displayTransactionIds = {
                         buy: transformTransactionIdForAdmin(data.transaction_ids.buy, false) ?? data.transaction_ids.buy,
                         sell: data.transaction_ids.sell ? (transformTransactionIdForAdmin(data.transaction_ids.sell, false) ?? data.transaction_ids.sell) : undefined
