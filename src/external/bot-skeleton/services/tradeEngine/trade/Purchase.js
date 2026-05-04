@@ -64,47 +64,19 @@ export default Engine =>
                 this.vh_state.current_stake = this.vh_state.initial_stake;
             }
 
+            // 1. Signal Purchase Successful
             this.store.dispatch(purchaseSuccessful());
             
-            // Mimic the real trade lifecycle by dispatching openContractReceived
-            // This satisfies watchDuring and prevents the bot from freezing
+            // 2. Mimic "Open Contract" signal
+            // This satisfies watchDuring and allows the interpreter to proceed to the next block
             setTimeout(() => {
                 this.store.dispatch(openContractReceived());
-            }, 100);
+            }, 50);
 
             const entry_spot = proposal.spot;
 
-            await new Promise(resolve => {
-                const onContractEnd = end_spot => {
-                    let is_win;
-                    const last_digit = Number(String(end_spot).slice(-1));
-
-                    switch (trade_contract_type) {
-                        case 'CALL': is_win = end_spot > entry_spot; break;
-                        case 'PUT': is_win = end_spot < entry_spot; break;
-                        case 'DIGITMATCH': is_win = last_digit === prediction; break;
-                        case 'DIGITDIFF': is_win = last_digit !== prediction; break;
-                        case 'DIGITOVER': is_win = last_digit > prediction; break;
-                        case 'DIGITUNDER': is_win = last_digit < prediction; break;
-                        case 'DIGITODD': is_win = last_digit % 2 !== 0; break;
-                        case 'DIGITEVEN': is_win = last_digit % 2 === 0; break;
-                        default: is_win = Math.random() > 0.5; break;
-                    }
-
-                    const simulated_contract = {
-                        ...proposal,
-                        profit: is_win ? Number(proposal.payout) - Number(proposal.ask_price) : -Number(proposal.ask_price),
-                        status: 'sold',
-                        entry_spot,
-                        exit_spot: end_spot,
-                        is_virtual: true,
-                    };
-
-                    this.updateVirtualTotals(simulated_contract);
-                    resolve();
-                };
-
-                // Simulated wait for contract duration
+            // 3. Wait for contract duration
+            const end_spot = await new Promise(resolve => {
                 if (duration_unit === 't') {
                     let tick_count = 0;
                     const tick_subscriber = api_base.api.onMessage().subscribe(({ data }) => {
@@ -112,7 +84,7 @@ export default Engine =>
                             tick_count++;
                             if (tick_count >= duration) {
                                 tick_subscriber.unsubscribe();
-                                onContractEnd(data.tick.quote);
+                                resolve(data.tick.quote);
                             }
                         }
                     });
@@ -124,7 +96,7 @@ export default Engine =>
                         const tick_subscriber = api_base.api.onMessage().subscribe(({ data }) => {
                             if (data.msg_type === 'tick' && data.tick.symbol === symbol) {
                                 tick_subscriber.unsubscribe();
-                                onContractEnd(data.tick.quote);
+                                resolve(data.tick.quote);
                             }
                         });
                         api_base.pushSubscription(tick_subscriber);
@@ -133,7 +105,38 @@ export default Engine =>
                 }
             });
 
-            // After virtual trade is finished, we MUST call afterPromise to let the bot continue
+            // 4. Calculate Result
+            let is_win;
+            const last_digit = Number(String(end_spot).slice(-1));
+            switch (trade_contract_type) {
+                case 'CALL': is_win = end_spot > entry_spot; break;
+                case 'PUT': is_win = end_spot < entry_spot; break;
+                case 'DIGITMATCH': is_win = last_digit === prediction; break;
+                case 'DIGITDIFF': is_win = last_digit !== prediction; break;
+                case 'DIGITOVER': is_win = last_digit > prediction; break;
+                case 'DIGITUNDER': is_win = last_digit < prediction; break;
+                case 'DIGITODD': is_win = last_digit % 2 !== 0; break;
+                case 'DIGITEVEN': is_win = last_digit % 2 === 0; break;
+                default: is_win = Math.random() > 0.5; break;
+            }
+
+            const simulated_contract = {
+                ...proposal,
+                profit: is_win ? Number(proposal.payout) - Number(proposal.ask_price) : -Number(proposal.ask_price),
+                status: 'sold',
+                is_sold: true,
+                entry_spot,
+                exit_spot: end_spot,
+                is_virtual: true,
+            };
+
+            // 5. Update Totals and Emit Contract
+            this.updateVirtualTotals(simulated_contract);
+
+            // 6. Signal "Sold" to the state machine
+            this.store.dispatch(sell());
+
+            // 7. Signal completion to the interpreter
             if (this.afterPromise) {
                 const currentAfterPromise = this.afterPromise;
                 this.afterPromise = null;
@@ -201,7 +204,6 @@ export default Engine =>
             globalObserver.emit('bot.contract', { ...virtual_contract, is_sold: true, is_virtual: true });
             console.log('🤖 [VIRTUAL HOOK] Virtual trade completed. Main statistics bypassed.');
 
-            this.store.dispatch(sell());
             this.renewProposalsOnPurchase();
         }
 
