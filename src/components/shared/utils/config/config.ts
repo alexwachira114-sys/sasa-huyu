@@ -106,18 +106,17 @@ export const generateOAuthURL = (is_new_account = false) => {
     const language = 'EN';
     const server_url = localStorage.getItem('config.server_url');
     const redirect_uri = `${window.location.origin}/callback`;
-    const brand = 'makotitraders';
     const app_id = getAppId();
 
     if (server_url && /qa/.test(server_url)) {
-        return `https://${server_url}/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
+        return `https://${server_url}/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}`;
     }
 
     // New accounts use auth.deriv.com/oauth2/auth
     if (is_new_account) {
-        return `https://auth.deriv.com/oauth2/auth?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
+        return `https://auth.deriv.com/oauth2/auth?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}`;
     }
 
     // Old accounts use oauth.deriv.com/oauth2/authorize
-    return `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
+    return `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}`;
 };

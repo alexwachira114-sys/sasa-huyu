@@ -276,8 +276,8 @@ const AppHeader = observer(({ isAuthenticating }: TAppHeaderProps) => {
                                     if (tmbEnabled) {
                                         await onRenderTMBCheck(true);
                                     } else {
-                                        // Old accounts: oauth.deriv.com
-                                        window.location.replace(generateOAuthURL(false));
+                                        // Old accounts: oauth.deriv.com/oauth2/authorize
+                                        window.location.href = generateOAuthURL(false);
                                     }
                                 } catch (error) {
                                     console.error(error);
@@ -295,8 +295,8 @@ const AppHeader = observer(({ isAuthenticating }: TAppHeaderProps) => {
                                     if (tmbEnabled) {
                                         await onRenderTMBCheck(true);
                                     } else {
-                                        // New accounts: auth.deriv.com
-                                        window.location.replace(generateOAuthURL(true));
+                                        // New accounts: auth.deriv.com/oauth2/auth
+                                        window.location.href = generateOAuthURL(true);
                                     }
                                 } catch (error) {
                                     console.error(error);

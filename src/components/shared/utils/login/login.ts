@@ -27,19 +27,14 @@ type TLoginUrl = {
 
 export const loginUrl = ({ language }: TLoginUrl) => {
     const server_url = LocalStore.get('config.server_url');
-    const signup_device_cookie = new (CookieStorage as any)('signup_device');
-    const signup_device = signup_device_cookie.get('signup_device');
-    const date_first_contact_cookie = new (CookieStorage as any)('date_first_contact');
-    const date_first_contact = date_first_contact_cookie.get('date_first_contact');
-    const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${''}`;
     const getOAuthUrl = () => {
         const redirect_uri = `${window.location.origin}/callback`;
-        return `https://oauth.${deriv_urls.DERIV_HOST_NAME}/oauth2/authorize?app_id=${getAppId()}&l=${language}&redirect_uri=${redirect_uri}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+        return `https://oauth.deriv.com/oauth2/authorize?app_id=${getAppId()}&l=${language}&redirect_uri=${redirect_uri}`;
     };
 
     if (server_url && /qa/.test(server_url)) {
         const redirect_uri = `${window.location.origin}/callback`;
-        return `https://${server_url}/oauth2/authorize?app_id=${getAppId()}&l=${language}&redirect_uri=${redirect_uri}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+        return `https://${server_url}/oauth2/authorize?app_id=${getAppId()}&l=${language}&redirect_uri=${redirect_uri}`;
     }
 
     return getOAuthUrl();
