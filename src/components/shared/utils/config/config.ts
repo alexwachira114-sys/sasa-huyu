@@ -113,11 +113,9 @@ export const generateOAuthURL = (is_new_account = false, state = '') => {
         return `https://${server_url}/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=deriv&redirect=home${state_param}`;
     }
 
-    // New accounts: auth.deriv.com/oauth2/authorize
-    if (is_new_account) {
-        return `https://auth.deriv.com/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=deriv&redirect=home${state_param}`;
-    }
+    // Note: App ID 101585 is currently only registered on the old API (oauth.deriv.com).
+    // The new endpoint (auth.deriv.com) will return 'invalid_client' until the App ID is registered there.
+    const endpoint = is_new_account ? 'auth.deriv.com' : 'oauth.deriv.com';
 
-    // Old accounts: oauth.deriv.com/oauth2/authorize
-    return `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=deriv&redirect=home${state_param}`;
+    return `https://${endpoint}/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=deriv&redirect=home${state_param}`;
 };

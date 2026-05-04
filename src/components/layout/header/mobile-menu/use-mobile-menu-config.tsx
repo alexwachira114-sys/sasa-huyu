@@ -107,7 +107,7 @@ const useMobileMenuConfig = (client?: RootStore['client']) => {
             [
                 !is_logged_in && {
                     as: 'button',
-                    label: localize('Log in (Old)'),
+                    label: localize('Log in'),
                     LeftComponent: LegacyProfileSmIcon,
                     onClick: async () => {
                         const { generateOAuthURL } = require('@/components/shared');
@@ -116,22 +116,7 @@ const useMobileMenuConfig = (client?: RootStore['client']) => {
                         if (tmbEnabled) {
                             await onRenderTMBCheck(true, undefined, false);
                         } else {
-                            window.location.href = generateOAuthURL(false);
-                        }
-                    },
-                },
-                !is_logged_in && {
-                    as: 'button',
-                    label: localize('Log in (New)'),
-                    LeftComponent: LegacyProfileSmIcon,
-                    onClick: async () => {
-                        const { generateOAuthURL } = require('@/components/shared');
-                        const { onRenderTMBCheck, isTmbEnabled } = require('@/hooks/useTMB').default();
-                        const tmbEnabled = await isTmbEnabled();
-                        if (tmbEnabled) {
-                            await onRenderTMBCheck(true, undefined, true);
-                        } else {
-                            window.location.href = generateOAuthURL(true);
+                            window.location.href = generateOAuthURL(false, 'home');
                         }
                     },
                 },

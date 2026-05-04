@@ -266,46 +266,25 @@ const AppHeader = observer(({ isAuthenticating }: TAppHeaderProps) => {
         } else {
             return (
                 <div className='auth-actions'>
-                    <div className='auth-login-options' style={{ display: 'flex', gap: '8px' }}>
-                        <Button
-                            tertiary
-                            className='auth-login-button'
-                            onClick={async () => {
-                                try {
-                                    const tmbEnabled = await isTmbEnabled();
-                                    if (tmbEnabled) {
-                                        await onRenderTMBCheck(true, undefined, false);
-                                    } else {
-                                        // Direct link to old authorize endpoint
-                                        window.location.href = generateOAuthURL(false, 'home');
-                                    }
-                                } catch (error) {
-                                    console.error(error);
+                    <Button
+                        tertiary
+                        className='auth-login-button'
+                        onClick={async () => {
+                            try {
+                                const tmbEnabled = await isTmbEnabled();
+                                if (tmbEnabled) {
+                                    await onRenderTMBCheck(true, undefined, false);
+                                } else {
+                                    // Direct link to working authorize endpoint
+                                    window.location.href = generateOAuthURL(false, 'home');
                                 }
-                            }}
-                        >
-                            <Localize i18n_default_text='Log in (Old)' />
-                        </Button>
-                        <Button
-                            tertiary
-                            className='auth-login-button'
-                            onClick={async () => {
-                                try {
-                                    const tmbEnabled = await isTmbEnabled();
-                                    if (tmbEnabled) {
-                                        await onRenderTMBCheck(true, undefined, true);
-                                    } else {
-                                        // Direct link to new auth endpoint
-                                        window.location.href = generateOAuthURL(true, 'home');
-                                    }
-                                } catch (error) {
-                                    console.error(error);
-                                }
-                            }}
-                        >
-                            <Localize i18n_default_text='Log in (New)' />
-                        </Button>
-                    </div>
+                            } catch (error) {
+                                console.error(error);
+                            }
+                        }}
+                    >
+                        <Localize i18n_default_text='Log in' />
+                    </Button>
                     <Button
                         primary
                         className='auth-signup-button'
