@@ -102,7 +102,7 @@ export const getDebugServiceWorker = () => {
     return false;
 };
 
-export const generateOAuthURL = () => {
+export const generateOAuthURL = (is_new_account = false) => {
     const language = 'EN';
     const server_url = localStorage.getItem('config.server_url');
     const redirect_uri = `${window.location.origin}/callback`;
@@ -113,5 +113,11 @@ export const generateOAuthURL = () => {
         return `https://${server_url}/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
     }
 
+    // New accounts use auth.deriv.com/oauth2/auth
+    if (is_new_account) {
+        return `https://auth.deriv.com/oauth2/auth?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
+    }
+
+    // Old accounts use oauth.deriv.com/oauth2/authorize
     return `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&l=${language}&redirect_uri=${redirect_uri}&brand=${brand}`;
 };

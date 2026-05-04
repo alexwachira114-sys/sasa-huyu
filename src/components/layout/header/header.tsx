@@ -266,33 +266,46 @@ const AppHeader = observer(({ isAuthenticating }: TAppHeaderProps) => {
         } else {
             return (
                 <div className='auth-actions'>
-                    <Button
-                        tertiary
-                        className='auth-login-button'
-                        onClick={async () => {
-                            const getQueryParams = new URLSearchParams(window.location.search);
-                            const currency = getQueryParams.get('account') ?? '';
-                            const query_param_currency =
-                                currency || sessionStorage.getItem('query_param_currency') || 'USD';
-
-                            try {
-                                // First, explicitly wait for TMB status to be determined
-                                const tmbEnabled = await isTmbEnabled();
-                                // Now use the result of the explicit check
-                                if (tmbEnabled) {
-                                    await onRenderTMBCheck(true); // Pass true to indicate it's from login button
-                                } else {
-                                    // Always use OAuth directly to avoid home.deriv.com redirect
-                                    window.location.replace(generateOAuthURL());
+                    <div className='auth-login-options' style={{ display: 'flex', gap: '8px' }}>
+                        <Button
+                            tertiary
+                            className='auth-login-button'
+                            onClick={async () => {
+                                try {
+                                    const tmbEnabled = await isTmbEnabled();
+                                    if (tmbEnabled) {
+                                        await onRenderTMBCheck(true);
+                                    } else {
+                                        // Old accounts: oauth.deriv.com
+                                        window.location.replace(generateOAuthURL(false));
+                                    }
+                                } catch (error) {
+                                    console.error(error);
                                 }
-                            } catch (error) {
-                                // eslint-disable-next-line no-console
-                                console.error(error);
-                            }
-                        }}
-                    >
-                        <Localize i18n_default_text='Log in' />
-                    </Button>
+                            }}
+                        >
+                            <Localize i18n_default_text='Log in (Old)' />
+                        </Button>
+                        <Button
+                            tertiary
+                            className='auth-login-button'
+                            onClick={async () => {
+                                try {
+                                    const tmbEnabled = await isTmbEnabled();
+                                    if (tmbEnabled) {
+                                        await onRenderTMBCheck(true);
+                                    } else {
+                                        // New accounts: auth.deriv.com
+                                        window.location.replace(generateOAuthURL(true));
+                                    }
+                                } catch (error) {
+                                    console.error(error);
+                                }
+                            }}
+                        >
+                            <Localize i18n_default_text='Log in (New)' />
+                        </Button>
+                    </div>
                     <Button
                         primary
                         className='auth-signup-button'

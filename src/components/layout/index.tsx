@@ -154,7 +154,8 @@ const Layout = () => {
                     }
                     try {
                         const { generateOAuthURL } = await import('@/components/shared');
-                        window.location.replace(generateOAuthURL());
+                        // For auto-auth, default to old account endpoint as it is the most common fallback
+                        window.location.replace(generateOAuthURL(false));
                     } catch (err) {
                         setIsAuthenticating(false);
                         handleOidcAuthFailure(err);
