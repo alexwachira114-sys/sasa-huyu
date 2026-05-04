@@ -161,6 +161,7 @@ export default Engine =>
                 console.log('🤖 [VIRTUAL HOOK] Virtual win. Staying in virtual mode.');
             }
 
+            const now = Math.floor(Date.now() / 1000);
             const virtual_contract = {
                 ...contract,
                 buy_price: contract.ask_price,
@@ -168,10 +169,12 @@ export default Engine =>
                 transaction_ids: { buy: 'VIRTUAL', sell: 'VIRTUAL' },
                 entry_tick: contract.entry_spot,
                 exit_tick: contract.exit_spot,
-                entry_tick_time: Math.floor(Date.now() / 1000) - 1,
-                exit_tick_time: Math.floor(Date.now() / 1000),
+                entry_tick_time: now - 1,
+                exit_tick_time: now,
+                date_start: now - 1,
                 display_name: win ? localize('Virtual Win') : localize('Virtual Loss'),
                 is_virtual: true,
+                is_completed: true,
             };
 
             // Update internal statistics so martingale logic can see the virtual results
