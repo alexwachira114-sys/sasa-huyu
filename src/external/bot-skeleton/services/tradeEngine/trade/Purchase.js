@@ -108,19 +108,39 @@ export default Engine =>
             this.vh_state.virtual_tick_count++;
             const current_tick_count = this.vh_state.virtual_tick_count;
 
-            console.log(`🤖 [VIRTUAL HOOK] Settlement progress: Tick ${current_tick_count}/${virtual_target_duration}`);
+            // For an N-tick contract: entry = tick 1, exit = tick N (N-1 ticks after entry).
+            // So settle when tick_count reaches (target - 1), not target.
+            const settle_at = Math.max(1, virtual_target_duration - 1);
 
-            if (current_tick_count >= virtual_target_duration) {
+            console.log(`🤖 [VIRTUAL HOOK] Settlement progress: Tick ${current_tick_count}/${settle_at}`);
+
+            if (current_tick_count >= settle_at) {
                 this.settleVirtualTrade(tick_data);
             }
         }
 
         settleVirtualTrade(tick_data) {
-            const end_spot = tick_data.quote;
-            const entry_spot = this.vh_state.virtual_entry_spot;
+            const raw_end_spot = tick_data.quote;
+            const raw_entry_spot = this.vh_state.virtual_entry_spot;
+
+            // Use pip_size to correctly format prices — JavaScript floats silently drop
+            // trailing zeros (e.g. 1234.300 → 1234.3), so String().slice(-1) would read
+            // the wrong digit. toFixed(pip_size) restores the full decimal representation.
+            const pip_size = this.getPipSize() || 0;
+            const end_spot_str = Number(raw_end_spot).toFixed(pip_size);
+            const entry_spot_str = Number(raw_entry_spot).toFixed(pip_size);
+
+            // Keep numeric versions for price comparison (CALL/PUT), string versions for
+            // digit extraction and display.
+            const end_spot = Number(end_spot_str);
+            const entry_spot = Number(entry_spot_str);
+
             const trade_contract_type = this.vh_state.virtual_contract_type;
             const prediction_barrier = parseInt(this.vh_state.virtual_prediction, 10);
-            const last_digit = Number(String(end_spot).slice(-1));
+
+            // Extract last digit from the properly-formatted string so a trailing '0' is
+            // never silently dropped (e.g. "1234.300" → last digit 0, not 3).
+            const last_digit = Number(end_spot_str.slice(-1));
             let is_win;
             let result_details = '';
 
@@ -179,8 +199,10 @@ export default Engine =>
                     : -(proposal ? Number(proposal.ask_price) : this.vh_state.current_stake),
                 status: 'sold',
                 is_sold: true,
-                entry_spot,
-                exit_spot: end_spot,
+                // Store the formatted strings so the run log preserves trailing zeros
+                // (e.g. 1234.300 is shown as "1234.300", not "1234.3").
+                entry_spot: entry_spot_str,
+                exit_spot: end_spot_str,
                 is_virtual: true,
                 contract_type: trade_contract_type,
                 symbol: this.tradeOptions.symbol,
