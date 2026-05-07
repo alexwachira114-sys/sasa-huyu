@@ -1,15 +1,15 @@
+import React, { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
 import { crypto_currencies_display_order, fiat_currencies_display_order } from '@/components/shared';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { observer as globalObserver } from '@/external/bot-skeleton/utils/observer';
-import useTMB from '@/hooks/useTMB';
 import { clearAuthData } from '@/utils/auth-utils';
 import { Callback } from '@deriv-com/auth-client';
 import { Button } from '@deriv-com/ui';
 
-/**
- * Gets the selected currency or falls back to appropriate defaults
- */
+const PKCE_LOCAL_STORAGE_KEY = 'pkce_verifier';
+const PKCE_CLIENT_ID = '337DJLKi2OJ4VsyFSLIt9';
+
 const getSelectedCurrency = (
     tokens: Record<string, string>,
     clientAccounts: Record<string, any>,
@@ -30,7 +30,125 @@ const getSelectedCurrency = (
     return firstAccountCurrency || 'USD';
 };
 
+const PkceCallbackHandler = () => {
+    const [status, setStatus] = useState<'processing' | 'error'>('processing');
+    const [errorMsg, setErrorMsg] = useState('');
+
+    useEffect(() => {
+        const run = async () => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const code = params.get('code');
+                const verifier = localStorage.getItem(PKCE_LOCAL_STORAGE_KEY);
+
+                if (!code) throw new Error('No authorization code found in URL.');
+                if (!verifier) throw new Error('PKCE verifier missing. Please try logging in again.');
+
+                const redirect_uri = `${window.location.origin}/callback`;
+
+                const tokenRes = await fetch('https://auth.deriv.com/oauth2/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code,
+                        redirect_uri,
+                        client_id: PKCE_CLIENT_ID,
+                        code_verifier: verifier,
+                    }).toString(),
+                });
+
+                if (!tokenRes.ok) {
+                    const err = await tokenRes.text();
+                    throw new Error(`Token exchange failed: ${err}`);
+                }
+
+                const tokenData = await tokenRes.json();
+                const access_token = tokenData.access_token;
+                if (!access_token) throw new Error('No access_token in token response.');
+
+                localStorage.removeItem(PKCE_LOCAL_STORAGE_KEY);
+
+                const legacyRes = await fetch('https://auth.deriv.com/oauth2/legacy/tokens', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${access_token}` },
+                });
+
+                if (!legacyRes.ok) {
+                    const err = await legacyRes.text();
+                    throw new Error(`Legacy token fetch failed: ${err}`);
+                }
+
+                const legacyData = await legacyRes.json();
+                const tokens: Record<string, string> = legacyData.tokens ?? legacyData;
+
+                const accountsList: Record<string, string> = {};
+                const clientAccounts: Record<string, { loginid: string; token: string; currency: string }> = {};
+
+                for (const [key, value] of Object.entries(tokens)) {
+                    if (key.startsWith('acct')) {
+                        const tokenKey = key.replace('acct', 'token');
+                        if (tokens[tokenKey]) {
+                            accountsList[value] = tokens[tokenKey];
+                            clientAccounts[value] = { loginid: value, token: tokens[tokenKey], currency: '' };
+                        }
+                    } else if (key.startsWith('cur')) {
+                        const accKey = key.replace('cur', 'acct');
+                        if (tokens[accKey] && clientAccounts[tokens[accKey]]) {
+                            clientAccounts[tokens[accKey]].currency = value;
+                        }
+                    }
+                }
+
+                localStorage.setItem('accountsList', JSON.stringify(accountsList));
+                localStorage.setItem('clientAccounts', JSON.stringify(clientAccounts));
+                localStorage.setItem('authToken', tokens.token1);
+                localStorage.setItem('active_loginid', tokens.acct1);
+
+                Cookies.set('logged_state', 'true', {
+                    domain: window.location.hostname,
+                    expires: 30,
+                    path: '/',
+                    secure: window.location.protocol === 'https:',
+                });
+
+                const selected_currency = getSelectedCurrency(tokens, clientAccounts, null);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                window.location.replace(`${window.location.origin}/?account=${selected_currency}`);
+            } catch (e: any) {
+                console.error('[PKCE Callback]', e);
+                setErrorMsg(e?.message ?? 'An unexpected error occurred.');
+                setStatus('error');
+            }
+        };
+
+        run();
+    }, []);
+
+    if (status === 'error') {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <h2>Login failed</h2>
+                <p style={{ color: '#e74c3c', margin: '16px 0' }}>{errorMsg}</p>
+                <Button onClick={() => { window.location.href = '/'; }}>Return to App</Button>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+            <p>Completing login, please wait…</p>
+        </div>
+    );
+};
+
 const CallbackPage = () => {
+    const isPkceFlow = new URLSearchParams(window.location.search).has('code');
+
+    if (isPkceFlow) {
+        return <PkceCallbackHandler />;
+    }
+
     return (
         <Callback
             onSignInSuccess={async (tokens: Record<string, string>, rawState: unknown) => {
@@ -57,7 +175,6 @@ const CallbackPage = () => {
                     }
                 }
 
-                // CRITICAL: Save all account data first to ensure persistence
                 localStorage.setItem('accountsList', JSON.stringify(accountsList));
                 localStorage.setItem('clientAccounts', JSON.stringify(clientAccounts));
 
@@ -67,19 +184,13 @@ const CallbackPage = () => {
                     const { authorize, error } = await api.authorize(tokens.token1);
                     api.disconnect();
                     if (error) {
-                        // Check if the error is due to an invalid token
                         if (error.code === 'InvalidToken') {
-                            // Set is_token_set to true to prevent the app from getting stuck in loading state
                             is_token_set = true;
-
-                            // Only emit the InvalidToken event if logged_state is true
-                            const { is_tmb_enabled = false } = useTMB();
+                            const is_tmb_enabled = window.is_tmb_enabled === true;
                             if (Cookies.get('logged_state') === 'true' && !is_tmb_enabled) {
-                                // Emit an event that can be caught by the application to retrigger OIDC authentication
                                 globalObserver.emit('InvalidToken', { error });
                             }
                             if (Cookies.get('logged_state') === 'false') {
-                                // If the user is not logged out, we need to clear the local storage
                                 clearAuthData();
                             }
                         }
@@ -99,21 +210,16 @@ const CallbackPage = () => {
                     localStorage.setItem('authToken', tokens.token1);
                     localStorage.setItem('active_loginid', tokens.acct1);
                 }
-                
-                // CRITICAL: Set logged_state cookie to ensure session persists
+
                 Cookies.set('logged_state', 'true', {
                     domain: window.location.hostname,
                     expires: 30,
                     path: '/',
                     secure: window.location.protocol === 'https:',
                 });
-                
-                // Determine the appropriate currency to use
-                const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
 
-                // Small delay to ensure localStorage is fully written before redirect
+                const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
                 await new Promise(resolve => setTimeout(resolve, 100));
-                
                 window.location.replace(window.location.origin + `/?account=${selected_currency}`);
             }}
             renderReturnButton={() => {
