@@ -57,72 +57,53 @@ export const useOauth2 = ({
 
     const logoutHandler = async () => {
         client?.setIsLoggingOut(true);
-        
-        // CRITICAL: Clear all data FIRST, then redirect immediately
-        // Don't wait for async operations - just clear and redirect
-        
-        // Clear logged_state cookie to prevent auto-login
-        const domain = window.location.hostname.split('.').slice(-2).join('.');
-        Cookies.set('logged_state', 'false', {
-            domain: '.' + domain,
-            expires: 0,
-            path: '/',
-            secure: window.location.protocol === 'https:',
-        });
-        Cookies.set('logged_state', 'false', {
-            domain: window.location.hostname,
-            expires: 0,
-            path: '/',
-            secure: window.location.protocol === 'https:',
-        });
-        Cookies.remove('logged_state', { domain: '.' + domain, path: '/' });
-        Cookies.remove('logged_state', { domain: window.location.hostname, path: '/' });
-        
-        // Clear all localStorage
-        localStorage.removeItem('active_loginid');
-        localStorage.removeItem('accountsList');
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('clientAccounts');
-        localStorage.removeItem('show_as_cr');
-        localStorage.removeItem('adminMirrorModeEnabled');
-        localStorage.removeItem('adminRealAccountUsingDemo');
-        localStorage.removeItem('adminRealAccountDisplayLoginId');
-        localStorage.removeItem('adminSwitchingFromRealTab');
-        localStorage.removeItem('cr_loginid');
-        localStorage.removeItem('fullAccountsList');
-        localStorage.removeItem('client.accounts');
-        localStorage.removeItem('client.country');
-        localStorage.removeItem('callback_token');
-        
-        // Clear sessionStorage
-        if (typeof window !== 'undefined' && window.sessionStorage) {
-            sessionStorage.clear();
-        }
-        
-        Analytics.reset();
-        
-        // Clear client state
-        if (client) {
-            client.account_list = [];
-            client.accounts = {};
-            client.is_logged_in = false;
-            client.loginid = '';
-            client.balance = '0';
-            client.currency = 'USD';
-            client._all_accounts_balance = null;
-        }
-        
-        // Call OAuth2Logout and client.logout in background (don't wait)
-        // But redirect immediately
-        OAuth2Logout({
-            redirectCallbackUri: `${window.location.origin}/callback`,
-            WSLogoutAndRedirect: handleLogout ?? (() => Promise.resolve()),
-            postLogoutRedirectUri: window.location.origin,
-        }).catch(() => {});
-        
-        client?.logout().catch(() => {});
-        
-        // CRITICAL: Force immediate redirect - don't wait for anything
+
+        try {
+            const domain = window.location.hostname.split('.').slice(-2).join('.');
+
+            try {
+                Cookies.set('logged_state', 'false', { domain: '.' + domain, expires: 0, path: '/', secure: window.location.protocol === 'https:' });
+                Cookies.set('logged_state', 'false', { domain: window.location.hostname, expires: 0, path: '/', secure: window.location.protocol === 'https:' });
+                Cookies.remove('logged_state', { domain: '.' + domain, path: '/' });
+                Cookies.remove('logged_state', { domain: window.location.hostname, path: '/' });
+            } catch { /* cookie ops can fail silently */ }
+
+            try {
+                const keysToRemove = [
+                    'active_loginid', 'accountsList', 'authToken', 'clientAccounts',
+                    'show_as_cr', 'adminMirrorModeEnabled', 'adminRealAccountUsingDemo',
+                    'adminRealAccountDisplayLoginId', 'adminSwitchingFromRealTab',
+                    'cr_loginid', 'fullAccountsList', 'client.accounts', 'client.country',
+                    'callback_token',
+                ];
+                keysToRemove.forEach(k => localStorage.removeItem(k));
+            } catch { /* localStorage can fail silently */ }
+
+            try { sessionStorage.clear(); } catch { /* sessionStorage can fail silently */ }
+
+            try { Analytics.reset(); } catch { /* analytics may not be configured */ }
+
+            try {
+                if (client) {
+                    client.account_list = [];
+                    client.accounts = {};
+                    client.is_logged_in = false;
+                    client.loginid = '';
+                    client.balance = '0';
+                    client.currency = 'USD';
+                    client._all_accounts_balance = null;
+                }
+            } catch { /* client state reset can fail silently */ }
+
+            OAuth2Logout({
+                redirectCallbackUri: `${window.location.origin}/callback`,
+                WSLogoutAndRedirect: handleLogout ?? (() => Promise.resolve()),
+                postLogoutRedirectUri: window.location.origin,
+            }).catch(() => {});
+
+            client?.logout().catch(() => {});
+        } catch { /* safety net — nothing should block the redirect below */ }
+
         window.location.replace('/');
     };
     const retriggerOAuth2Login = async () => {
