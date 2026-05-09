@@ -102,8 +102,8 @@ const RenderAccountItems = ({
         );
     } else {
         const combinedCRAccountList = isTrickActive 
-            ? [...(modifiedCRAccountList as TModifiedAccount[]), ...(modifiedVRTCRAccountList as TModifiedAccount[])]
-            : (modifiedCRAccountList as TModifiedAccount[]);
+            ? [...(modifiedCRAccountList ?? []), ...(modifiedVRTCRAccountList ?? [])]
+            : (modifiedCRAccountList ?? []);
 
         return (
             <RealAccounts

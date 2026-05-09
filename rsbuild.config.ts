@@ -56,7 +56,12 @@ export default defineConfig({
                 './src/components/shims/ui-submenu/index.js'
             ),
             '../Submenu /index.js': path.resolve(__dirname, './src/components/shims/ui-submenu/index.js'),
-            // Redirect quill-icons sub-paths to the complete nested copy inside @deriv-com/quill-ui
+            // Redirect quill-icons root and all sub-paths to the nested copy inside @deriv-com/quill-ui
+            // (the top-level @deriv/quill-icons index.js references icon files that don't exist on disk)
+            '@deriv/quill-icons': path.resolve(
+                __dirname,
+                'node_modules/@deriv-com/quill-ui/node_modules/@deriv/quill-icons/dist/esm/index.js'
+            ),
             '@deriv/quill-icons/Legacy': path.resolve(
                 __dirname,
                 'node_modules/@deriv-com/quill-ui/node_modules/@deriv/quill-icons/dist/esm/react/Legacy'
@@ -80,6 +85,34 @@ export default defineConfig({
             '@deriv/quill-icons/Logo': path.resolve(
                 __dirname,
                 'node_modules/@deriv-com/quill-ui/node_modules/@deriv/quill-icons/dist/esm/react/Logo'
+            ),
+            '@deriv/quill-icons/Currencies': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/Currencies'
+            ),
+            '@deriv/quill-icons/Accounts': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/Accounts'
+            ),
+            '@deriv/quill-icons/Markets': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/Markets'
+            ),
+            '@deriv/quill-icons/Social': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/Social'
+            ),
+            '@deriv/quill-icons/PaymentMethods': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/PaymentMethods'
+            ),
+            '@deriv/quill-icons/Illustrative': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/Illustrative'
+            ),
+            '@deriv/quill-icons/TradeTypes': path.resolve(
+                __dirname,
+                'node_modules/@deriv/quill-icons/dist/esm/react/TradeTypes'
             ),
             // Stub object.fromentries to avoid pulling in broken es-abstract/2024 dependencies
             'object.fromentries': path.resolve(
