@@ -2,7 +2,7 @@
     width: 100%;
     height: 100vh;
     padding: 20px;
-    background: #f5f5f5; // Light grey background to match header
+    background: #0d1117;
     overflow-y: auto;
     overflow-x: hidden;
     box-sizing: border-box;
@@ -18,21 +18,25 @@
     &__loading {
         text-align: center;
         padding: 60px 20px;
-        color: #1e3a8a; // Dark blue text to match header
+        color: #7fa0be;
     }
 
     &__grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 30px;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
         padding-bottom: 60px;
         margin-bottom: 40px;
 
         @media (max-width: 768px) {
-            grid-template-columns: 1fr;
-            gap: 20px;
-            padding: 0 10px 80px 10px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 0 4px 80px 4px;
             margin-bottom: 60px;
+        }
+
+        @media (max-width: 420px) {
+            grid-template-columns: 1fr;
         }
     }
 
@@ -41,56 +45,37 @@
         text-align: center;
         padding: 60px 20px 100px 20px;
         margin-bottom: 40px;
-        color: #1e3a8a; // Dark blue text to match header
+        color: #7fa0be;
     }
 }
 
 .free-bot-card {
-    background: #ffffff; // White card background to match website theme
-    border: 2px solid #1e3a8a; // Dark blue border to match header
-    border-radius: 16px; // More rounded corners
-    padding: 16px; // Reduced padding for more compact cards
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    min-height: 220px; // Reduced height for more compact cards
+    min-height: 160px;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(30, 58, 138, 0.2); // Blue shadow to match theme
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     position: relative;
     animation: fade-in-up 0.6s ease-out;
     animation-fill-mode: both;
 
-    &:nth-child(1) {
-        animation-delay: 0.1s;
-    }
-    &:nth-child(2) {
-        animation-delay: 0.2s;
-    }
-    &:nth-child(3) {
-        animation-delay: 0.3s;
-    }
-    &:nth-child(4) {
-        animation-delay: 0.4s;
-    }
-    &:nth-child(5) {
-        animation-delay: 0.5s;
-    }
-    &:nth-child(6) {
-        animation-delay: 0.6s;
-    }
-    &:nth-child(7) {
-        animation-delay: 0.7s;
-    }
-    &:nth-child(8) {
-        animation-delay: 0.8s;
-    }
+    &:nth-child(1) { animation-delay: 0.1s; }
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.3s; }
+    &:nth-child(4) { animation-delay: 0.4s; }
+    &:nth-child(5) { animation-delay: 0.5s; }
+    &:nth-child(6) { animation-delay: 0.6s; }
 
     &:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 30px rgba(59, 130, 246, 0.4); // Light blue shadow on hover
-        border-color: #3b82f6; // Light blue border on hover
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+        border-color: rgba(59, 130, 246, 0.4);
     }
 
-    // Premium ribbon tag
     &::before {
         content: attr(data-badge);
         position: absolute;
@@ -98,97 +83,80 @@
         right: 0;
         background: linear-gradient(135deg, #ffd700, #ffa500);
         color: #000000;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
-        padding: 8px 16px;
-        border-radius: 0 16px 0 8px;
-        transform: rotate(0deg);
+        padding: 5px 10px;
+        border-radius: 0 12px 0 6px;
         z-index: 2;
-        letter-spacing: 1px;
-        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
-    }
-
-    &--premium-plus {
-        &::before {
-            background: linear-gradient(135deg, #ffcc00, #ff9900); // More intense gold
-            box-shadow: 0 2px 12px rgba(255, 204, 0, 0.5);
-            border: 1px solid #ffcc00;
-        }
+        letter-spacing: 0.8px;
     }
 
     &__header {
-        margin-bottom: 8px; // Reduced spacing
-        margin-top: 16px; // Reduced space for premium tag
+        margin-bottom: 6px;
+        margin-top: 12px;
     }
 
     &__title {
-        margin-bottom: 8px; // Reduced spacing
+        margin-bottom: 6px;
         line-height: 1.3;
-        color: #1e3a8a; // Dark blue text to match header
-        font-size: 16px; // Slightly smaller font
+        color: #dceaf8;
+        font-size: 13px;
         font-weight: 600;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
         overflow: hidden;
         text-overflow: ellipsis;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        white-space: nowrap;
 
-        // Bot icon
         &::before {
             content: '🤖';
-            font-size: 20px;
+            font-size: 14px;
             flex-shrink: 0;
         }
     }
 
-    // Star rating
     &__rating {
         display: flex;
         justify-content: center;
-        margin-bottom: 8px; // Reduced space before description
+        margin-bottom: 6px;
         gap: 2px;
 
         .star {
             color: #ffd700;
-            font-size: 14px; // Slightly smaller stars
-            text-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
+            font-size: 11px;
         }
     }
 
-    // Bot description
     &__description {
-        color: #4b5563; // Grey text for description
-        line-height: 1.5;
-        font-size: 12px; // Smaller font
+        color: #6a8eab;
+        line-height: 1.4;
+        font-size: 11px;
         text-align: center;
-        margin-bottom: 12px; // Reduced spacing
-        padding: 0 4px;
-        min-height: 50px; // Reduced height for more compact cards
+        margin-bottom: 10px;
+        padding: 0 2px;
+        min-height: 36px;
         display: -webkit-box;
-        -webkit-line-clamp: 3; // Limit to 3 lines for more compact design
+        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-weight: 400;
     }
 
     &__badges {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
-        margin-bottom: 16px;
+        margin-bottom: 10px;
     }
 
     &__badge {
-        padding: 6px 12px;
+        padding: 3px 8px;
         border-radius: 20px;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
 
         &--beginner {
             background: rgba(46, 125, 50, 0.2);
@@ -218,43 +186,33 @@
     &__load-btn {
         margin-top: auto;
         width: 100%;
-        padding: 10px 16px; // Reduced padding
-        border-radius: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
         font-weight: 700;
-        font-size: 13px; // Slightly smaller font
+        font-size: 11px;
         transition: all 0.3s ease;
-        background: linear-gradient(135deg, #1e3a8a, #3b82f6) !important; // Blue gradient to match header
+        background: linear-gradient(135deg, #1e3a8a, #3b82f6) !important;
         color: #ffffff !important;
         border: none !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        box-shadow: 0 4px 15px rgba(30, 58, 138, 0.3);
 
         &:hover:not(:disabled) {
-            transform: translateY(-2px);
-            background: linear-gradient(135deg, #3b82f6, #60a5fa) !important; // Lighter blue on hover
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-        }
-
-        &:active:not(:disabled) {
-            transform: translateY(0);
+            background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
         }
 
         &:disabled {
-            background: #666666 !important;
-            color: #999999 !important;
+            background: #333 !important;
+            color: #666 !important;
             cursor: not-allowed;
-            opacity: 0.6;
-            transform: none;
-            box-shadow: none;
+            opacity: 0.5;
         }
     }
 
-    // Skeleton loading animation for cards without XML
     &.loading {
         .free-bot-card__title,
         .free-bot-card__description {
-            background: linear-gradient(90deg, #333333 25%, #444444 50%, #333333 75%);
+            background: linear-gradient(90deg, #1e2633 25%, #2a3545 50%, #1e2633 75%);
             background-size: 200% 100%;
             animation: skeleton-loading 1.5s infinite;
             border-radius: 4px;
@@ -263,68 +221,34 @@
     }
 }
 
-// Mobile optimizations
 @media (max-width: 768px) {
     .free-bots {
-        padding: 16px 12px 120px 12px;
+        padding: 12px 10px 120px 10px;
         height: calc(100vh - 60px);
-        background: #f5f5f5; // Light grey background to match header
-
-        &__container {
-            padding-bottom: 80px;
-        }
-
-        &__grid {
-            gap: 20px;
-            padding-bottom: 100px;
-            margin-bottom: 80px;
-        }
-
-        &__loading,
-        &__empty {
-            padding: 40px 16px 120px 16px;
-            margin-bottom: 60px;
-            color: #1e3a8a; // Dark blue text to match header
-        }
+        background: #0d1117;
     }
 
     .free-bot-card {
-        padding: 16px;
-        min-height: 240px; // Reduced height for mobile
-        margin-bottom: 16px;
-        background: #ffffff; // White background to match website theme
-        border: 2px solid #1e3a8a; // Dark blue border to match header
+        padding: 10px;
+        min-height: 140px;
 
         &__title {
-            font-size: 16px;
-            color: #1e3a8a; // Dark blue text to match header
+            font-size: 12px;
         }
 
         &__load-btn {
-            padding: 12px 16px;
-            font-size: 13px;
+            padding: 8px 10px;
+            font-size: 11px;
         }
     }
 }
 
-// Animation for cards
 @keyframes fade-in-up {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-// Skeleton loading animation
 @keyframes skeleton-loading {
-    0% {
-        background-position: -200% 0;
-    }
-    100% {
-        background-position: 200% 0;
-    }
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
 }

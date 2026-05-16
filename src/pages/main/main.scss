@@ -468,12 +468,14 @@
         transition: all 0.4s;
 
         @include mobile-or-tablet-screen {
-            height: var(--tab-content-height-mobile);
+            height: calc(100svh - 14rem);
+            min-height: 320px;
             padding-bottom: 6rem; // Space for fixed footer
             background: var(--general-main-1);
 
             .smartcharts {
                 height: calc(100% - 4rem);
+                min-height: 280px;
                 z-index: 1;
 
                 &:has(.stxMenuActive) {

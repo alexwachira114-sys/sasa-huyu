@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <link rel="icon" type="image/png" href="/makoti-logo.jpg" />
-        <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
 
         <!-- Primary Meta Tags -->
         <meta name="title" content="MakotiTraders - powerfull trading site" />
@@ -88,6 +88,10 @@
                 :root {
                     font-size: 45%;
                 }
+            }
+            /* Prevent double-tap zoom while keeping pinch-zoom available */
+            * {
+                touch-action: manipulation;
             }
         </style>
         <script>

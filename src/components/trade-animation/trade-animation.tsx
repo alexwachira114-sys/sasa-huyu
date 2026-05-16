@@ -212,9 +212,7 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                             className={button_props.class}
                             id={button_props.id}
                             icon={button_props.icon}
-                            onClick={() => {
-                                // Disabled button, no action
-                            }}
+                            onClick={() => {}}
                             has_effect
                             {...(is_stop_button_visible || !is_unavailable_for_payment_agent
                                 ? { primary: true }
@@ -231,14 +229,12 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                     id={button_props.id}
                     icon={button_props.icon}
                     onClick={() => {
-                        // Resume from pause
                         if (is_bot_paused && !is_stop_button_visible) {
                             toggleBotPause();
                             onRunButtonClick();
                             rudderStackSendRunBotEvent({ subpage_name: safeActiveTab } as any);
                             return;
                         }
-                        // CRITICAL: Prevent multiple clicks when already running
                         if (is_running && !is_stop_button_visible) {
                             console.warn('[Trade Animation] ⚠️ Bot is already running, ignoring click');
                             return;
@@ -249,7 +245,6 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                             return;
                         }
                         onRunButtonClick();
-                        // Cast to any to avoid TypeScript error with subpage_name
                         rudderStackSendRunBotEvent({ subpage_name: safeActiveTab } as any);
                     }}
                     has_effect
@@ -259,6 +254,18 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                 >
                     {button_props.text}
                 </Button>
+            )}
+            {is_stop_button_visible && (
+                <button
+                    className='animation__pause-button'
+                    onClick={() => {
+                        toggleBotPause();
+                        onStopBotClick();
+                    }}
+                    title={localize('Pause the bot after this contract completes')}
+                >
+                    ⏸
+                </button>
             )}
             <div
                 className={classNames('animation__container', className, {
@@ -271,18 +278,6 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                 <span className='animation__text'>
                     <ContractStageText contract_stage={contract_stage} />
                 </span>
-                {is_stop_button_visible && (
-                    <button
-                        className='animation__pause-button'
-                        onClick={() => {
-                            toggleBotPause();
-                            onStopBotClick();
-                        }}
-                        title={localize('Pause the bot after this contract completes')}
-                    >
-                        ⏸ <Localize i18n_default_text='Pause' />
-                    </button>
-                )}
                 <div className='animation__progress'>
                     <div className='animation__progress-line'>
                         <div className={`animation__progress-bar animation__progress-${contract_stage}`} />

@@ -55,6 +55,8 @@ $cyan:    #06b6d4;
         height: auto;
         min-height: 100%;
         overflow-y: auto;
+        // Extra bottom padding so content doesn't hide behind the fixed CTA button
+        padding-bottom: 80px;
     }
 }
 
@@ -219,66 +221,64 @@ $cyan:    #06b6d4;
 }
 
 .ou-cell {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 7px 4px 8px; gap: 0;
-    background: $bg1; border: 1px solid $b0; border-radius: 9px;
+    // Circular shape — aspect-ratio keeps it square at any grid width
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    aspect-ratio: 1;
+    padding: 4px;
+    background: $bg1; border: 2px solid $b0; border-radius: 50%;
     cursor: default; position: relative; overflow: hidden;
     transition: border-color .2s, box-shadow .2s;
 
     &__badge {
-        font-size: 8px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
-        height: 14px; display: flex; align-items: center;
-        &.hot { background: rgba($green,.2); color: $green; padding: 0 5px; border-radius: 3px; }
-        &.cold { background: rgba($red,.2);  color: $red;   padding: 0 5px; border-radius: 3px; }
-        &.predicted { background: rgba(#f59e0b,.2); color: #f59e0b; padding: 0 5px; border-radius: 3px; }
+        font-size: 7px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+        height: 12px; display: flex; align-items: center;
+        position: absolute; top: 6px;
+        &.hot { color: $green; }
+        &.cold { color: $red; }
+        &.predicted { color: #f59e0b; }
     }
 
     &__num {
-        font-size: 20px; font-weight: 900; color: $txt;
-        line-height: 1; margin: 3px 0 5px;
-        @media (max-width: 500px) { font-size: 15px; }
+        font-size: 18px; font-weight: 900; color: $txt;
+        line-height: 1;
+        @media (max-width: 500px) { font-size: 14px; }
     }
 
-    &__bar {
-        width: 100%; height: 44px;
-        background: rgba(255,255,255,0.03); border-radius: 4px;
-        position: relative; overflow: hidden;
-        @media (max-width: 500px) { height: 28px; }
-    }
+    // Hide the bar inside circles — percentage shown as text below the number
+    &__bar { display: none; }
+    &__fill { display: none; }
 
-    &__fill {
-        position: absolute; bottom: 0; left: 0; right: 0;
-        border-radius: 4px 4px 0 0;
+    &__pct {
+        font-size: 10px; font-weight: 700; color: $dim;
+        margin-top: 2px;
+        @media (max-width: 500px) { font-size: 9px; }
     }
-
-    &__pct { font-size: 11px; font-weight: 700; color: $dim; margin-top: 4px; }
 
     &--active {
-        border-color: rgba($blue,.55);
-        background: rgba($blue,.06);
-        box-shadow: 0 0 0 1px rgba($blue,.2), 0 0 16px rgba($blue,.08);
+        border-color: $blue;
+        background: rgba($blue,.1);
+        box-shadow: 0 0 0 2px rgba($blue,.25), 0 0 16px rgba($blue,.15);
         .ou-cell__num { color: $blue; }
-        &::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: $blue; box-shadow: 0 0 8px $blue; }
     }
 
     &--hot {
-        border-color: rgba($green,.4);
+        border-color: rgba($green,.6);
+        background: rgba($green,.08);
         .ou-cell__num { color: $green; }
-        &::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: $green; box-shadow: 0 0 8px $green; }
+        box-shadow: 0 0 12px rgba($green,.2);
     }
 
     &--cold {
-        border-color: rgba($red,.4);
+        border-color: rgba($red,.5);
+        background: rgba($red,.07);
         .ou-cell__num { color: $red; }
-        &::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: $red; box-shadow: 0 0 8px $red; }
     }
 
     &--predicted {
-        border-color: rgba(#f59e0b,.5);
-        background: rgba(#f59e0b,.05);
-        box-shadow: 0 0 0 1px rgba(#f59e0b,.25), 0 0 14px rgba(#f59e0b,.06);
+        border-color: rgba(#f59e0b,.6);
+        background: rgba(#f59e0b,.07);
+        box-shadow: 0 0 12px rgba(#f59e0b,.18);
         .ou-cell__num { color: #f59e0b; }
-        &::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
     }
 }
 
@@ -582,13 +582,18 @@ $cyan:    #06b6d4;
     backdrop-filter: blur(4px);
     border-top: 1px solid $b0;
 
-    // On mobile, it's a normal block at the end of the form.
+    // On mobile — float fixed at the bottom of the viewport.
     @media (max-width: 760px) {
-        position: static;
-        background: transparent;
-        backdrop-filter: none;
-        padding-top: 0;
-        border-top: 1px solid $b0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 12px 16px;
+        background: linear-gradient(to top, $bg0 60%, rgba(4,8,15,0.85));
+        backdrop-filter: blur(8px);
+        border-top: 1px solid $b1;
+        z-index: 200;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
     }
 }
 
