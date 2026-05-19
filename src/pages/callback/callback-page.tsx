@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Cookies from 'js-cookie';
 import { crypto_currencies_display_order, fiat_currencies_display_order } from '@/components/shared';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
@@ -8,6 +8,7 @@ import { Callback } from '@deriv-com/auth-client';
 import { Button } from '@deriv-com/ui';
 import { PKCE_VERIFIER_KEY, PKCE_STATE_KEY } from '@/utils/pkce';
 import { OAUTH_CLIENT_ID, OAUTH_TOKEN_URL, getCallbackURL } from '@/components/shared/utils/config/config';
+import { handleNewCallback } from '@/auth/NewDerivAuth';
 
 const getSelectedCurrency = (
     tokens: Record<string, string>,
@@ -27,6 +28,71 @@ const getSelectedCurrency = (
     if (tokens.acct1?.startsWith('VR') || currency === 'demo') return 'demo';
     if (currency && validCurrencies.includes(currency.toUpperCase())) return currency;
     return firstAccountCurrency || 'USD';
+};
+
+/* ─────────────────────────────────────────────────────────
+   NEW SYSTEM CALLBACK — handles new Deriv OAuth2 redirects
+   (/callback?code=... with NEW_AUTH_active flag set)
+   ───────────────────────────────────────────────────────── */
+const NewSystemCallbackHandler = () => {
+    const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
+    const [errorMsg, setErrorMsg] = useState('');
+    const attempted = useRef(false);
+
+    useEffect(() => {
+        if (attempted.current) return;
+        attempted.current = true;
+
+        const run = async () => {
+            try {
+                const token = await handleNewCallback();
+                if (token) {
+                    setStatus('success');
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    window.location.href = '/';
+                }
+            } catch (err: any) {
+                console.error("[CALLBACK] Error:", err.message);
+                setErrorMsg(err.message);
+                setStatus('error');
+            }
+        };
+
+        run();
+    }, []);
+
+    if (status === 'error') {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center', maxWidth: '520px', margin: '0 auto' }}>
+                <h2 style={{ color: '#e74c3c', marginBottom: '16px' }}>Login failed</h2>
+                <p style={{
+                    color: '#ccc', margin: '16px 0', whiteSpace: 'pre-wrap',
+                    textAlign: 'left', background: '#1a1a1a', padding: '12px',
+                    borderRadius: '8px', fontSize: '13px',
+                }}>
+                    {errorMsg}
+                </p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
+                    <Button onClick={() => { window.location.reload(); }}>Retry</Button>
+                    <Button onClick={() => { window.location.href = '/'; }}>Return to App</Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (status === 'success') {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+                <p style={{ color: '#10b981' }}>Login successful! Redirecting…</p>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+            <p>Completing login, please wait…</p>
+        </div>
+    );
 };
 
 /* ─────────────────────────────────────────────────────────
@@ -183,16 +249,26 @@ const PkceCallbackHandler = () => {
 };
 
 /* ─────────────────────────────────────────────────────────
-   Legacy callback — handles existing Deriv OAuth redirects.
+    Legacy callback — handles existing Deriv OAuth redirects.
 ───────────────────────────────────────────────────────── */
 const CallbackPage = () => {
-    const isPkceFlow = new URLSearchParams(window.location.search).has('code') ||
-                       new URLSearchParams(window.location.search).has('error');
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasCode = urlParams.has('code');
+    const hasNewAuthActive = sessionStorage.getItem('NEW_AUTH_active') === 'true';
+
+    // NEW SYSTEM: if code is present AND NEW_AUTH_active flag set, use new system handler
+    if (hasCode && hasNewAuthActive) {
+        return <NewSystemCallbackHandler />;
+    }
+
+    // OLD SYSTEM: check for legacy PKCE flow (acct1/token1 params)
+    const isPkceFlow = hasCode || urlParams.has('error');
 
     if (isPkceFlow) {
         return <PkceCallbackHandler />;
     }
 
+    // LEGACY: use old Deriv auth-client Callback component
     return (
         <Callback
             onSignInSuccess={async (tokens: Record<string, string>, rawState: unknown) => {
