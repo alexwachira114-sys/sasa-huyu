@@ -19,6 +19,7 @@ import CoreStoreProvider from './CoreStoreProvider';
 import SecurityProtection from '@/components/security/security-protection';
 import CopyTradingManager from '@/pages/copy-trading/copy-trading-manager';
 import { initReplicator } from '@/pages/copy-trading/replicator';
+import { isNewLoggedIn, createNewWebSocket } from '@/auth/NewDerivAuth';
 import './app-root.scss';
 
 const Layout = lazy(() => import('../components/layout'));
@@ -216,6 +217,15 @@ function App() {
             }
         } catch (e) {
             console.warn('Error', e); // eslint-disable-line no-console
+        }
+    }, []);
+
+    // NEW SYSTEM: Check if user is logged in with new Deriv system
+    // and initialize WebSocket connection
+    React.useEffect(() => {
+        if (isNewLoggedIn() && !window._newSystemWSReady) {
+            console.log("[APP] New system user detected, connecting WebSocket");
+            createNewWebSocket();
         }
     }, []);
 
