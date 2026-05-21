@@ -116,7 +116,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
             const originalBalanceNum = balanceData?.balance ?? 0;
             const isOriginalVirtual = !!account.is_virtual;
 
-            const finalBalance = showAsReal && !isOriginalVirtual ? demoBalance : originalBalanceNum;
+            const finalBalance = showAsReal && !isOriginalVirtual && account.currency === 'USD' ? demoBalance : originalBalanceNum;
 
             return {
                 ...account,
