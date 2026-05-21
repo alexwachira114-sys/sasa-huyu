@@ -55,7 +55,6 @@ const RenderAccountItems = ({
         <RealAccounts
             modifiedCRAccountList={modifiedCRAccountList as TModifiedAccount[]}
             modifiedMFAccountList={modifiedMFAccountList as TModifiedAccount[]}
-            modifiedVRTCRAccountList={modifiedVRTCRAccountList as TModifiedAccount[]}
             switchAccount={switchAccount}
             isVirtual={is_virtual}
             tabs_labels={tabs_labels}
@@ -83,17 +82,17 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     const { isDesktop } = useDevice();
     const { accountList } = useApiBase();
     const { ui, run_panel, client } = useStore();
-    const { accounts } = client;
+    const { accounts, all_accounts_balance, website_status } = client;
     const { toggleAccountsDialog, is_accounts_switcher_on, account_switcher_disabled_message } = ui;
     const { is_stop_button_visible } = run_panel;
     const has_wallet = Object.keys(accounts).some(id => accounts[id].account_category === 'wallet');
 
     const modifiedAccountList = useMemo(() => {
         const demoAccount = accountList?.find(acc => acc.is_virtual);
-        const demoBalance = demoAccount ? client?.all_accounts_balance?.accounts?.[demoAccount.loginid]?.balance ?? 0 : 0;
+        const demoBalance = demoAccount ? all_accounts_balance?.accounts?.[demoAccount.loginid]?.balance ?? 0 : 0;
 
         return accountList?.map(account => {
-            const balanceData = client?.all_accounts_balance?.accounts?.[account.loginid];
+            const balanceData = all_accounts_balance?.accounts?.[account.loginid];
             const originalBalanceNum = balanceData?.balance ?? 0;
             const isOriginalVirtual = !!account.is_virtual;
 
@@ -104,13 +103,13 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                 balance: addComma(finalBalance?.toFixed(getDecimalPlaces(account.currency)) ?? '0'),
                 currencyLabel: isOriginalVirtual
                     ? tabs_labels.demo
-                    : client.website_status?.currencies_config?.[account?.currency]?.name ?? account?.currency,
+                    : website_status?.currencies_config?.[account?.currency]?.name ?? account?.currency,
                 icon: <CurrencyIcon currency={account?.currency?.toLowerCase()} isVirtual={isOriginalVirtual} />,
                 isVirtual: isOriginalVirtual,
                 isActive: account?.loginid === activeAccount?.loginid,
             };
         });
-    }, [accountList, client, activeAccount?.loginid, showAsReal]);
+    }, [accountList, all_accounts_balance, website_status?.currencies_config, activeAccount?.loginid, showAsReal]);
 
     const activeModifiedAccount = useMemo(() => {
         const activeFromList = modifiedAccountList?.find(account => account.isActive);
@@ -129,7 +128,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     }, [modifiedAccountList, accountList, activeAccount, showAsReal]);
 
     const modifiedCRAccountList = useMemo(() => {
-        return modifiedAccountList?.filter(account => account?.loginid?.includes('CR')) ?? [];
+        return modifiedAccountList?.filter(account => !account.is_virtual && account?.loginid?.includes('CR')) ?? [];
     }, [modifiedAccountList]);
 
     const modifiedMFAccountList = useMemo(() => {
@@ -137,7 +136,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     }, [modifiedAccountList]);
 
     const modifiedVRTCRAccountList = useMemo(() => {
-        return modifiedAccountList?.filter(account => account?.loginid?.includes('VRT')) ?? [];
+        return modifiedAccountList?.filter(account => account.is_virtual) ?? [];
     }, [modifiedAccountList]);
 
     const switchAccount = async (loginId: number) => {
