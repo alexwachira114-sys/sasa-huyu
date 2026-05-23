@@ -598,7 +598,16 @@ export async function createNewWebSocket() {
   ws.addEventListener('message', (event) => {
     try {
       const data = JSON.parse(event.data)
-      console.log("[NEW WS] Message received:", data.msg_type)
+      if (data.error) {
+        console.warn("[NEW WS] Error for", data.msg_type || data.echo_req?.proposal_open_contract || data.echo_req?.balance, ":", data.error?.message || data.error?.code)
+      } else if (data.msg_type) {
+        const preview = data.msg_type === 'balance' ? JSON.stringify(data.balance).slice(0, 200) : ''
+        console.log("[NEW WS] Message:", data.msg_type, preview)
+        // Direct balance update — bypass proxy bridge to ensure updates reach the store
+        if (data.msg_type === 'balance' && data.balance?.accounts) {
+          window.dispatchEvent(new CustomEvent('new-system-balance', { detail: data.balance }))
+        }
+      }
     } catch(e) {}
   })
   

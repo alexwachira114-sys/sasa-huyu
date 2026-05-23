@@ -492,6 +492,18 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
         };
     }, [connectionStatus, handleMessages, isAuthorizing, isAuthorized, client]);
 
+    // Direct balance updates from new-system WS (bypasses proxy bridge)
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const balance = (e as CustomEvent).detail;
+            if (balance?.accounts && client) {
+                client.setAllAccountsBalance(balance);
+            }
+        };
+        window.addEventListener('new-system-balance', handler);
+        return () => window.removeEventListener('new-system-balance', handler);
+    }, [client]);
+
     useEffect(() => {
         if (!isAuthorizing && isAuthorized && !accountInitialization.current && client && !isNewLoggedIn()) {
             accountInitialization.current = true;

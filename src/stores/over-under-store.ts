@@ -718,7 +718,12 @@ export default class OverUnderStore {
                     } else {
                         const contract_id = data.buy?.contract_id;
                         this.addLog(`Purchase Sent: ${contract_id} on ${symbol}`);
-                        if (contract_id) this.active_contracts.add(String(contract_id));
+                        if (contract_id) {
+                            this.active_contracts.add(String(contract_id));
+                            // Send per-contract POC subscription as fallback in case
+                            // the blanket subscription was rejected by the OTP WS
+                            sendViaNewSystem({ proposal_open_contract: 1, contract_id, subscribe: 1 });
+                        }
                     }
                     return;
                 }
