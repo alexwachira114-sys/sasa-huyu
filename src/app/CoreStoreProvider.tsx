@@ -12,6 +12,7 @@ import useTMB from '@/hooks/useTMB';
 import { getBalanceSwapState, getAccountDisplayInfo } from '@/utils/balance-swap-utils';
 import { SPECIAL_CR_ACCOUNTS } from '@/utils/special-accounts-config';
 import { TLandingCompany, TSocketResponseData } from '@/types/api-types';
+import { isNewLoggedIn } from '@/auth/NewDerivAuth';
 import { useTranslations } from '@deriv-com/translations';
 
 type TClientInformation = {
@@ -461,7 +462,7 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     );
 
     useEffect(() => {
-        if (!isAuthorizing && client) {
+        if (!isAuthorizing && client && !isNewLoggedIn()) {
             const subscription = api_base?.api?.onMessage().subscribe(handleMessages);
             msg_listener.current = { unsubscribe: subscription?.unsubscribe };
         }
@@ -474,7 +475,7 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     }, [connectionStatus, handleMessages, isAuthorizing, isAuthorized, client]);
 
     useEffect(() => {
-        if (!isAuthorizing && isAuthorized && !accountInitialization.current && client) {
+        if (!isAuthorizing && isAuthorized && !accountInitialization.current && client && !isNewLoggedIn()) {
             accountInitialization.current = true;
             api_base.api.getSettings().then((settingRes: TSocketResponseData<'get_settings'>) => {
                 client?.setAccountSettings(settingRes.get_settings);
