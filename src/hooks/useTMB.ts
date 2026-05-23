@@ -6,6 +6,7 @@ import { api_base } from '@/external/bot-skeleton';
 import { setAuthData } from '@/external/bot-skeleton/services/api/observables/connection-status-stream';
 import { TAuthData } from '@/types/api-types';
 import { requestSessionActive } from '@deriv-com/auth-client';
+import { isNewLoggedIn } from '@/auth/NewDerivAuth';
 
 // Extend Window interface to include is_tmb_enabled property
 declare global {
@@ -194,7 +195,8 @@ const useTMB = (): UseTMBReturn => {
         const initializeHook = async () => {
             try {
                 // Pre-fetch active sessions if needed
-                if (!isCallbackPage && window.is_tmb_enabled) {
+                // Skip for new auth system users to avoid rogue CORS fetch
+                if (!isCallbackPage && window.is_tmb_enabled && !isNewLoggedIn()) {
                     try {
                         // This is a critical step - we need to await this
                         const activeSessions = await getActiveSessions();
@@ -285,7 +287,10 @@ const useTMB = (): UseTMBReturn => {
     }, []);
 
     const onRenderTMBCheck = useCallback(
-        async (fromLoginButton?: boolean, setIsAuthenticating?: (value: boolean) => void, is_new_account = false) => {           if (isCallbackPage) return;
+        async (fromLoginButton?: boolean, setIsAuthenticating?: (value: boolean) => void, is_new_account = false) => {
+            if (isCallbackPage) return;
+            // Skip for new auth system users — they don't need legacy TMB/OAuth
+            if (isNewLoggedIn()) return;
             if (TMBState.checkInProgress) return;
 
             TMBState.checkInProgress = true;

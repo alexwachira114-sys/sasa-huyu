@@ -188,6 +188,12 @@ export async function handleNewCallback() {
   sessionStorage.removeItem('deriv_code_verifier')
   sessionStorage.removeItem('deriv_oauth_state')
   
+  // Set legacy cookie so app recognizes logged-in state
+  const cookieDomain = window.location.hostname
+  document.cookie = "logged_state=true; path=/; domain=" + cookieDomain +
+    "; max-age=" + (30 * 24 * 60 * 60) +
+    "; secure=" + (window.location.protocol === 'https:')
+  
   console.log("[NEW AUTH] Token saved. Login complete.")
   
   return data.access_token
@@ -262,10 +268,22 @@ export async function createNewWebSocket() {
   }
   
   const accounts = accountsData.data || accountsData
+  const accountsArray = Array.isArray(accounts) ? accounts : (accounts ? [accounts] : [])
   const account = Array.isArray(accounts) 
     ? accounts[0] 
     : accounts
   const accountId = account?.id || account?.account_id
+  
+  // Save legacy accountsList/clientAccounts so the app recognizes login state
+  const legacyAccountsList = {}
+  const legacyClientAccounts = {}
+  accountsArray.forEach(acc => {
+    const lid = acc.account_id || acc.id
+    legacyAccountsList[lid] = lid
+    legacyClientAccounts[lid] = { loginid: lid, token: lid, currency: acc.currency || 'USD' }
+  })
+  localStorage.setItem('accountsList', JSON.stringify(legacyAccountsList))
+  localStorage.setItem('clientAccounts', JSON.stringify(legacyClientAccounts))
   
   if (!accountId) {
     console.error("[NEW WS] No account ID found:", accountsData)
@@ -317,10 +335,57 @@ export async function createNewWebSocket() {
   
   const ws = new WebSocket(wsUrl)
   
-  ws.onopen = () => {
+  ws.onopen = async () => {
     console.log("[NEW WS] Connected and authenticated via OTP")
     window._newSystemWS = ws
     window._newSystemWSReady = true
+    
+    // Wire up legacy auth state so the app recognizes this login
+    localStorage.setItem('active_loginid', accountId)
+    localStorage.setItem('authToken', accountId)
+    
+    // Notify the legacy auth observables so useApiBase / useActiveAccount pick it up
+    try {
+      const { setAuthData, setAccountList } = await import(
+        /* webpackChunkName: "connection-status-stream" */
+        '@/external/bot-skeleton/services/api/observables/connection-status-stream'
+      )
+      const accountList = accountsArray.map(acc => ({
+        loginid:   acc.account_id || acc.id,
+        currency:  acc.currency || 'USD',
+        is_virtual: acc.account_type === 'demo' ? 1 : 0,
+        account_type: 'trading',
+        is_disabled: 0,
+        created_at: 0,
+        landing_company_name: 'virtual',
+        account_category: 'trading',
+        broker: '',
+        currency_type: 'crypto',
+        linked_to: [],
+      }))
+      setAccountList(accountList)
+      setAuthData({
+        loginid:    accountId,
+        currency:   account.currency || 'USD',
+        balance:    parseFloat(account.balance || '0'),
+        email:      '',
+        fullname:   '',
+        is_virtual: account.account_type === 'demo' ? 1 : 0,
+        landing_company_fullname: '',
+        landing_company_name:     'virtual',
+        linked_to:      [],
+        local_currencies: {},
+        preferred_language: 'EN',
+        scopes:            ['read', 'trade', 'admin'],
+        upgradeable_landing_companies: [],
+        user_id:  0,
+        token:    accountId,
+        country:  '',
+        account_list: accountList,
+      })
+    } catch(e) {
+      console.warn("[NEW WS] Could not wire legacy auth state:", e)
+    }
   }
   
   ws.onmessage = (msg) => {
