@@ -468,7 +468,7 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     );
 
     useEffect(() => {
-        if (!isAuthorizing && client && !isNewLoggedIn()) {
+        if (!isAuthorizing && client) {
             const subscription = api_base?.api?.onMessage().subscribe(handleMessages);
             msg_listener.current = { unsubscribe: subscription?.unsubscribe };
         }

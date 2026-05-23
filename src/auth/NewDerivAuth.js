@@ -131,11 +131,13 @@ const K = {
 }
 
 function clearNewAuthStorage() {
-  sessionStorage.removeItem(K.token);
-  sessionStorage.removeItem(K.expiry);
+  localStorage.removeItem(K.token);
+  localStorage.removeItem(K.expiry);
   localStorage.removeItem(K.verifier);
   localStorage.removeItem(K.state);
   localStorage.removeItem(K.active);
+  sessionStorage.removeItem(K.token);
+  sessionStorage.removeItem(K.expiry);
   sessionStorage.removeItem(K.verifier);
   sessionStorage.removeItem(K.state);
   sessionStorage.removeItem(K.active);
@@ -294,8 +296,8 @@ export async function handleNewCallback() {
   
   console.log("[NEW AUTH] Token received successfully")
   
-  sessionStorage.setItem(K.token, data.access_token)
-  sessionStorage.setItem(
+  localStorage.setItem(K.token, data.access_token)
+  localStorage.setItem(
     K.expiry,
     String(Date.now() + (data.expires_in * 1000))
   )
@@ -314,10 +316,17 @@ export async function handleNewCallback() {
 }
 
 export function getNewToken() {
-  const token = sessionStorage.getItem(K.token)
-  const expiry = sessionStorage.getItem(K.expiry)
+  let token = localStorage.getItem(K.token)
+  let expiry = localStorage.getItem(K.expiry)
+  // Fallback to sessionStorage for sessions started before this change
+  if (!token || !expiry) {
+    token = sessionStorage.getItem(K.token)
+    expiry = sessionStorage.getItem(K.expiry)
+  }
   if (!token || !expiry) return null
   if (Date.now() > Number(expiry)) {
+    localStorage.removeItem(K.token)
+    localStorage.removeItem(K.expiry)
     sessionStorage.removeItem(K.token)
     sessionStorage.removeItem(K.expiry)
     return null
@@ -383,9 +392,11 @@ export async function createNewWebSocket() {
   
   const accounts = accountsData.data || accountsData
   const accountsArray = Array.isArray(accounts) ? accounts : (accounts ? [accounts] : [])
-  const account = Array.isArray(accounts) 
-    ? accounts[0] 
-    : accounts
+  // Respect the user's previously selected account (stored by the account switcher)
+  const savedLoginId = localStorage.getItem('active_loginid')
+  const account = savedLoginId
+    ? accountsArray.find(acc => (acc.id || acc.account_id) === savedLoginId) || accountsArray[0]
+    : accountsArray[0]
   const accountId = account?.id || account?.account_id
   
   // Save legacy accountsList/clientAccounts/client_account_details so the app
@@ -551,9 +562,18 @@ export async function createNewWebSocket() {
     // Subscribe to balance updates so CoreStoreProvider.handleMessages receives
     // live balance via the api-base.ts OTP WS bridge → api.onMessage() → all_accounts_balance.
     try {
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }))
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1, account: 'all' }))
     } catch(e) {
       console.warn("[NEW WS] Could not subscribe to balance:", e)
+    }
+
+    // Subscribe to all POC updates (matches legacy behavior in over-under-store line 886).
+    // This ensures contract lifecycle events start flowing immediately without waiting
+    // for the first trade.
+    try {
+      ws.send(JSON.stringify({ proposal_open_contract: 1, subscribe: 1 }))
+    } catch(e) {
+      console.warn("[NEW WS] Could not subscribe to POC:", e)
     }
   }
   
