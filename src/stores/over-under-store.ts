@@ -123,6 +123,10 @@ export default class OverUnderStore {
     private _accountReaction: () => void;
     private _purchaseTimeout: NodeJS.Timeout | null = null;
     private _analysisTimeout: NodeJS.Timeout | null = null;
+    private _connectionTimeout: NodeJS.Timeout | null = null;
+    private _lastSubWs: WebSocket | null = null;
+    private _lastSubSymbol = '';
+    private _lastSubMs = 0;
     private readonly PURCHASE_TIMEOUT_MS = 30_000;
     private readonly ANALYSIS_TIMEOUT_MS = 60_000;
     private _unsubscribeNewSystem: (() => void) | null = null;
@@ -666,6 +670,23 @@ export default class OverUnderStore {
     subscribeToTicks(symbol: string) {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
+        // Debounce: ignore repeated calls for the same symbol on the same
+        // connection within 800 ms.  This prevents the SubscriptionAlreadyExists
+        // error that occurs when two code paths race to subscribe (e.g. onopen
+        // and an account-switch reaction firing near-simultaneously).
+        const now = Date.now();
+        if (
+            this._lastSubWs === this.ws &&
+            this._lastSubSymbol === symbol &&
+            now - this._lastSubMs < 800
+        ) {
+            this.addLog(`Debounced duplicate subscribe call for ${symbol}`);
+            return;
+        }
+        this._lastSubWs = this.ws;
+        this._lastSubSymbol = symbol;
+        this._lastSubMs = now;
+
         this.ws.send(JSON.stringify({ forget_all: 'ticks' }));
         this.active_subscription_id = null;
         this.addLog('Cleared all previous tick subscriptions.');
@@ -750,10 +771,16 @@ export default class OverUnderStore {
     }
 
     connectWebSocket() {
-        // For new auth users is_authorized is never set (auth step is skipped),
-        // so also treat an open WS as "already connected" when using new login.
-        if (this.ws && this.ws.readyState === WebSocket.OPEN && (this.is_authorized || isNewLoggedIn())) {
-            this.addLog('Already connected and authorized.');
+        // For new auth users is_authorized is never set (auth step is skipped).
+        // Treat OPEN *and* CONNECTING as "already connected" so we never tear
+        // down a socket that is still opening — that race can leave the old
+        // onopen firing after close, producing a duplicate tick subscription.
+        const wsAlive = this.ws && (
+            this.ws.readyState === WebSocket.OPEN ||
+            this.ws.readyState === WebSocket.CONNECTING
+        );
+        if (wsAlive && (this.is_authorized || isNewLoggedIn())) {
+            this.addLog('Already connected or connecting — skipping reconnect.');
             return;
         }
         if (this.ws) { this.ws.onclose = null; this.ws.close(); }
@@ -774,7 +801,17 @@ export default class OverUnderStore {
 
         try {
             this.ws = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
+            // Guard against a WS stuck in CONNECTING — close it and let
+            // onclose schedule the next reconnect attempt.
+            if (this._connectionTimeout) clearTimeout(this._connectionTimeout);
+            this._connectionTimeout = setTimeout(() => {
+                if (this.ws?.readyState === WebSocket.CONNECTING) {
+                    this.addLog('Connection timed out — retrying...');
+                    this.ws.close();
+                }
+            }, 10_000);
             this.ws.onopen = () => {
+                if (this._connectionTimeout) { clearTimeout(this._connectionTimeout); this._connectionTimeout = null; }
                 runInAction(() => { this.connection_status = STATUS_LIVE; });
                 this.addLog(`Connection opened (App ID: ${app_id})${isNewLoggedIn() ? '. New auth — public ticks only.' : '. Requesting authorization...'}`);
 
@@ -1135,7 +1172,7 @@ export default class OverUnderStore {
                 this.connection_status = STATUS_OFFLINE;
                 this.is_authorizing = false;
                 this.is_authorized = false;
-                this.reconnectTimeout = setTimeout(() => this.connectWebSocket(), 5000);
+                this.reconnectTimeout = setTimeout(() => this.connectWebSocket(), 2500);
             };
             this.ws.onerror = (e) => this.addLog(`Connection Error: ${e.type}`);
         } catch (e) { this.addLog(`Connection failed to initialize: ${e.message}`); this.is_authorizing = false; }
