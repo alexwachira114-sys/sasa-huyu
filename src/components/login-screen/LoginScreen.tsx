@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { generateOAuthURL } from '@/components/shared';
 import { redirectToNewAccountsLogin } from '@/utils/pkce';
+import { startNewSignup } from '@/auth/NewDerivAuth';
 import useTMB from '@/hooks/useTMB';
 import './LoginScreen.scss';
 
@@ -92,10 +93,12 @@ const LoginScreenInner = () => {
                 </div>
 
                 <div className='login-screen__create-wrap'>
-                    <button className='login-screen__btn login-screen__btn--create' disabled>
+                    <button
+                        className='login-screen__btn login-screen__btn--create'
+                        onClick={startNewSignup}
+                    >
                         <span className='login-screen__btn-icon'>+</span>
                         Create Account
-                        <span className='login-screen__coming-soon'>Coming Soon</span>
                     </button>
                 </div>
 

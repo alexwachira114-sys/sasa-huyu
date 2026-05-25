@@ -231,6 +231,33 @@ export async function startNewLogin() {
   window.location.href = CONFIG.authUrl + "?" + params.toString()
 }
 
+export async function startNewSignup() {
+  console.log('[NEW AUTH] Signup started...');
+  clearNewAuthStorage()
+
+  const verifier = generateVerifier()
+  const challenge = await buildCodeChallenge(verifier)
+  const state = crypto.randomUUID()
+
+  localStorage.setItem(K.verifier, verifier)
+  localStorage.setItem(K.state, state)
+  localStorage.setItem(K.active, "true")
+
+  const params = new URLSearchParams({
+    response_type:         "code",
+    client_id:             CONFIG.clientId,
+    redirect_uri:          CONFIG.redirectUri,
+    scope:                 CONFIG.scope,
+    state:                 state,
+    code_challenge:        challenge,
+    code_challenge_method: "S256",
+    prompt:                "registration",
+    app_id:                CONFIG.legacyAppId
+  })
+
+  window.location.href = CONFIG.authUrl + "?" + params.toString()
+}
+
 let _callbackHandled = false
 
 export async function handleNewCallback() {
