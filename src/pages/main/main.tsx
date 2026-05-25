@@ -111,7 +111,7 @@ const AppWrapper = observer(() => {
         if (is_open) setTourDialogVisibility(false);
 
         if (init_render.current) {
-            const tabToSet = location.hash ? Number(active_hash_tab) : 4;
+            const tabToSet = location.hash ? Number(active_hash_tab) : 1;
             setActiveTab(tabToSet);
             init_render.current = false;
         } else {
