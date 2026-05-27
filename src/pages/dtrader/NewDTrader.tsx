@@ -406,6 +406,7 @@ const NewDTrader: React.FC = () => {
     { value: 'over_under', label: 'Over/Under' },
     { value: 'digits', label: 'Digits' },
     { value: 'even_odd', label: 'Even/Odd' },
+    { value: 'accumulator', label: 'Accumulator' },
   ];
 
   const fieldRow: React.CSSProperties = {
