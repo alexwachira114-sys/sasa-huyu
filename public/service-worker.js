@@ -10,7 +10,7 @@ const STATIC_ASSET_REGEX = /\.(js|css|woff2?|ttf|eot|png|jpg|jpeg|gif|svg|ico|we
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(['/caxynexus-ai-logo.jpg', '/manifest.json']))
+            .then(cache => cache.addAll(['/caxynexus-ai-logo.png', '/manifest.json']))
             .then(() => self.skipWaiting())
     );
 });

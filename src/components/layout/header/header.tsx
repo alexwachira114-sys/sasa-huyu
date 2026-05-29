@@ -356,7 +356,7 @@ const AppHeader = observer(({ isAuthenticating }: TAppHeaderProps) => {
                 <AppLogo onMenuClick={handleMenuClick} />
                 <div className='powered-by-deriv-header' ref={whatsappDropdownRef}>
                     <img
-                        src='/caxynexus-ai-logo.jpg'
+                        src='/caxynexus-ai-logo.png'
                         alt='CAXYNEXUS-AI logo'
                         className='powered-by-deriv-header__logo'
                     />
