@@ -142,7 +142,7 @@ export function subscribeNewSystemTopics() {
 }
 
 const CONFIG = {
-  clientId:    "33y6iI3In4QkrTpMLPD1B",
+  clientId:    "33yhUhHxbgeMydLnQehYK",
   legacyAppId: "111670",
   redirectUri: "https://properprinter.vercel.app/callback",
   authUrl:     "https://auth.deriv.com/oauth2/auth",

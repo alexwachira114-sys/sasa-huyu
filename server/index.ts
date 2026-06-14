@@ -8,7 +8,7 @@ const PORT = 3001;
 
 const DERIV_TOKEN_URL = 'https://auth.deriv.com/oauth2/token';
 const DERIV_REST_BASE = 'https://api.derivws.com';
-const CLIENT_ID = '33y6iI3In4QkrTpMLPD1B';
+const CLIENT_ID = '33yhUhHxbgeMydLnQehYK';
 const ACCESS_TOKEN_COOKIE = 'deriv_at';
 
 app.use(cors({ origin: true, credentials: true }));
