@@ -148,7 +148,7 @@ const CONFIG = {
   authUrl:     "https://auth.deriv.com/oauth2/auth",
   tokenUrl:    "https://auth.deriv.com/oauth2/token",
   restBase:    "https://api.derivws.com/trading/v1",
-  scope:       "trade account_manage"
+  scope:       "trade"
 }
 
 const K = {
