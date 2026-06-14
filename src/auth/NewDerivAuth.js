@@ -142,9 +142,9 @@ export function subscribeNewSystemTopics() {
 }
 
 const CONFIG = {
-  clientId:    "32UpAZvxBqalqEFHVMTNS",
+  clientId:    "33y6iI3In4QkrTpMLPD1B",
   legacyAppId: "111670",
-  redirectUri: "https://neurotradepro.vercel.app/callback",
+  redirectUri: "https://properprinter.vercel.app/callback",
   authUrl:     "https://auth.deriv.com/oauth2/auth",
   tokenUrl:    "https://auth.deriv.com/oauth2/token",
   restBase:    "https://api.derivws.com/trading/v1",

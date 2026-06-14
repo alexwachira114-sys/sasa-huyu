@@ -9,7 +9,7 @@ import { isStaging } from '../url/helpers';
 const APP_ID = 111670;
 
 /** OAuth client ID for PKCE flows (matches the registered app). */
-export const OAUTH_CLIENT_ID = '32UpAZvxBqalqEFHVMTNS';
+export const OAUTH_CLIENT_ID = '33y6iI3In4QkrTpMLPD1B';
 
 /** The Deriv OAuth2 authorization endpoint (redirects the user to login). */
 export const OAUTH_AUTH_URL = 'https://auth.deriv.com/oauth2/auth';
