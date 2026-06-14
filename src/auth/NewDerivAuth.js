@@ -239,7 +239,6 @@ export async function startNewLogin() {
     code_challenge:        challenge,
     code_challenge_method: "S256",
     prompt:                "login consent",
-    app_id:                CONFIG.legacyAppId
   })
   
   window.location.href = CONFIG.authUrl + "?" + params.toString()
