@@ -11,7 +11,7 @@ const MenuIcon = ({ onClick }: { onClick: () => void }) => (
 );
 
 // Logo asset served from public folder
-const LOGO_SRC = '/caxynexus-ai-logo.png';
+const LOGO_SRC = '/freezy-logo.png';
 
 // WhatsApp Icon Component
 const WhatsAppIcon = () => (

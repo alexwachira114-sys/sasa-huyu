@@ -1,5 +1,4 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
 .gta-loader {
     position: fixed;
@@ -7,15 +6,22 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: #000;
+    background: radial-gradient(ellipse at 50% 60%, #0a1628 0%, #050d1a 60%, #000 100%);
     overflow: hidden;
     z-index: 9999;
     font-family: 'Orbitron', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
+    animation: loader-fade-in 0.4s ease-out forwards;
 }
 
+@keyframes loader-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ── Ambient scene lights ── */
 .scene {
     position: absolute;
     width: 100%;
@@ -28,42 +34,42 @@
     top: -60%;
     width: 200%;
     height: 250%;
-    filter: blur(20px); /* Reduced blur for performance */
+    filter: blur(20px);
     opacity: 0;
 
     &.blue {
         left: -120%;
-        background: radial-gradient(ellipse at center, rgba(50, 100, 255, 0.6) 0%, rgba(50, 100, 255, 0) 50%);
+        background: radial-gradient(ellipse at center, rgba(30, 120, 255, 0.45) 0%, rgba(30, 120, 255, 0) 55%);
         animation: flash-blue 1s infinite steps(1), sweep-blue 4s infinite linear;
         animation-delay: 1.5s;
     }
 
     &.red {
         right: -120%;
-        background: radial-gradient(ellipse at center, rgba(255, 50, 50, 0.6) 0%, rgba(255, 50, 50, 0) 50%);
+        background: radial-gradient(ellipse at center, rgba(0, 200, 255, 0.35) 0%, rgba(0, 200, 255, 0) 55%);
         animation: flash-red 1s infinite steps(1), sweep-red 4s infinite linear;
         animation-delay: 1s;
     }
 }
 
 @keyframes flash-red {
-    0%, 49.9% { opacity: 0.8; }
-    50%, 100% { opacity: 0; }
+    0%, 49.9% { opacity: 0.7; }
+    50%, 100%  { opacity: 0; }
 }
 
 @keyframes flash-blue {
     0%, 49.9% { opacity: 0; }
-    50%, 100% { opacity: 0.8; }
+    50%, 100%  { opacity: 0.7; }
 }
 
 @keyframes sweep-red {
     0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(-50px); }
+    50%      { transform: translateX(-60px); }
 }
 
 @keyframes sweep-blue {
     0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(50px); }
+    50%      { transform: translateX(60px); }
 }
 
 .wet-ground {
@@ -73,203 +79,266 @@
     height: 30%;
     background: url('https://www.transparenttextures.com/patterns/wet-snow.png') repeat;
     mix-blend-mode: overlay;
-    opacity: 0.2;
+    opacity: 0.15;
     transform: perspective(100px) rotateX(30deg);
     filter: brightness(0.8);
 }
 
+/* ── Floating particles ── */
+.loader-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.loader-particle--1  { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.4); left:4.7%;  top:7.3%;  animation:particle-float 3s ease-in-out infinite alternate; animation-delay:0.3s; }
+.loader-particle--2  { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.5); left:9.4%;  top:14.6%; animation:particle-float 4s ease-in-out infinite alternate; animation-delay:0.6s; }
+.loader-particle--3  { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.6); left:14.1%; top:21.9%; animation:particle-float 5s ease-in-out infinite alternate; animation-delay:0.9s; }
+.loader-particle--4  { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.7); left:18.8%; top:29.2%; animation:particle-float 6s ease-in-out infinite alternate; animation-delay:1.2s; }
+.loader-particle--5  { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.4); left:23.5%; top:36.5%; animation:particle-float 3s ease-in-out infinite alternate; animation-delay:1.5s; }
+.loader-particle--6  { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.5); left:28.2%; top:43.8%; animation:particle-float 4s ease-in-out infinite alternate; animation-delay:1.8s; }
+.loader-particle--7  { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.6); left:32.9%; top:51.1%; animation:particle-float 5s ease-in-out infinite alternate; animation-delay:0.1s; }
+.loader-particle--8  { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.7); left:37.6%; top:58.4%; animation:particle-float 6s ease-in-out infinite alternate; animation-delay:0.4s; }
+.loader-particle--9  { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.4); left:42.3%; top:65.7%; animation:particle-float 3s ease-in-out infinite alternate; animation-delay:0.7s; }
+.loader-particle--10 { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.5); left:47%;   top:73%;   animation:particle-float 4s ease-in-out infinite alternate; animation-delay:1.0s; }
+.loader-particle--11 { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.6); left:51.7%; top:80.3%; animation:particle-float 5s ease-in-out infinite alternate; animation-delay:1.3s; }
+.loader-particle--12 { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.7); left:56.4%; top:87.6%; animation:particle-float 6s ease-in-out infinite alternate; animation-delay:1.6s; }
+.loader-particle--13 { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.4); left:61.1%; top:14.9%; animation:particle-float 3s ease-in-out infinite alternate; animation-delay:1.9s; }
+.loader-particle--14 { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.5); left:65.8%; top:22.2%; animation:particle-float 4s ease-in-out infinite alternate; animation-delay:0.2s; }
+.loader-particle--15 { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.6); left:70.5%; top:29.5%; animation:particle-float 5s ease-in-out infinite alternate; animation-delay:0.5s; }
+.loader-particle--16 { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.7); left:75.2%; top:36.8%; animation:particle-float 6s ease-in-out infinite alternate; animation-delay:0.8s; }
+.loader-particle--17 { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.4); left:79.9%; top:44.1%; animation:particle-float 3s ease-in-out infinite alternate; animation-delay:1.1s; }
+.loader-particle--18 { position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(56,182,255,0.5); left:84.6%; top:51.4%; animation:particle-float 4s ease-in-out infinite alternate; animation-delay:1.4s; }
+.loader-particle--19 { position:absolute; width:2px; height:2px; border-radius:50%; background:rgba(56,182,255,0.6); left:89.3%; top:58.7%; animation:particle-float 5s ease-in-out infinite alternate; animation-delay:1.7s; }
+.loader-particle--20 { position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(56,182,255,0.7); left:94%;   top:66%;   animation:particle-float 6s ease-in-out infinite alternate; animation-delay:0s; }
+
+@keyframes particle-float {
+    0%   { transform: translateY(0) scale(1); opacity: 0.4; }
+    100% { transform: translateY(-30px) scale(1.3); opacity: 0.9; }
+}
+
+/* ── Centre logo block ── */
 .logo-container {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -50%);
     z-index: 10;
-    animation: dolly-in 4s ease-out forwards, logo-glitch 3.5s infinite alternate;
-    animation-delay: 1.5s;
-    opacity: 0; /* Starts invisible */
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 0.6rem;
+    animation: logo-enter 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
 }
 
+@keyframes logo-enter {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.82) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) translateY(0);
+    }
+}
+
+/* Logo image */
+.logo-img-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: logo-pulse 3s ease-in-out infinite;
+}
+
+.loader-logo-img {
+    width: 130px;
+    height: 130px;
+    object-fit: contain;
+    border-radius: 16px;
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 0 18px rgba(56, 182, 255, 0.7)) drop-shadow(0 0 40px rgba(56, 182, 255, 0.35));
+}
+
+.logo-glow-ring {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(56, 182, 255, 0.4);
+    animation: ring-spin 6s linear infinite;
+    box-shadow: 0 0 16px rgba(56, 182, 255, 0.3), inset 0 0 16px rgba(56, 182, 255, 0.1);
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: -4px;
+        width: 8px;
+        height: 8px;
+        background: #38b6ff;
+        border-radius: 50%;
+        transform: translateY(-50%);
+        box-shadow: 0 0 10px #38b6ff, 0 0 20px #38b6ff;
+    }
+}
+
+@keyframes ring-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+@keyframes logo-pulse {
+    0%, 100% { filter: drop-shadow(0 0 18px rgba(56,182,255,0.7)) drop-shadow(0 0 40px rgba(56,182,255,0.35)); }
+    50%       { filter: drop-shadow(0 0 28px rgba(56,182,255,0.9)) drop-shadow(0 0 60px rgba(56,182,255,0.5)); }
+}
+
+/* Brand name */
 .logo-text {
     color: #fff;
-    font-size: 4rem;
-    font-weight: 700;
+    font-size: clamp(1.6rem, 4vw, 3rem);
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.2rem;
-    text-shadow: 
-        0 0 5px #fff,
-        0 0 15px #fff,
-        0 0 30px #0ff,
-        0 0 50px #0ff;
-    animation: logo-flash 4s forwards;
-    animation-delay: 1.5s;
-    margin-bottom: 1rem;
+    letter-spacing: 0.25rem;
+    text-align: center;
+    background: linear-gradient(135deg, #ffffff 0%, #38b6ff 50%, #0066cc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 12px rgba(56, 182, 255, 0.6));
+    animation: text-shimmer 3s ease-in-out infinite;
+    margin: 0;
 }
 
+@keyframes text-shimmer {
+    0%, 100% { filter: drop-shadow(0 0 12px rgba(56,182,255,0.6)); }
+    50%       { filter: drop-shadow(0 0 22px rgba(56,182,255,1)); }
+}
+
+/* Sub-brand */
+.logo-tagline {
+    font-size: 0.65rem;
+    letter-spacing: 0.4rem;
+    color: rgba(56, 182, 255, 0.7);
+    text-transform: uppercase;
+    margin-top: 0.15rem;
+}
+
+/* ── Typewriter subtitles ── */
 .subtitle {
     position: absolute;
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 0.1rem;
     opacity: 0;
     white-space: nowrap;
     overflow: hidden;
-    border-right: .15em solid orange; /* The typwriter cursor */
+    border-right: 0.15em solid #38b6ff;
 
     &.subtitle-1 {
-        top: 20%;
+        top: 18%;
         left: 5%;
         color: #76ff03;
-        animation: typing 3s steps(40, end), blink-caret .75s step-end infinite;
-        animation-delay: 2s;
+        animation: typing 3s steps(40, end), blink-caret 0.75s step-end infinite;
+        animation-delay: 1.8s;
         animation-fill-mode: forwards;
     }
+
     &.subtitle-2 {
-        top: 40%;
+        top: 38%;
         right: 5%;
         color: #ffab00;
-        animation: typing 3s steps(60, end), blink-caret .75s step-end infinite;
-        animation-delay: 3s;
+        animation: typing 3s steps(60, end), blink-caret 0.75s step-end infinite;
+        animation-delay: 2.6s;
         animation-fill-mode: forwards;
     }
+
     &.subtitle-3 {
-        top: 60%;
+        top: 58%;
         left: 10%;
-        color: #00e5ff;
-        animation: typing 3s steps(30, end), blink-caret .75s step-end infinite;
-        animation-delay: 4s;
+        color: #38b6ff;
+        animation: typing 3s steps(30, end), blink-caret 0.75s step-end infinite;
+        animation-delay: 3.4s;
         animation-fill-mode: forwards;
     }
+
     &.subtitle-4 {
-        bottom: 20%;
+        bottom: 18%;
         right: 10%;
-        color: #ff4081;
-        animation: typing 3s steps(35, end), blink-caret .75s step-end infinite;
-        animation-delay: 5s;
+        color: #bf80ff;
+        animation: typing 3s steps(35, end), blink-caret 0.75s step-end infinite;
+        animation-delay: 4.2s;
         animation-fill-mode: forwards;
     }
+
     &.subtitle-5 {
-        top: 70%;
+        top: 72%;
         left: 50%;
         transform: translateX(-50%);
-        font-size: 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 700;
         color: #fff;
-        text-shadow: 0 0 10px #fff;
-        animation: typing 2s steps(20, end), blink-caret .75s step-end infinite;
-        animation-delay: 6s;
+        text-shadow: 0 0 12px rgba(56, 182, 255, 0.8);
+        animation: typing 2s steps(20, end), blink-caret 0.75s step-end infinite;
+        animation-delay: 5s;
         animation-fill-mode: forwards;
     }
 }
 
 @keyframes typing {
-  from { width: 0; opacity: 1; }
-  to { width: 100%; opacity: 1; }
+    from { width: 0;    opacity: 1; }
+    to   { width: 100%; opacity: 1; }
 }
 
 @keyframes blink-caret {
-  from, to { border-color: transparent }
-  50% { border-color: orange; }
+    from, to { border-color: transparent; }
+    50%      { border-color: #38b6ff; }
 }
 
-
-@keyframes logo-flash {
-    0% { opacity: 1; }
-    0.2% { opacity: 0; } 
-    100% { opacity: 1; }
-}
-
-@keyframes dolly-in {
-    from {
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
-    }
-    to {
-        transform: translate(-50%, -50%) scale(1.05);
-        opacity: 1;
-    }
-}
-
-@keyframes logo-glitch {
-    0%, 100% { text-shadow: 
-        0 0 5px #fff,
-        0 0 15px #fff,
-        0 0 30px #0ff,
-        0 0 50px #0ff; 
-    }
-    49% { text-shadow: 
-        0 0 5px #fff,
-        0 0 15px #fff,
-        0 0 30px #0ff,
-        0 0 50px #0ff; 
-    }
-    50% {
-        text-shadow: 
-            -2px 0 5px #f0f,
-            2px 0 5px #0ff;
-    }
-    51% { text-shadow: 
-        0 0 5px #fff,
-        0 0 15px #fff,
-        0 0 30px #0ff,
-        0 0 50px #0ff; 
-    }
-}
-
+/* ── Overlays ── */
 .film-grain {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     background-image: url('https://www.transparenttextures.com/patterns/noise.png');
-    opacity: 0.1;
+    opacity: 0.07;
     z-index: 15;
     pointer-events: none;
     animation: grain-flicker 0.5s infinite;
 }
 
 @keyframes grain-flicker {
-    0%, 100% { opacity: 0.08; }
-    50% { opacity: 0.12; }
+    0%, 100% { opacity: 0.06; }
+    50%      { opacity: 0.09; }
 }
 
 .vignette {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    box-shadow: inset 0 0 200px #000;
+    inset: 0;
+    box-shadow: inset 0 0 220px #000;
     z-index: 16;
     pointer-events: none;
 }
 
 .scanlines {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
+    inset: 0;
+    background: repeating-linear-gradient(
         to bottom,
-        rgba(20, 20, 20, 0) 0%,
-        rgba(20, 20, 20, 0.1) 50%,
-        rgba(20, 20, 20, 0) 100%
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, 0.06) 2px,
+        rgba(0, 0, 0, 0.06) 4px
     );
-    background-size: 100% 4px;
     z-index: 17;
     pointer-events: none;
     animation: scanline-move 8s linear infinite;
 }
 
 @keyframes scanline-move {
-    from {
-        background-position: 0 0;
-    }
-    to {
-        background-position: 0 -100px;
-    }
+    from { background-position: 0 0; }
+    to   { background-position: 0 -100px; }
 }

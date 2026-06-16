@@ -46,16 +46,16 @@ const LoginScreenInner = () => {
 
     return (
         <div className={`login-screen${visible ? ' login-screen--visible' : ''}`}>
-            <div className='login-screen__bg' style={{ backgroundImage: "url('/caxynexus-ai-logo.png')" }} />
+            <div className='login-screen__bg' style={{ backgroundImage: "url('/freezy-logo.png')" }} />
             <div className='login-screen__overlay' />
 
             <div className='login-screen__content'>
                 <div className='login-screen__logo-wrap'>
-                    <img src='/caxynexus-ai-logo.png' alt='Caxynexus-Ai' className='login-screen__logo' />
+                    <img src='/freezy-logo.png' alt='Freezy Trading Hub' className='login-screen__logo' />
                 </div>
 
                 <div className='login-screen__brand'>
-                    <h1 className='login-screen__title'>CAXYNEXUS-AI</h1>
+                    <h1 className='login-screen__title'>FREEZY TRADING HUB</h1>
                     <p className='login-screen__sub'>POWERED BY DERIV</p>
                 </div>
 
