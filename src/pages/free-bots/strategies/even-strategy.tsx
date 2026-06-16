@@ -8,7 +8,7 @@ interface EvenStrategyProps {
 
 const EvenStrategy: React.FC<EvenStrategyProps> = ({ onBack }) => {
     const handleDownload = () => {
-        const content = `EVEN STRATEGY @caxynexus-ai.vercel.app
+        const content = `EVEN STRATEGY @freezytradinghub.com
 
 CONDITIONS TO CONSIDER:
 - BLUE & GREEN SHOULD BE ON EVEN DIGITS
@@ -24,7 +24,7 @@ NB: AFTER 3 TO 7 RUNS MAX ON PROFITS, STOP THE BOT TO CONFIRM THE MARKET CONDITI
 BARS COLOR KEY:
 RED: LEAST APPEARING DIGIT, YELLOW: 2ND LEAST APPEARING, GREEN: MOST APPEARING, BLUE: 2ND MOST APPEARING.
 
-USE caxynexus-ai.vercel.app TO TRADE`;
+USE freezytradinghub.com TO TRADE`;
 
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -83,7 +83,7 @@ USE caxynexus-ai.vercel.app TO TRADE`;
                     </button>
                 )}
                 <div className='strategy-viewer__document'>
-                    <h1 className='strategy-viewer__title'>EVEN STRATEGY @caxynexus-ai.vercel.app</h1>
+                    <h1 className='strategy-viewer__title'>EVEN STRATEGY @freezytradinghub.com</h1>
 
                     <section className='strategy-section'>
                         <h2 className='strategy-section__number'>CONDITIONS TO CONSIDER</h2>
@@ -144,7 +144,7 @@ USE caxynexus-ai.vercel.app TO TRADE`;
                     </section>
 
                     <div className='strategy-footer'>
-                        <p className='strategy-footer__text'>USE caxynexus-ai.vercel.app TO TRADE</p>
+                        <p className='strategy-footer__text'>USE freezytradinghub.com TO TRADE</p>
                     </div>
                 </div>
             </div>

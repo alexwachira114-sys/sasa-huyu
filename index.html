@@ -2,11 +2,11 @@
 <html lang="en" dir="auto">
     <head>
         <meta charset="UTF-8" />
-        <link rel="icon" type="image/svg+xml" href="/caxynexus-ai-favicon.svg" />
+        <link rel="icon" type="image/png" href="/freezy-logo.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
 
         <!-- Primary Meta Tags -->
-        <meta name="title" content="Caxynexus-Ai - powerfull trading site" />
+        <meta name="title" content="Freezy Trading Hub - Professional Trading Platform" />
         <meta
             name="description"
             content="Create profitable trading bots without coding. Professional Deriv trading bot builder with copy trading, free bots, and advanced strategies. Start trading smarter today!"
@@ -15,50 +15,50 @@
             name="keywords"
             content="deriv trading bot, trading bot builder, copy trading, binary options bot, forex bot, automated trading, DBOTSPACE, trading strategies, bot builder, algorithmic trading"
         />
-        <meta name="author" content="Caxynexus-Ai" />
+        <meta name="author" content="Freezy Trading Hub" />
         <meta name="robots" content="index, follow" />
         <meta name="language" content="English" />
         <meta name="revisit-after" content="7 days" />
 
         <!-- Open Graph / Facebook -->
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://caxynexus-ai.vercel.app/" />
-        <meta property="og:title" content="Caxynexus-Ai - Professional Trading Bot Builder" />
+        <meta property="og:url" content="https://freezytradinghub.com/" />
+        <meta property="og:title" content="Freezy Trading Hub - Professional Trading Bot Builder" />
         <meta
             property="og:description"
             content="Create profitable trading bots without coding. Professional Deriv trading bot builder with copy trading, free bots, and advanced strategies."
         />
-        <meta property="og:image" content="/caxynexus-ai-logo.png" />
-        <meta property="og:site_name" content="Caxynexus-Ai" />
+        <meta property="og:image" content="/freezy-logo.png" />
+        <meta property="og:site_name" content="Freezy Trading Hub" />
         <meta property="og:locale" content="en_US" />
 
         <!-- Twitter -->
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://caxynexus-ai.vercel.app/" />
-        <meta property="twitter:title" content="Caxynexus-Ai - Professional Trading Bot Builder" />
+        <meta property="twitter:url" content="https://freezytradinghub.com/" />
+        <meta property="twitter:title" content="Freezy Trading Hub - Professional Trading Bot Builder" />
         <meta
             property="twitter:description"
             content="Create profitable trading bots without coding. Professional Deriv trading bot builder with copy trading, free bots, and advanced strategies."
         />
-        <meta property="twitter:image" content="/caxynexus-ai-logo.png" />
+        <meta property="twitter:image" content="/freezy-logo.png" />
 
         <!-- Additional SEO Meta Tags -->
         <meta name="theme-color" content="#ffffff" />
         <meta name="msapplication-TileColor" content="#ffffff" />
-        <meta name="application-name" content="Caxynexus-Ai" />
+        <meta name="application-name" content="Freezy Trading Hub" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="canonical" href="https://caxynexus-ai.vercel.app" />
+        <link rel="canonical" href="https://freezytradinghub.com" />
 
-        <title>Caxynexus-Ai - Professional Trading Bot Builder</title>
+        <title>Freezy Trading Hub - Professional Trading Bot Builder</title>
 
         <!-- Structured Data -->
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
                 "@type": "WebApplication",
-                "name": "Caxynexus-Ai",
+                "name": "Freezy Trading Hub",
                 "description": "Professional trading bot builder and copy trading platform for Deriv",
-                "url": "https://caxynexus-ai.vercel.app",
+                "url": "https://freezytradinghub.com",
                 "applicationCategory": "FinanceApplication",
                 "operatingSystem": "Web Browser",
                 "offers": {
@@ -68,7 +68,7 @@
                 },
                 "creator": {
                     "@type": "Organization",
-                    "name": "Caxynexus-Ai"
+                    "name": "Freezy Trading Hub"
                 },
                 "featureList": [
                     "Trading Bot Builder",
@@ -110,13 +110,13 @@
         <div id="popup_root" class="popup-root"></div>
         <div id="root"></div>
 
-        <!-- ── Caxynexus-Ai Splash Screen ─────────────────────────────────── -->
+        <!-- ── Freezy Trading Hub Splash Screen ──────────────────────────── -->
         <div id="cx-splash">
             <style>
                 #cx-splash {
                     position: fixed;
                     inset: 0;
-                    background: #0f1117;
+                    background: radial-gradient(ellipse at 50% 55%, #0a1628 0%, #050d1a 60%, #000 100%);
                     display: flex;
                     flex-direction: column;
                     align-items: center;
@@ -130,40 +130,45 @@
                     pointer-events: none;
                 }
                 #cx-splash__logo {
-                    width: 96px;
-                    height: 96px;
+                    width: 100px;
+                    height: 100px;
                     border-radius: 18px;
                     object-fit: cover;
-                    margin-bottom: 22px;
-                    box-shadow: 0 0 32px rgba(249,115,22,0.35);
+                    margin-bottom: 20px;
+                    box-shadow: 0 0 32px rgba(56,182,255,0.5), 0 0 64px rgba(56,182,255,0.2);
+                    animation: fth-pulse 2s ease-in-out infinite;
+                }
+                @keyframes fth-pulse {
+                    0%,100% { box-shadow: 0 0 32px rgba(56,182,255,0.5), 0 0 64px rgba(56,182,255,0.2); }
+                    50%     { box-shadow: 0 0 48px rgba(56,182,255,0.8), 0 0 96px rgba(56,182,255,0.35); }
                 }
                 #cx-splash__name {
                     font-family: Arial, sans-serif;
-                    font-size: 26px;
+                    font-size: 22px;
                     font-weight: 700;
-                    color: #f97316;
-                    letter-spacing: 0.08em;
+                    color: #38b6ff;
+                    letter-spacing: 0.12em;
                     margin-bottom: 6px;
                 }
                 #cx-splash__sub {
                     font-family: Arial, sans-serif;
-                    font-size: 12px;
-                    color: #555;
-                    letter-spacing: 0.06em;
+                    font-size: 11px;
+                    color: rgba(56,182,255,0.5);
+                    letter-spacing: 0.08em;
                     text-transform: uppercase;
                     margin-bottom: 36px;
                 }
                 #cx-splash__bar {
-                    width: 160px;
+                    width: 180px;
                     height: 3px;
-                    background: #1a1d24;
+                    background: #0d1a2e;
                     border-radius: 99px;
                     overflow: hidden;
                 }
                 #cx-splash__fill {
                     height: 100%;
                     width: 0%;
-                    background: linear-gradient(90deg, #f97316, #ef4444);
+                    background: linear-gradient(90deg, #38b6ff, #0066cc);
                     border-radius: 99px;
                     animation: cx-progress 2.5s ease forwards;
                 }
@@ -173,8 +178,8 @@
                     100% { width: 100%; }
                 }
             </style>
-            <img id="cx-splash__logo" src="/caxynexus-ai-logo.png" alt="Caxynexus-Ai" />
-            <div id="cx-splash__name">CAXYNEXUS-AI</div>
+            <img id="cx-splash__logo" src="/freezy-logo.png" alt="Freezy Trading Hub" />
+            <div id="cx-splash__name">FREEZY TRADING HUB</div>
             <div id="cx-splash__sub">Professional Trading Bot Builder</div>
             <div id="cx-splash__bar"><div id="cx-splash__fill"></div></div>
             <script>

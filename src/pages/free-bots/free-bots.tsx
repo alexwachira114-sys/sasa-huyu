@@ -32,7 +32,7 @@ const FreeBots = observer(() => {
     const getBotDescription = (botName: string): string => {
         const descriptions: { [key: string]: string } = {
             'STARTER BOT':
-                'Official starter bot for Caxynexus-Ai. Optimized for beginners with standard risk management.',
+                'Official starter bot for Freezy Trading Hub. Optimized for beginners with standard risk management.',
             'POVERTY KILLER':
                 'High-performance digit trading bot with intelligent recovery and profit optimization.',
             'POVERTY KILLER V2.1':
@@ -40,7 +40,7 @@ const FreeBots = observer(() => {
             'BEST RISE FALL':
                 'Automated rise and fall strategy optimized for consistent returns in trending markets.',
             'CAXYNEXUS-AI AUTOMATED RISE FALL':
-                'Premium rise and fall strategy featuring advanced entry points and recovery mechanisms.',
+                'Premium Freezy Trading Hub rise and fall strategy featuring advanced entry points and recovery mechanisms.',
             'OVER1 R32 PRO':
                 'Professional Over 1 trading bot with R32 recovery strategy. Optimized for high win rates with intelligent recovery mechanisms and risk management.',
             'OVER2 R43 PRO':
@@ -56,7 +56,7 @@ const FreeBots = observer(() => {
             'CAXYNEXUS-AIV3RISE FALL':
                 'Premium Rise/Fall trading bot with MACD analysis and intelligent recovery. Optimized for consistent returns in trending markets.',
             'CAXYNEXUS-AI RISE/FALL V4':
-                'Latest version of the Caxynexus-Ai Rise/Fall bot. Enhanced with improved entry signals and advanced recovery management for maximum stability.',
+                'Latest version of the Freezy Trading Hub Rise/Fall bot. Enhanced with improved entry signals and advanced recovery management for maximum stability.',
                         };
 
         // Try exact match first

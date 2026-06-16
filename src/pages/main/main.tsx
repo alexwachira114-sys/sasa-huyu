@@ -142,11 +142,11 @@ const AppWrapper = observer(() => {
                             <OverUnder />
                         </div>
 
-                        {/* CAXYNEXUS-AI MAGIC TAB START */}
-                        <div label={<><LabelPairedPlayCaptionBoldIcon height='24px' width='24px' /><Localize i18n_default_text='Caxynexus-Ai Magic' /></>} id='caxynexus_ai_magic'>
+                        {/* FREEZY AI MAGIC TAB START */}
+                        <div label={<><LabelPairedPlayCaptionBoldIcon height='24px' width='24px' /><Localize i18n_default_text='Freezy AI Magic' /></>} id='caxynexus_ai_magic'>
                             <CaxynexusAiMagic />
                         </div>
-                        {/* CAXYNEXUS-AI MAGIC TAB END */}
+                        {/* FREEZY AI MAGIC TAB END */}
 
                         <div label={<><LegacyIndicatorsIcon height='16px' width='16px' /><Localize i18n_default_text='Analysis Tool' /></>} id='id-analysis-tool'>
                             <Suspense fallback={<ChunkLoader message={localize('Please wait, loading Analysis Tool...')} />}><AnalysisTools /></Suspense>

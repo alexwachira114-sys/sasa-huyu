@@ -22,7 +22,7 @@ NB: AFTER 3 TO 7 RUNS MAX ON PROFITS, STOP THE BOT TO CONFIRM THE MARKET CONDITI
 BARS COLOR KEY:
 RED: LEAST APPEARING DIGIT, YELLOW: 2ND LEAST APPEARING, GREEN: MOST APPEARING, BLUE: 2ND MOST APPEARING.
 
-USE caxynexus-ai.vercel.app TO TRADE`;
+USE freezytradinghub.com TO TRADE`;
 
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -142,7 +142,7 @@ USE caxynexus-ai.vercel.app TO TRADE`;
                     </section>
 
                     <div className='strategy-footer'>
-                        <p className='strategy-footer__text'>USE caxynexus-ai.vercel.app TO TRADE</p>
+                        <p className='strategy-footer__text'>USE freezytradinghub.com TO TRADE</p>
                     </div>
                 </div>
             </div>

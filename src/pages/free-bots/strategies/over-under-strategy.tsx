@@ -18,7 +18,7 @@ CONDITIONS FOR OVER PREDICTION:
 
 ENTRY POINT: Wait for the tick pointer to pick the least appearing among digit 1,2 & 3, if within the next 1 tick the pointer picks any digit from 4 to 9, enter immediately.
 
-USE caxynexus-ai.vercel.app TO TRADE
+USE freezytradinghub.com TO TRADE
 
 2. UNDER 8,7,6 STRATEGY
 
@@ -33,7 +33,7 @@ ENTRY POINT: Wait for the tick pointer to pick the least appearing among digit 8
 Proverbs 21:5
 "The plans of the diligent lead surely to abundance, but everyone who is hasty comes only to poverty."
 
-USE caxynexus-ai.vercel.app TO TRADE`;
+USE freezytradinghub.com TO TRADE`;
 
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
