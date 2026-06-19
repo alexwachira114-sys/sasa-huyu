@@ -1,0 +1,1 @@
+- [SmartTrader auth adaptation](smarttrader-auth.md) — zip uses sessionStorage OTP auth; this project uses localStorage authToken/active_loginid/clientAccounts with standard WS authorize flow.
