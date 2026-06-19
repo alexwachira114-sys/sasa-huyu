@@ -320,9 +320,9 @@ const RunPanel = observer(() => {
     );
 
     const show_run_panel = [BOT_BUILDER, CHART, TRADING_BOTS, ANALYSIS_TOOL, DBOT_TABS.CAXYNEXUS_AI_MAGIC, DBOT_TABS.OVER_UNDER].includes(active_tab) || active_tour;
-    // Don't show RunPanel on DTrader tab - manual trading only
-    const { DTRADER } = DBOT_TABS;
-    if (active_tab === DTRADER) return null;
+    // Don't show RunPanel on Smart Trader tab - manual trading only
+    const { SMART_TRADER } = DBOT_TABS;
+    if (active_tab === SMART_TRADER) return null;
     if ((!show_run_panel && isDesktop) || active_tour === 'bot_builder') return null;
 
     return (

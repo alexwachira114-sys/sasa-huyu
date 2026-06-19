@@ -21,7 +21,7 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     ANALYSIS_TOOL: 6,   // DOM position 6 in main.tsx
     STRATEGIES: 7,      // DOM position 7 in main.tsx
     COPY_TRADING: 8,    // DOM position 8 in main.tsx
-    DTRADER: 9,         // DOM position 9 in main.tsx
+    SMART_TRADER: 9,    // DOM position 9 in main.tsx
     TRADINGVIEW: 10,    // DOM position 10 in main.tsx
     DERIV_API: 11,      // DOM position 11 in main.tsx
     SPEEDBOT: 12,
@@ -49,7 +49,7 @@ export const TAB_IDS = [
     'id-analysis-tool',
     'id-strategies',
     'id-copy-trading',
-    'id-dtrader',
+    'id-smart-trader',
     'id-tradingview',
     'id-speedbot',
 ];

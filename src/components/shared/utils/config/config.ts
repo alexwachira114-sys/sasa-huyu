@@ -28,6 +28,11 @@ export const getCallbackURL = () => `${window.location.origin}/callback`;
 export const livechat_license_id = 12049137;
 export const livechat_client_id = '66aa088aad5a414484c1fd1fa8a5ace7';
 
+export const WS_SERVERS = {
+    STAGING: 'wss://ws.derivws.com/websockets/v3?app_id=36544',
+    PRODUCTION: 'wss://ws.derivws.com/websockets/v3?app_id=36544',
+} as const;
+
 // All other App ID and domain-switching logic has been removed to ensure consistency.
 
 export const isProduction = () => {

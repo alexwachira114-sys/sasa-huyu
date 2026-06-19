@@ -1,1 +1,1 @@
-export { default } from './smart-trader';
+export { default } from '../customizations/standalones/SmartTrader';
