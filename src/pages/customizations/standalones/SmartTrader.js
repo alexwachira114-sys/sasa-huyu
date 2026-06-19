@@ -229,62 +229,31 @@ const SmartTrader = () => {
 
     const getStoredAuthContext = useCallback(() => {
         try {
-            const auth_raw = sessionStorage.getItem('auth_info');
-            const accounts_raw = sessionStorage.getItem('deriv_accounts');
+            const access_token =
+                localStorage.getItem('authToken') ||
+                localStorage.getItem('NEW_AUTH_token');
+            const active_loginid = localStorage.getItem('active_loginid');
 
-            if (!auth_raw || !accounts_raw) return null;
+            if (!access_token || !active_loginid) return null;
 
-            const { access_token } = JSON.parse(auth_raw);
-            const accounts = JSON.parse(accounts_raw);
-
-            if (!access_token || !Array.isArray(accounts) || accounts.length === 0) {
-                return null;
-            }
-
-            const active_login_id = localStorage.getItem('active_loginid');
-            const active_account =
-                accounts.find(account => account.account_id === active_login_id) ||
-                accounts.find(account => account.account_id?.startsWith('DOT')) ||
-                accounts[0];
-
-            if (!active_account?.account_id) return null;
+            let currency = 'USD';
+            try {
+                const client_accounts = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
+                currency = client_accounts[active_loginid]?.currency || 'USD';
+            } catch (_) {}
 
             return {
                 accessToken: access_token,
-                activeAccount: active_account,
+                activeAccount: { account_id: active_loginid, currency },
             };
         } catch (error) {
-            console.error('[SmartTrader] Failed to parse Deriv session storage:', error);
+            console.error('[SmartTrader] Failed to read auth from localStorage:', error);
             return null;
         }
     }, []);
 
-    const getAuthenticatedUrl = useCallback(async () => {
-        try {
-            const auth_context = getStoredAuthContext();
-            if (!auth_context) throw new Error('Session Missing');
-
-            const { accessToken, activeAccount } = auth_context;
-            const response = await fetch(`${DERIV_OPTIONS_API_URL}accounts/${activeAccount.account_id}/otp`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                },
-            });
-
-            if (!response.ok) throw new Error('OTP Request Failed');
-
-            const data = await response.json();
-            const authenticated_url = data?.data?.url;
-
-            if (!authenticated_url) throw new Error('Authenticated URL Missing');
-
-            return authenticated_url;
-        } catch (error) {
-            logMessage(`Auth Error: ${error.message}`);
-            return null;
-        }
-    }, [getStoredAuthContext, logMessage]);
+    // Not used — standard WS authorize flow is used instead of OTP
+    const getAuthenticatedUrl = useCallback(async () => null, []);
 
     const getActiveTradeSettings = useCallback(() => {
         const using_recovery = lastTradeWasLossRef.current && useRecoveryRef.current;
@@ -512,6 +481,10 @@ const SmartTrader = () => {
             if (data.msg_type === 'authorize') {
                 isAuthorizedRef.current = true;
                 logMessage('Trading session authorized');
+                // Subscribe to transactions so we can track contract sells
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
+                }
                 if (isRunningRef.current && activeContractsRef.current.size === 0) {
                     useBulkRef.current ? firePrecisionBurst() : requestProposal();
                 }
@@ -865,38 +838,20 @@ const SmartTrader = () => {
             socketRequiresAuthRef.current = requireAuth;
 
             try {
-                const authenticated_url = requireAuth ? await getAuthenticatedUrl() : null;
+                const auth_context = requireAuth ? getStoredAuthContext() : null;
+                const token_to_use = auth_context?.accessToken || null;
 
-                if (requireAuth && !authenticated_url) {
-                    setProposalError('Unable to create an authenticated Deriv session.');
-                    return false;
-                }
-
-                const socket_url = authenticated_url || DERIV_PUBLIC_WS_URL;
-                const is_authenticated_socket = Boolean(authenticated_url);
-
-                wsRef.current = new WebSocket(socket_url);
+                wsRef.current = new WebSocket(DERIV_PUBLIC_WS_URL);
                 wsRef.current.onopen = () => {
-                    logMessage(is_authenticated_socket ? 'Trading socket connected' : 'Public socket connected');
+                    logMessage('Trading socket connected');
                     setProposalError('');
-                    isAuthorizedRef.current = is_authenticated_socket;
 
-                    if (is_authenticated_socket) {
-                        wsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
-
-                        activeContractsRef.current.forEach(active_contract_id => {
-                            wsRef.current.send(
-                                JSON.stringify({
-                                    proposal_open_contract: 1,
-                                    contract_id: Number(active_contract_id),
-                                    subscribe: 1,
-                                })
-                            );
-                        });
-
-                        if (isRunningRef.current && activeContractsRef.current.size === 0) {
-                            useBulkRef.current ? firePrecisionBurst() : requestProposal();
-                        }
+                    if (token_to_use) {
+                        // Standard Deriv authorize flow — send token, wait for authorize response
+                        wsRef.current.send(JSON.stringify({ authorize: token_to_use }));
+                    } else {
+                        // Public socket — no auth
+                        isAuthorizedRef.current = false;
                     }
                 };
 
@@ -930,7 +885,7 @@ const SmartTrader = () => {
                 isConnectingRef.current = false;
             }
         },
-        [firePrecisionBurst, getAuthenticatedUrl, handleSocketMessage, logMessage, requestProposal]
+        [firePrecisionBurst, getStoredAuthContext, handleSocketMessage, logMessage, requestProposal]
     );
 
     const handleStart = useCallback(async () => {
