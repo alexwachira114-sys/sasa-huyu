@@ -20,6 +20,7 @@ import Marketview from '../MiniAnalysis/Marketview';
 import './SmartTrader.css';
 
 const DERIV_PUBLIC_WS_URL = isProduction() ? WS_SERVERS.PRODUCTION : WS_SERVERS.STAGING;
+const DERIV_OPTIONS_API_URL = DERIV_PUBLIC_WS_URL.replace(/ws\/public$/, '');
 
 const CONTRACT_TYPE_MAP = Object.freeze({
     CALL: 'CALL',
@@ -226,9 +227,7 @@ const SmartTrader = () => {
         clearRecoveryTimeouts();
     }, [clearRecoveryTimeouts]);
 
-    // ── AUTH ADAPTATION ─────────────────────────────────────────────────────────
-    // This project stores auth in localStorage (authToken + active_loginid +
-    // clientAccounts), not in sessionStorage. Read from there instead.
+    // ── AUTH: read from localStorage (this project's storage location) ──────────
     const getStoredAuthContext = useCallback(() => {
         try {
             const access_token =
@@ -253,6 +252,41 @@ const SmartTrader = () => {
             return null;
         }
     }, []);
+
+    // ── AUTH: OTP flow — POST access_token → get pre-authenticated WS URL ───────
+    // Calls the new Deriv API OTP endpoint. The returned URL is already authorized
+    // so no {authorize} message is needed on onopen.
+    const getAuthenticatedUrl = useCallback(async () => {
+        const auth_context = getStoredAuthContext();
+        if (!auth_context) return null;
+
+        const { accessToken, activeAccount } = auth_context;
+
+        try {
+            const endpoint = `${DERIV_OPTIONS_API_URL}accounts/${activeAccount.account_id}/otp`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+
+            if (!response.ok) {
+                throw new Error(`OTP request failed: ${response.status} ${response.statusText}`);
+            }
+
+            const otp_response = await response.json();
+            const ws_url = otp_response?.data?.url;
+
+            if (!ws_url) {
+                throw new Error('WebSocket URL not found in OTP response');
+            }
+
+            return ws_url;
+        } catch (error) {
+            logMessage(`[SmartTrader] OTP error: ${error.message}`);
+            console.error('[SmartTrader] OTP error:', error);
+            return null;
+        }
+    }, [getStoredAuthContext, logMessage]);
     // ────────────────────────────────────────────────────────────────────────────
 
     const getActiveTradeSettings = useCallback(() => {
@@ -478,35 +512,14 @@ const SmartTrader = () => {
         event => {
             const data = JSON.parse(event.data);
 
-            // ── AUTH ADAPTATION ────────────────────────────────────────────────
-            // Zip uses OTP pre-auth URL so isAuthorizedRef is already true in
-            // onopen. We use standard token authorize, so we complete the full
-            // post-auth setup here: subscribe transactions, re-subscribe any open
-            // contracts, then start trading — exactly what the zip does in onopen.
             if (data.msg_type === 'authorize') {
                 isAuthorizedRef.current = true;
                 logMessage('Trading session authorized');
-
-                if (wsRef.current?.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
-
-                    activeContractsRef.current.forEach(active_contract_id => {
-                        wsRef.current.send(
-                            JSON.stringify({
-                                proposal_open_contract: 1,
-                                contract_id: Number(active_contract_id),
-                                subscribe: 1,
-                            })
-                        );
-                    });
-                }
-
                 if (isRunningRef.current && activeContractsRef.current.size === 0) {
                     useBulkRef.current ? firePrecisionBurst() : requestProposal();
                 }
                 return;
             }
-            // ──────────────────────────────────────────────────────────────────
 
             if (data.msg_type === 'proposal' && !data.error) {
                 if (!isRunningRef.current) return;
@@ -826,13 +839,6 @@ const SmartTrader = () => {
         ]
     );
 
-    // ── AUTH ADAPTATION ──────────────────────────────────────────────────────────
-    // The zip uses OTP to get a pre-authenticated WebSocket URL. This project uses
-    // the standard Deriv WebSocket API (wss://ws.derivws.com/websockets/v3) with a
-    // token-based authorize message instead. The flow is functionally identical:
-    //   Zip:  connect(OTP-URL)  → already authorized → subscribe + trade
-    //   Ours: connect(std-URL)  → send {authorize:token} → handleSocketMessage
-    //         authorize handler → subscribe + re-subscribe open contracts + trade
     const connectTradingSocket = useCallback(
         async (options = {}) => {
             const { requireAuth = false, forceReconnect = false } = options;
@@ -862,19 +868,42 @@ const SmartTrader = () => {
             socketRequiresAuthRef.current = requireAuth;
 
             try {
-                const auth_context = requireAuth ? getStoredAuthContext() : null;
-                const token_to_use = auth_context?.accessToken || null;
+                // OTP flow: get a pre-authenticated WebSocket URL from the Deriv
+                // Options API. The connection is already authorized on open — no
+                // {authorize} message is required.
+                const authenticated_url = requireAuth ? await getAuthenticatedUrl() : null;
 
-                wsRef.current = new WebSocket(DERIV_PUBLIC_WS_URL);
+                if (requireAuth && !authenticated_url) {
+                    setProposalError('Unable to create an authenticated Deriv session.');
+                    return false;
+                }
+
+                const socket_url = authenticated_url || DERIV_PUBLIC_WS_URL;
+                const is_authenticated_socket = Boolean(authenticated_url);
+
+                wsRef.current = new WebSocket(socket_url);
 
                 wsRef.current.onopen = () => {
-                    logMessage('Trading socket connected');
+                    logMessage(is_authenticated_socket ? 'Trading socket connected' : 'Public socket connected');
                     setProposalError('');
+                    isAuthorizedRef.current = is_authenticated_socket;
 
-                    if (token_to_use) {
-                        wsRef.current.send(JSON.stringify({ authorize: token_to_use }));
-                    } else {
-                        isAuthorizedRef.current = false;
+                    if (is_authenticated_socket) {
+                        wsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
+
+                        activeContractsRef.current.forEach(active_contract_id => {
+                            wsRef.current.send(
+                                JSON.stringify({
+                                    proposal_open_contract: 1,
+                                    contract_id: Number(active_contract_id),
+                                    subscribe: 1,
+                                })
+                            );
+                        });
+
+                        if (isRunningRef.current && activeContractsRef.current.size === 0) {
+                            useBulkRef.current ? firePrecisionBurst() : requestProposal();
+                        }
                     }
                 };
 
@@ -909,9 +938,8 @@ const SmartTrader = () => {
                 isConnectingRef.current = false;
             }
         },
-        [firePrecisionBurst, getStoredAuthContext, handleSocketMessage, logMessage, requestProposal]
+        [firePrecisionBurst, getAuthenticatedUrl, handleSocketMessage, logMessage, requestProposal]
     );
-    // ────────────────────────────────────────────────────────────────────────────
 
     const handleStart = useCallback(async () => {
         if (isRunningRef.current) {
