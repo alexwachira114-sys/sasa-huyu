@@ -56,58 +56,10 @@ export default defineConfig({
                 './src/components/shims/ui-submenu/index.js'
             ),
             '../Submenu /index.js': path.resolve(__dirname, './src/components/shims/ui-submenu/index.js'),
-            // Explicit subpath aliases for @deriv/quill-icons (must come before the broad alias)
-            '@deriv/quill-icons/Legacy': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Legacy'
-            ),
-            '@deriv/quill-icons/LabelPaired': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/LabelPaired'
-            ),
-            '@deriv/quill-icons/Standalone': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Standalone'
-            ),
-            '@deriv/quill-icons/Flags': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Flags'
-            ),
+            // Shim for @deriv/quill-icons/Illustration — the installed package has missing .webp assets
             '@deriv/quill-icons/Illustration': path.resolve(
                 __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Illustration'
-            ),
-            '@deriv/quill-icons/Logo': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Logo'
-            ),
-            '@deriv/quill-icons/Currencies': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Currencies'
-            ),
-            '@deriv/quill-icons/Accounts': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Accounts'
-            ),
-            '@deriv/quill-icons/Markets': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Markets'
-            ),
-            '@deriv/quill-icons/Social': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Social'
-            ),
-            '@deriv/quill-icons/PaymentMethods': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/PaymentMethods'
-            ),
-            '@deriv/quill-icons/Illustrative': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/Illustrative'
-            ),
-            '@deriv/quill-icons/TradeTypes': path.resolve(
-                __dirname,
-                'node_modules/@deriv/quill-icons/dist/react/TradeTypes'
+                'src/components/shims/quill-icons-illustration/index.js'
             ),
             // Ensure rudderstack analytics-js resolves from top-level node_modules
             '@rudderstack/analytics-js': path.resolve(
