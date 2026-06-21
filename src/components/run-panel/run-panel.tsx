@@ -319,7 +319,7 @@ const RunPanel = observer(() => {
         />
     );
 
-    const show_run_panel = [BOT_BUILDER, CHART, TRADING_BOTS, ANALYSIS_TOOL, DBOT_TABS.CAXYNEXUS_AI_MAGIC, DBOT_TABS.OVER_UNDER].includes(active_tab) || active_tour;
+    const show_run_panel = [BOT_BUILDER, CHART, TRADING_BOTS, ANALYSIS_TOOL, DBOT_TABS.CAXYNEXUS_AI_MAGIC, DBOT_TABS.OVER_UNDER, DBOT_TABS.SMART_TRADER, DBOT_TABS.ELITE_PRIME].includes(active_tab) || active_tour;
     if ((!show_run_panel && isDesktop) || active_tour === 'bot_builder') return null;
 
     return (
