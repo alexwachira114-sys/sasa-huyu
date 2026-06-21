@@ -1178,3 +1178,426 @@
         font-size: 1rem;
     }
 }
+
+// ─── Live Signals Scanner ─────────────────────────────────────────────────────
+.st-scanner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+
+    &__status-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 0.8rem 1.4rem;
+        font-size: 1.3rem;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+    }
+
+    &__status-left {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: #94a3b8;
+    }
+
+    &__status-label {
+        font-weight: 600;
+        color: #e2e8f0;
+    }
+
+    &__updated {
+        color: #64748b;
+        font-size: 1.1rem;
+    }
+
+    &__status-right {
+        display: flex;
+        gap: 0.8rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    &__stat {
+        font-size: 1.2rem;
+        font-weight: 700;
+        padding: 0.3rem 0.8rem;
+        border-radius: 8px;
+        letter-spacing: 0.04em;
+
+        &--buy {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        &--sell {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        &--ou {
+            background: rgba(168, 85, 247, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+    }
+
+    &__loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.6rem;
+        padding: 4rem 2rem;
+        color: #94a3b8;
+        font-size: 1.4rem;
+        text-align: center;
+
+        p {
+            max-width: 420px;
+            line-height: 1.6;
+        }
+    }
+
+    &__grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.6rem;
+
+        @media (max-width: 900px) {
+            grid-template-columns: 1fr;
+        }
+    }
+}
+
+// ─── Connection dot ───────────────────────────────────────────────────────────
+.st-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &--connected {
+        background: #4ade80;
+        box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+        animation: dotPulse 2s ease-in-out infinite;
+    }
+
+    &--connecting {
+        background: #facc15;
+        animation: dotPulse 1s ease-in-out infinite;
+    }
+
+    &--error {
+        background: #f87171;
+    }
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+// ─── Spinner ──────────────────────────────────────────────────────────────────
+.st-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #1e293b;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+// ─── Signal badge ─────────────────────────────────────────────────────────────
+.st-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+
+    &--buy {
+        background: linear-gradient(135deg, #16a34a, #22c55e);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+    }
+
+    &--sell {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+    }
+
+    &--over {
+        background: linear-gradient(135deg, #7c3aed, #a855f7);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+    }
+
+    &--under {
+        background: linear-gradient(135deg, #0284c7, #38bdf8);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.4);
+    }
+
+    &--neutral {
+        background: #1e293b;
+        color: #475569;
+    }
+}
+
+// ─── Table card ───────────────────────────────────────────────────────────────
+.st-table-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    overflow: hidden;
+
+    &__title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #e2e8f0;
+        padding: 1.2rem 1.6rem;
+        border-bottom: 1px solid #1e293b;
+        background: #0d1424;
+        margin: 0;
+    }
+}
+
+.st-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.3rem;
+
+    thead tr {
+        background: #0d1424;
+
+        th {
+            padding: 0.8rem 1.2rem;
+            text-align: center;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 1.1rem;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid #1e293b;
+
+            &:first-child { text-align: left; }
+        }
+    }
+
+    tbody tr {
+        border-bottom: 1px solid #1e293b;
+        transition: background 0.2s;
+
+        &:last-child { border-bottom: none; }
+
+        &:hover { background: rgba(30, 41, 59, 0.6); }
+
+        &.st-table__row--buy {
+            background: rgba(34, 197, 94, 0.06);
+            &:hover { background: rgba(34, 197, 94, 0.1); }
+        }
+
+        &.st-table__row--sell {
+            background: rgba(239, 68, 68, 0.06);
+            &:hover { background: rgba(239, 68, 68, 0.1); }
+        }
+
+        &.st-table__row--digit {
+            background: rgba(168, 85, 247, 0.06);
+            &:hover { background: rgba(168, 85, 247, 0.1); }
+        }
+
+        td {
+            padding: 0.9rem 1.2rem;
+            text-align: center;
+            color: #cbd5e1;
+
+            &:first-child { text-align: left; }
+        }
+    }
+
+    &__market {
+        font-weight: 600;
+        color: #e2e8f0 !important;
+        white-space: nowrap;
+    }
+}
+
+// ─── Percentage labels ────────────────────────────────────────────────────────
+.st-pct {
+    font-size: 1.2rem;
+    font-weight: 600;
+
+    &--rise { color: #4ade80; }
+    &--fall { color: #f87171; }
+    &--over { color: #c084fc; }
+    &--under { color: #38bdf8; }
+}
+
+// ─── Risk Calculator ──────────────────────────────────────────────────────────
+.st-calc {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+
+    &__card {
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 20px;
+        padding: 2.4rem;
+        width: 100%;
+        max-width: 480px;
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    &__title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #e2e8f0;
+        margin: 0;
+        text-align: center;
+    }
+
+    &__desc {
+        font-size: 1.3rem;
+        color: #64748b;
+        line-height: 1.6;
+        margin: -1rem 0 0;
+        text-align: center;
+    }
+
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    &__label {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    &__input {
+        background: #1e293b;
+        border: 2px solid #334155;
+        border-radius: 10px;
+        color: #e2e8f0;
+        padding: 1rem 1.2rem;
+        font-size: 1.6rem;
+        font-weight: 600;
+        transition: all 0.2s;
+        outline: none;
+        width: 100%;
+        box-sizing: border-box;
+
+        &:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        &::placeholder { color: #475569; font-weight: 400; }
+
+        // Remove number spinner
+        &::-webkit-inner-spin-button,
+        &::-webkit-outer-spin-button { -webkit-appearance: none; }
+        -moz-appearance: textfield;
+    }
+
+    &__results {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    &__result-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.2rem 1.4rem;
+        border-radius: 12px;
+        border: 1px solid #1e293b;
+
+        &--stake {
+            background: rgba(59, 130, 246, 0.08);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        &--tp {
+            background: rgba(34, 197, 94, 0.08);
+            border-color: rgba(34, 197, 94, 0.2);
+        }
+
+        &--sl {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+    }
+
+    &__result-label {
+        font-size: 1.3rem;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+
+    &__result-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+
+        .st-calc__result-item--stake & { color: #60a5fa; }
+        .st-calc__result-item--tp & { color: #4ade80; }
+        .st-calc__result-item--sl & { color: #f87171; }
+    }
+
+    &__sequence {
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 1.2rem 1.4rem;
+    }
+
+    &__seq-title {
+        font-size: 1.2rem;
+        color: #64748b;
+        margin: 0 0 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    &__seq-row {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    &__seq-pill {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 0.4rem 0.8rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #facc15;
+    }
+}
