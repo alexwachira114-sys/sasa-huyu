@@ -259,32 +259,38 @@ const ElitePremium = () => {
 
     const getStoredAuthContext = useCallback(() => {
         try {
-            const authRaw = sessionStorage.getItem('auth_info');
-            const accountsRaw = sessionStorage.getItem('deriv_accounts');
+            // New System PKCE auth — token is stored in localStorage by NewDerivAuth.js
+            const access_token =
+                localStorage.getItem('NEW_AUTH_token') ||
+                sessionStorage.getItem('NEW_AUTH_token');
+            if (!access_token) return null;
 
-            if (!authRaw || !accountsRaw) return null;
+            // Check expiry
+            const expiry =
+                localStorage.getItem('NEW_AUTH_expiry') ||
+                sessionStorage.getItem('NEW_AUTH_expiry');
+            if (expiry && Date.now() > Number(expiry)) return null;
 
-            const { access_token } = JSON.parse(authRaw);
-            const accounts = JSON.parse(accountsRaw);
+            // Resolve active account from the legacy bridge data written by NewDerivAuth.js
+            const activeLoginId = localStorage.getItem('active_loginid');
+            let account_id = activeLoginId;
 
-            if (!access_token || !Array.isArray(accounts) || accounts.length === 0) {
-                return null;
+            if (!account_id) {
+                const clientAccountsRaw = localStorage.getItem('clientAccounts');
+                if (clientAccountsRaw) {
+                    const ids = Object.keys(JSON.parse(clientAccountsRaw));
+                    account_id = ids[0] || null;
+                }
             }
 
-            const activeLoginId = localStorage.getItem('active_loginid');
-            const activeAccount =
-                accounts.find(account => account.account_id === activeLoginId) ||
-                accounts.find(account => account.account_id?.startsWith('DOT')) ||
-                accounts[0];
-
-            if (!activeAccount?.account_id) return null;
+            if (!account_id) return null;
 
             return {
                 accessToken: access_token,
-                activeAccount,
+                activeAccount: { account_id },
             };
         } catch (error) {
-            console.error('[ElitePremium] Failed to parse Deriv session:', error);
+            console.error('[ElitePremium] Failed to parse auth context:', error);
             return null;
         }
     }, []);

@@ -229,32 +229,38 @@ const SmartTrader = () => {
 
     const getStoredAuthContext = useCallback(() => {
         try {
-            const auth_raw = sessionStorage.getItem('auth_info');
-            const accounts_raw = sessionStorage.getItem('deriv_accounts');
+            // New System PKCE auth — token is stored in localStorage by NewDerivAuth.js
+            const access_token =
+                localStorage.getItem('NEW_AUTH_token') ||
+                sessionStorage.getItem('NEW_AUTH_token');
+            if (!access_token) return null;
 
-            if (!auth_raw || !accounts_raw) return null;
+            // Check expiry
+            const expiry =
+                localStorage.getItem('NEW_AUTH_expiry') ||
+                sessionStorage.getItem('NEW_AUTH_expiry');
+            if (expiry && Date.now() > Number(expiry)) return null;
 
-            const { access_token } = JSON.parse(auth_raw);
-            const accounts = JSON.parse(accounts_raw);
+            // Resolve active account from the legacy bridge data written by NewDerivAuth.js
+            const active_login_id = localStorage.getItem('active_loginid');
+            let account_id = active_login_id;
 
-            if (!access_token || !Array.isArray(accounts) || accounts.length === 0) {
-                return null;
+            if (!account_id) {
+                const client_accounts_raw = localStorage.getItem('clientAccounts');
+                if (client_accounts_raw) {
+                    const ids = Object.keys(JSON.parse(client_accounts_raw));
+                    account_id = ids[0] || null;
+                }
             }
 
-            const active_login_id = localStorage.getItem('active_loginid');
-            const active_account =
-                accounts.find(account => account.account_id === active_login_id) ||
-                accounts.find(account => account.account_id?.startsWith('DOT')) ||
-                accounts[0];
-
-            if (!active_account?.account_id) return null;
+            if (!account_id) return null;
 
             return {
                 accessToken: access_token,
-                activeAccount: active_account,
+                activeAccount: { account_id },
             };
         } catch (error) {
-            console.error('[SmartTrader] Failed to parse Deriv session storage:', error);
+            console.error('[SmartTrader] Failed to parse auth context:', error);
             return null;
         }
     }, []);
