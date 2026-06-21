@@ -57,6 +57,22 @@ const FreeBots = observer(() => {
                 'Premium Rise/Fall trading bot with MACD analysis and intelligent recovery. Optimized for consistent returns in trending markets.',
             'CAXYNEXUS-AI RISE/FALL V4':
                 'Latest version of the Freezy Trading Hub Rise/Fall bot. Enhanced with improved entry signals and advanced recovery management for maximum stability.',
+            'OVER UNDER SWITCHER BOT':
+                'Dual Over/Under strategy on Volatility 10 Index. Automatically switches between Over 5 and Under 4 predictions with a 2× Martingale recovery and $200 take-profit target.',
+            'DERIV WIZARD 1':
+                'RSI + Moving Average signal bot on Volatility 10 (1s) Index. Trades Rise/Fall using indicator confluence with a 0.3× Martingale level and $100 expected profit target.',
+            'EXPERT WAGER V4 EVEN ODD':
+                'Pattern-analysis Even/Odd bot on Volatility 10 (1s) Index. Scans the last-digit history to detect streaks, then trades with a 2× Martingale and $50 take-profit cap.',
+            'FIREFOX 1.0':
+                'Adaptive Digit Under bot on Volatility 10 (1s) Index. Uses Under 8 before a loss and tightens to Under 6 after, with a 2.55× Martingale split and 39% payout calibration.',
+            'MR DUKE SPEED BOT':
+                'Speed-optimised Digit Over bot on Volatility 100 Index. Entrypoint set at digit 1, with intelligent stake recovery and a $20 take-profit / $1 000 stop-loss safety net.',
+            'OVER DESTROYER V1':
+                'Aggressive Over/Under bot on Volatility 25 (1s) Index. Opens Over 1 on first trade, switches to Under 7 on loss, with a 2.25× Martingale and up to 7 recovery levels.',
+            'RISE FALL KIND':
+                'Balanced Rise/Fall bot on Volatility 25 (1s) Index. Trades both contract directions with optional 2× Martingale, $10 take-profit, and $50 stop-loss guard.',
+            'UNDER DESTROYER V11':
+                'Precision Under/Over bot on Volatility 90 (1s) Index. Starts Under 8 and flips to Over 4 on consecutive losses, with a 2.2× Martingale across up to 7 recovery levels.',
                         };
 
         // Try exact match first
@@ -90,6 +106,14 @@ const FreeBots = observer(() => {
             'UNDER7_R56 PRO.xml',
             'CAXYNEXUS_AIV3RISE_FALL.xml',
             'CAXYNEXUS_AIRISE_FALLV4.xml',
+            'OVER_UNDER_SWITCHER_BOT.xml',
+            'DERIV_WIZARD_1.xml',
+            'EXPERT_WAGER_V4_EVEN_ODD.xml',
+            'FIREFOX_1.0.xml',
+            'MR_DUKE_SPEED_BOT.xml',
+            'OVER_DESTROYER_V1.xml',
+            'RISE_FALL_KIND.xml',
+            'UNDER_DESTROYER_V11.xml',
         ];
     };
 
