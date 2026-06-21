@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaPlay, FaStop } from 'react-icons/fa';
 import { IoChevronDown } from 'react-icons/io5';
 import Swal from 'sweetalert2';
-import { isProduction, WS_SERVERS } from '@/components/shared';
+import { getAppId, getSocketURL } from '@/components/shared';
+import { isNewLoggedIn, onNewSystemMessage, sendViaNewSystem } from '@/auth/NewDerivAuth';
 import { contract_stages } from '@/constants/contract-stage';
 import { run_panel as run_panel_tabs } from '@/constants/run-panel';
 import { observer } from '@/external/bot-skeleton';
@@ -19,8 +20,6 @@ import { TradeTypesUpsAndDownsRiseIcon } from '@deriv/quill-icons/TradeTypes';
 import Marketview from '../MiniAnalysis/Marketview';
 import './SmartTrader.css';
 
-const DERIV_PUBLIC_WS_URL = isProduction() ? WS_SERVERS.PRODUCTION : WS_SERVERS.STAGING;
-const DERIV_OPTIONS_API_URL = DERIV_PUBLIC_WS_URL.replace(/ws\/public$/, '');
 
 const CONTRACT_TYPE_MAP = Object.freeze({
     CALL: 'CALL',
@@ -69,6 +68,7 @@ const SmartTrader = () => {
 
     const monitorEndRef = useRef(null);
     const wsRef = useRef(null);
+    const newSystemUnsubRef = useRef(null);
     const totalProfitRef = useRef(0);
     const baseStakeRef = useRef(1);
     const currentStakeRef = useRef(1);
@@ -258,41 +258,38 @@ const SmartTrader = () => {
         }
     }, []);
 
-    // ── AUTH: OTP flow — POST access_token → get pre-authenticated WS URL ───────
-    // Calls the new Deriv API OTP endpoint. The returned URL is already authorized
-    // so no {authorize} message is needed on onopen.
-    const getAuthenticatedUrl = useCallback(async () => {
-        const auth_context = getStoredAuthContext();
-        if (!auth_context) return null;
-
-        const { accessToken, activeAccount } = auth_context;
-
+    // ── AUTH: Read legacy token from localStorage (same pattern as Over/Under) ──
+    const getLegacyToken = useCallback(() => {
         try {
-            const endpoint = `${DERIV_OPTIONS_API_URL}accounts/${activeAccount.account_id}/otp`;
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${accessToken}` },
-            });
-
-            if (!response.ok) {
-                throw new Error(`OTP request failed: ${response.status} ${response.statusText}`);
+            const active_loginid = localStorage.getItem('active_loginid');
+            const client_accounts_str = localStorage.getItem('client.accounts');
+            if (client_accounts_str && active_loginid) {
+                const obj = JSON.parse(client_accounts_str);
+                if (obj[active_loginid]?.token) return obj[active_loginid].token;
             }
-
-            const otp_response = await response.json();
-            const ws_url = otp_response?.data?.url;
-
-            if (!ws_url) {
-                throw new Error('WebSocket URL not found in OTP response');
+            const accounts_list_str = localStorage.getItem('accountsList');
+            if (accounts_list_str && active_loginid) {
+                const obj = JSON.parse(accounts_list_str);
+                if (obj[active_loginid]) return obj[active_loginid];
             }
-
-            return ws_url;
-        } catch (error) {
-            logMessage(`[SmartTrader] OTP error: ${error.message}`);
-            console.error('[SmartTrader] OTP error:', error);
             return null;
+        } catch { return null; }
+    }, []);
+
+    // ── Route trade messages to the right channel ─────────────────────────────
+    // New auth → sendViaNewSystem (window._newSystemWS, already authorized)
+    // Legacy  → wsRef.current (standard WS, authorized via {authorize} message)
+    const sendTradeMsg = useCallback((data) => {
+        if (isNewLoggedIn()) {
+            return sendViaNewSystem(data);
         }
-    }, [getStoredAuthContext, logMessage]);
-    // ────────────────────────────────────────────────────────────────────────────
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify(data));
+            return true;
+        }
+        return false;
+    }, []);
+    // ─────────────────────────────────────────────────────────────────────────
 
     const getActiveTradeSettings = useCallback(() => {
         const using_recovery = lastTradeWasLossRef.current && useRecoveryRef.current;
@@ -314,13 +311,13 @@ const SmartTrader = () => {
     const requestProposal = useCallback(() => {
         if (!isRunningRef.current) return;
 
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            logMessage('WebSocket not ready for proposal request');
+        if (!isAuthorizedRef.current) {
+            logMessage('Trading session is not authorized yet');
             return;
         }
 
-        if (!isAuthorizedRef.current) {
-            logMessage('Trading session is not authorized yet');
+        if (!isNewLoggedIn() && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
+            logMessage('WebSocket not ready for proposal request');
             return;
         }
 
@@ -349,23 +346,45 @@ const SmartTrader = () => {
         setProposalError('');
         run_panel?.setContractStage?.(contract_stages.PURCHASE_SENT);
 
-        wsRef.current.send(
-            JSON.stringify({
-                proposal: 1,
-                amount: parsed_stake,
-                basis: 'stake',
-                contract_type: derivContractType,
-                currency: client?.currency || 'USD',
-                underlying_symbol: symbolRef.current,
-                duration: parsed_duration,
-                duration_unit: 't',
-                ...(barrier !== undefined ? { barrier } : {}),
-            })
-        );
+        if (isNewLoggedIn()) {
+            sendViaNewSystem({
+                buy: 1,
+                price: parseFloat(parsed_stake),
+                parameters: {
+                    amount: parseFloat(parsed_stake),
+                    basis: 'stake',
+                    contract_type: derivContractType,
+                    currency: client?.currency || 'USD',
+                    underlying_symbol: symbolRef.current,
+                    duration: parsed_duration,
+                    duration_unit: 't',
+                    ...(barrier !== undefined ? { barrier: String(barrier) } : {}),
+                },
+            });
+            pendingProposalRef.current = false;
+        } else {
+            wsRef.current.send(
+                JSON.stringify({
+                    proposal: 1,
+                    amount: parsed_stake,
+                    basis: 'stake',
+                    contract_type: derivContractType,
+                    currency: client?.currency || 'USD',
+                    underlying_symbol: symbolRef.current,
+                    duration: parsed_duration,
+                    duration_unit: 't',
+                    ...(barrier !== undefined ? { barrier } : {}),
+                })
+            );
+        }
     }, [client?.currency, getActiveTradeSettings, logMessage, run_panel]);
 
     const firePrecisionBurst = useCallback(() => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isAuthorizedRef.current) {
+        if (!isAuthorizedRef.current) {
+            logMessage('Trading socket is not ready for bulk execution');
+            return;
+        }
+        if (!isNewLoggedIn() && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
             logMessage('Trading socket is not ready for bulk execution');
             return;
         }
@@ -391,9 +410,23 @@ const SmartTrader = () => {
 
         for (let index = 0; index < parsed_count; index += 1) {
             window.setTimeout(() => {
-                if (!isRunningRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+                if (!isRunningRef.current) return;
+                if (!isNewLoggedIn() && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) return;
 
-                wsRef.current.send(
+                sendViaNewSystem({
+                    buy: 1,
+                    price: parsed_stake,
+                    parameters: {
+                        amount: parsed_stake,
+                        basis: 'stake',
+                        contract_type: deriv_contract_type,
+                        currency: client?.currency || 'USD',
+                        underlying_symbol: symbolRef.current,
+                        duration: parsed_duration,
+                        duration_unit: 't',
+                        ...(barrier !== undefined ? { barrier: String(barrier) } : {}),
+                    },
+                }) || (wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(
                     JSON.stringify({
                         buy: 1,
                         subscribe: 1,
@@ -409,7 +442,7 @@ const SmartTrader = () => {
                             ...(barrier !== undefined ? { barrier } : {}),
                         },
                     })
-                );
+                ));
             }, index * 50);
         }
     }, [client?.currency, logMessage, run_panel]);
@@ -423,11 +456,9 @@ const SmartTrader = () => {
             isRunningRef.current = false;
             pendingProposalRef.current = false;
 
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ forget_all: 'proposal' }));
-                if (!preserve_open_contract) {
-                    wsRef.current.send(JSON.stringify({ forget_all: 'proposal_open_contract' }));
-                }
+            sendTradeMsg({ forget_all: 'proposal' });
+            if (!preserve_open_contract) {
+                sendTradeMsg({ forget_all: 'proposal_open_contract' });
             }
 
             if (!preserve_open_contract) {
@@ -520,6 +551,10 @@ const SmartTrader = () => {
             if (data.msg_type === 'authorize') {
                 isAuthorizedRef.current = true;
                 logMessage('Trading session authorized');
+                wsRef.current?.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
+                activeContractsRef.current.forEach(contract_id => {
+                    wsRef.current?.send(JSON.stringify({ proposal_open_contract: 1, contract_id: Number(contract_id), subscribe: 1 }));
+                });
                 if (isRunningRef.current && activeContractsRef.current.size === 0) {
                     useBulkRef.current ? firePrecisionBurst() : requestProposal();
                 }
@@ -538,7 +573,7 @@ const SmartTrader = () => {
                     return;
                 }
 
-                wsRef.current.send(JSON.stringify({ buy: proposal_id, price: ask_price }));
+                sendTradeMsg({ buy: proposal_id, price: ask_price });
                 return;
             }
 
@@ -600,18 +635,12 @@ const SmartTrader = () => {
 
                     if (
                         !activeContractsRef.current.has(contract_key) ||
-                        completedContractsRef.current.has(contract_key) ||
-                        wsRef.current?.readyState !== WebSocket.OPEN
+                        completedContractsRef.current.has(contract_key)
                     ) {
                         return;
                     }
 
-                    wsRef.current.send(
-                        JSON.stringify({
-                            proposal_open_contract: 1,
-                            contract_id: sell_contract_id,
-                        })
-                    );
+                    sendTradeMsg({ proposal_open_contract: 1, contract_id: sell_contract_id });
                 }, 1500);
 
                 transactionRecoveryTimeoutsRef.current.set(contract_key, timeout_id);
@@ -676,7 +705,7 @@ const SmartTrader = () => {
                     ...prev_results,
                 ]);
 
-                wsRef.current.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
+                sendTradeMsg({ proposal_open_contract: 1, contract_id, subscribe: 1 });
                 return;
             }
 
@@ -845,10 +874,39 @@ const SmartTrader = () => {
     );
 
     const connectTradingSocket = useCallback(
-        async (options = {}) => {
+        (options = {}) => {
             const { requireAuth = false, forceReconnect = false } = options;
-            const socket_state = wsRef.current?.readyState;
+            socketRequiresAuthRef.current = requireAuth;
 
+            // ── New auth path ────────────────────────────────────────────────────────
+            // window._newSystemWS is the pre-authorized OTP WebSocket created by
+            // NewDerivAuth. It is already authenticated — no {authorize} message needed.
+            if (isNewLoggedIn()) {
+                // Guard: already wired up and authorized
+                if (!forceReconnect && isAuthorizedRef.current && newSystemUnsubRef.current) {
+                    return true;
+                }
+                // Verify the shared WS is open
+                if (!window._newSystemWS || window._newSystemWS.readyState !== WebSocket.OPEN) {
+                    logMessage('Waiting for authorized connection...');
+                    return false;
+                }
+                // Unsubscribe any previous handler then register fresh one
+                newSystemUnsubRef.current?.();
+                newSystemUnsubRef.current = onNewSystemMessage(event => handleSocketMessage(event));
+                isAuthorizedRef.current = true;
+                sendViaNewSystem({ transaction: 1, subscribe: 1 });
+                activeContractsRef.current.forEach(contract_id => {
+                    sendViaNewSystem({ proposal_open_contract: 1, contract_id: Number(contract_id), subscribe: 1 });
+                });
+                setProposalError('');
+                logMessage('Trading session ready (new auth).');
+                return true;
+            }
+
+            // ── Legacy auth path ─────────────────────────────────────────────────────
+            // Standard Deriv WebSocket: connect then send {authorize: token}.
+            const socket_state = wsRef.current?.readyState;
             if (
                 !forceReconnect &&
                 (socket_state === WebSocket.OPEN || socket_state === WebSocket.CONNECTING || isConnectingRef.current)
@@ -861,54 +919,25 @@ const SmartTrader = () => {
                 const existing_socket = wsRef.current;
                 wsRef.current = null;
                 isAuthorizedRef.current = false;
-
-                try {
-                    existing_socket.close();
-                } catch (error) {
-                    console.error('[SmartTrader] Failed to close existing socket:', error);
-                }
+                try { existing_socket.close(); } catch (_) {}
             }
 
             isConnectingRef.current = true;
-            socketRequiresAuthRef.current = requireAuth;
 
             try {
-                // OTP flow: get a pre-authenticated WebSocket URL from the Deriv
-                // Options API. The connection is already authorized on open — no
-                // {authorize} message is required.
-                const authenticated_url = requireAuth ? await getAuthenticatedUrl() : null;
-
-                if (requireAuth && !authenticated_url) {
-                    setProposalError('Unable to create an authenticated Deriv session.');
-                    return false;
-                }
-
-                const socket_url = authenticated_url || DERIV_PUBLIC_WS_URL;
-                const is_authenticated_socket = Boolean(authenticated_url);
-
-                wsRef.current = new WebSocket(socket_url);
+                const app_id = getAppId();
+                const server_url = getSocketURL();
+                wsRef.current = new WebSocket(`wss://${server_url}/websockets/v3?app_id=${app_id}`);
 
                 wsRef.current.onopen = () => {
-                    logMessage(is_authenticated_socket ? 'Trading socket connected' : 'Public socket connected');
+                    logMessage(`Connected (App ID: ${app_id}). Authorizing...`);
                     setProposalError('');
-                    isAuthorizedRef.current = is_authenticated_socket;
-
-                    if (is_authenticated_socket) {
-                        wsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
-
-                        activeContractsRef.current.forEach(active_contract_id => {
-                            wsRef.current.send(
-                                JSON.stringify({
-                                    proposal_open_contract: 1,
-                                    contract_id: Number(active_contract_id),
-                                    subscribe: 1,
-                                })
-                            );
-                        });
-
-                        if (isRunningRef.current && activeContractsRef.current.size === 0) {
-                            useBulkRef.current ? firePrecisionBurst() : requestProposal();
-                        }
+                    const token = getLegacyToken();
+                    if (token) {
+                        wsRef.current?.send(JSON.stringify({ authorize: token }));
+                    } else {
+                        logMessage('No auth token found. Please log in to Deriv.');
+                        setProposalError('No authentication token. Please log in.');
                     }
                 };
 
@@ -930,7 +959,7 @@ const SmartTrader = () => {
                     if (should_reconnect) {
                         reconnectTimeoutRef.current = window.setTimeout(() => {
                             connectTradingSocket({ requireAuth: socketRequiresAuthRef.current });
-                        }, 1000);
+                        }, 2500);
                     }
                 };
 
@@ -943,7 +972,7 @@ const SmartTrader = () => {
                 isConnectingRef.current = false;
             }
         },
-        [firePrecisionBurst, getAuthenticatedUrl, handleSocketMessage, logMessage, requestProposal]
+        [firePrecisionBurst, getLegacyToken, handleSocketMessage, logMessage, requestProposal]
     );
 
     const handleStart = useCallback(async () => {
@@ -952,7 +981,11 @@ const SmartTrader = () => {
             return;
         }
 
-        if (!getStoredAuthContext()) {
+        const is_logged_in = isNewLoggedIn()
+            ? Boolean(window._newSystemWS)
+            : Boolean(getStoredAuthContext());
+
+        if (!is_logged_in) {
             Swal.fire({ title: 'Login Required!', icon: 'error', draggable: false });
             return;
         }
@@ -987,13 +1020,24 @@ const SmartTrader = () => {
 
         logMessage('Smart Trader bot started.');
 
+        // For new auth: _newSystemWS is already authorized — wire handler then trade
+        if (isNewLoggedIn()) {
+            newSystemUnsubRef.current?.();
+            newSystemUnsubRef.current = onNewSystemMessage(event => handleSocketMessage(event));
+            isAuthorizedRef.current = true;
+            sendViaNewSystem({ transaction: 1, subscribe: 1 });
+            useBulkRef.current ? firePrecisionBurst() : requestProposal();
+            return;
+        }
+
+        // For legacy auth: connect WS if not already authorized
         const socket_state = wsRef.current?.readyState;
         if (wsRef.current && socket_state === WebSocket.OPEN && isAuthorizedRef.current) {
             useBulkRef.current ? firePrecisionBurst() : requestProposal();
             return;
         }
 
-        const did_connect = await connectTradingSocket({
+        const did_connect = connectTradingSocket({
             requireAuth: true,
             forceReconnect: Boolean(wsRef.current && !isAuthorizedRef.current),
         });
@@ -1061,6 +1105,10 @@ const SmartTrader = () => {
             }
 
             clearRecoveryTimeouts();
+
+            newSystemUnsubRef.current?.();
+            newSystemUnsubRef.current = null;
+            isAuthorizedRef.current = false;
 
             if (wsRef.current) {
                 skipReconnectRef.current = true;
