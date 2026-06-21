@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaPlay, FaStop } from 'react-icons/fa';
 import { observer } from 'mobx-react-lite';
 import Swal from 'sweetalert2';
-import { isProduction, WS_SERVERS } from '@/components/shared';
+import { getAppId, getSocketURL, isProduction, WS_SERVERS } from '@/components/shared';
 import { contract_stages } from '@/constants/contract-stage';
 import { run_panel as run_panel_tabs } from '@/constants/run-panel';
 import { observer as botObserver } from '@/external/bot-skeleton';
@@ -11,8 +11,8 @@ import { getSymbolDisplayNameSync } from '@/utils/symbol-display-name';
 import Marketview from './marketview';
 import './smart-trader.scss';
 
-const DERIV_PUBLIC_WS_URL = isProduction() ? WS_SERVERS.PRODUCTION : WS_SERVERS.STAGING;
-const DERIV_OPTIONS_API_URL = DERIV_PUBLIC_WS_URL.replace(/ws\/public$/, '');
+const DERIV_OPTIONS_API_URL = (isProduction() ? WS_SERVERS.PRODUCTION : WS_SERVERS.STAGING).replace(/ws\/public$/, '');
+const getPublicWsUrl = () => `wss://${getSocketURL()}/websockets/v3?app_id=${getAppId()}`;
 
 const CONTRACT_TYPE_MAP = Object.freeze<Record<string, string>>({
     CALL: 'CALL',
@@ -751,7 +751,7 @@ const SmartTrader = observer(() => {
                     return false;
                 }
 
-                const socket_url = authenticated_url || DERIV_PUBLIC_WS_URL;
+                const socket_url = authenticated_url || getPublicWsUrl();
                 const is_authenticated_socket = Boolean(authenticated_url);
 
                 wsRef.current = new WebSocket(socket_url);
@@ -925,7 +925,7 @@ const SmartTrader = observer(() => {
     }, [handleStart, handleStop]);
 
     useEffect(() => {
-        const price_socket = new WebSocket(DERIV_PUBLIC_WS_URL);
+        const price_socket = new WebSocket(getPublicWsUrl());
         price_socket.onopen = () => {
             price_socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
         };
