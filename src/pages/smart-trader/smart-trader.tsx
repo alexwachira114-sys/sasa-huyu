@@ -1,509 +1,1221 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { observer } from 'mobx-react-lite';
-import { getAppId, getSocketURL } from '@/components/shared';
+import { FaPlay, FaStop } from 'react-icons/fa';
+import Swal from 'sweetalert2';
+import { isProduction, WS_SERVERS } from '@/components/shared';
+import { contract_stages } from '@/constants/contract-stage';
+import { run_panel as run_panel_tabs } from '@/constants/run-panel';
+import { observer } from '@/external/bot-skeleton';
+import { useStore } from '@/hooks/useStore';
+import { getSymbolDisplayNameSync } from '@/utils/symbol-display-name';
+import Marketview from './marketview';
 import './smart-trader.scss';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface SymbolSignal {
-    symbol: string;
-    label: string;
-    ticks: number[];
-    rise255: number;
-    fall255: number;
-    rise55: number;
-    fall55: number;
-    digitCounts: number[];
-    totalTicks: number;
-}
+const DERIV_PUBLIC_WS_URL = isProduction() ? WS_SERVERS.PRODUCTION : WS_SERVERS.STAGING;
+const DERIV_OPTIONS_API_URL = DERIV_PUBLIC_WS_URL.replace(/ws\/public$/, '');
 
-interface RiseFallRow {
-    symbol: string;
-    label: string;
-    rise255: number;
-    fall255: number;
-    rise55: number;
-    fall55: number;
-    signal: 'buy' | 'sell' | 'neutral';
-}
+const CONTRACT_TYPE_MAP = Object.freeze<Record<string, string>>({
+    CALL: 'CALL',
+    PUT: 'PUT',
+    EVEN: 'DIGITEVEN',
+    ODD: 'DIGITODD',
+    OVER: 'DIGITOVER',
+    UNDER: 'DIGITUNDER',
+    MATCHES: 'DIGITMATCH',
+    DIFFERS: 'DIGITDIFF',
+});
 
-interface OverUnderRow {
-    symbol: string;
-    label: string;
-    digitPcts: number[];
-    overSignal: boolean;
-    underSignal: boolean;
-}
+const BARRIER_CONTRACT_TYPES = ['OVER', 'UNDER', 'MATCHES', 'DIFFERS'];
+const ALL_SYMBOLS = [
+    '1HZ10V', 'R_10', '1HZ25V', 'R_25', '1HZ50V', 'R_50', '1HZ75V', 'R_75', '1HZ100V', 'R_100',
+];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const STANDARD_SYMBOLS = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100'];
+const SmartTrader = observer(() => {
+    const store = useStore();
+    const { client, journal, run_panel, summary_card, transactions } = store || {};
 
-function symbolLabel(symbol: string): string {
-    const map: Record<string, string> = {
-        R_10: 'Vol 10',
-        R_25: 'Vol 25',
-        R_50: 'Vol 50',
-        R_75: 'Vol 75',
-        R_100: 'Vol 100',
-        '1HZ10V': 'Vol 10 (1s)',
-        '1HZ25V': 'Vol 25 (1s)',
-        '1HZ50V': 'Vol 50 (1s)',
-        '1HZ75V': 'Vol 75 (1s)',
-        '1HZ100V': 'Vol 100 (1s)',
-        '1HZ150V': 'Vol 150 (1s)',
-        '1HZ200V': 'Vol 200 (1s)',
-        '1HZ250V': 'Vol 250 (1s)',
-        '1HZ300V': 'Vol 300 (1s)',
-    };
-    return map[symbol] ?? symbol;
-}
+    const [symbol, setSymbol] = useState('1HZ10V');
+    const [contractType, setContractType] = useState('UNDER');
+    const [initialStake, setInitialStake] = useState('1');
+    const [duration, setDuration] = useState('1');
+    const [targetProfit, setTargetProfit] = useState('100');
+    const [stopLoss, setStopLoss] = useState('100');
+    const [useMartingale, setUseMartingale] = useState(true);
+    const [useBulk, setUseBulk] = useState(false);
+    const [martingaleMultiplier, setMartingaleMultiplier] = useState('2.1');
+    const [predictionDigit, setPredictionDigit] = useState('7');
+    const [bulkCount, setBulkCount] = useState('10');
+    const [useRecovery, setUseRecovery] = useState(false);
+    const [recoveryContractType, setRecoveryContractType] = useState('EVEN');
+    const [recoveryPredictionDigit, setRecoveryPredictionDigit] = useState('5');
+    const [autoSwitch, setAutoSwitch] = useState(false);
 
-function calcTrend(ticks: number[], count: number) {
-    const slice = ticks.slice(-count);
-    if (slice.length < 2) return { rise: 0, fall: 0 };
-    let rise = 0;
-    let fall = 0;
-    for (let i = 1; i < slice.length; i++) {
-        if (slice[i] > slice[i - 1]) rise++;
-        else if (slice[i] < slice[i - 1]) fall++;
-    }
-    const total = rise + fall || 1;
-    return { rise: (rise / total) * 100, fall: (fall / total) * 100 };
-}
+    const [isRunning, setIsRunning] = useState(false);
+    const [, setLogs] = useState<string[]>([]);
+    const [results, setResults] = useState<any[]>([]);
+    const [wins, setWins] = useState(0);
+    const [losses, setLosses] = useState(0);
+    const [totalRuns, setTotalRuns] = useState(0);
+    const [totalProfit, setTotalProfit] = useState<number | string>(0);
+    const [proposalError, setProposalError] = useState('');
+    const [currentPrice, setCurrentPrice] = useState<number | null>(null);
 
-function calcDigits(ticks: number[]) {
-    const counts = new Array(10).fill(0);
-    ticks.forEach(t => {
-        const str = t.toFixed(4);
-        const d = parseInt(str[str.length - 1]);
-        if (!isNaN(d)) counts[d]++;
-    });
-    return counts;
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-const SignalBadge: React.FC<{ type: 'buy' | 'sell' | 'over' | 'under' | 'neutral'; label: string }> = ({
-    type,
-    label,
-}) => <span className={`st-badge st-badge--${type}`}>{label}</span>;
-
-const ConnectionDot: React.FC<{ status: 'connecting' | 'connected' | 'error' }> = ({ status }) => (
-    <span className={`st-dot st-dot--${status}`} title={status} />
-);
-
-// ─── Signals Scanner (native) ─────────────────────────────────────────────────
-const SignalsScanner: React.FC = () => {
-    const [rows, setRows] = useState<RiseFallRow[]>([]);
-    const [ouRows, setOuRows] = useState<OverUnderRow[]>([]);
-    const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
-    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const storageRef = useRef<Record<string, SymbolSignal>>({});
     const wsRef = useRef<WebSocket | null>(null);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const totalProfitRef = useRef(0);
+    const baseStakeRef = useRef(1);
+    const currentStakeRef = useRef(1);
+    const isRunningRef = useRef(false);
+    const isAuthorizedRef = useRef(false);
+    const isConnectingRef = useRef(false);
+    const shouldReconnectRef = useRef(true);
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const skipReconnectRef = useRef(false);
+    const socketRequiresAuthRef = useRef(false);
+    const pendingProposalRef = useRef(false);
+    const pendingTradeMetaRef = useRef<any>(null);
+    const contractMetaRef = useRef<Record<string, any>>({});
+    const lastProcessedContractIdRef = useRef<string | null>(null);
+    const completedContractsRef = useRef<Set<string>>(new Set());
+    const activeContractsRef = useRef<Set<string>>(new Set());
+    const transactionRecoveryTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const activeContractTypeRef = useRef(contractType);
+    const initialStakeRef = useRef(initialStake);
+    const durationRef = useRef(duration);
+    const bulkCountRef = useRef(bulkCount);
+    const contractTypeRef = useRef(contractType);
+    const useMartingaleRef = useRef(useMartingale);
+    const useBulkRef = useRef(useBulk);
+    const predictionDigitRef = useRef(predictionDigit);
+    const targetProfitRef = useRef(targetProfit);
+    const stopLossRef = useRef(stopLoss);
+    const martingaleMultiplierRef = useRef(martingaleMultiplier);
+    const useRecoveryRef = useRef(useRecovery);
+    const recoveryContractTypeRef = useRef(recoveryContractType);
+    const recoveryPredictionDigitRef = useRef(recoveryPredictionDigit);
+    const lastTradeWasLossRef = useRef(false);
+    const symbolRef = useRef(symbol);
+    const autoSwitchRef = useRef(autoSwitch);
 
-    const recompute = useCallback(() => {
-        const store = storageRef.current;
-        const rf: RiseFallRow[] = [];
-        const ou: OverUnderRow[] = [];
+    useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+    useEffect(() => {
+        run_panel?.setIsRunning?.(isRunning);
+        if (!isRunning && !run_panel?.has_open_contract) {
+            run_panel?.setContractStage?.(contract_stages.NOT_RUNNING);
+        }
+    }, [isRunning, run_panel]);
+    useEffect(() => { contractTypeRef.current = contractType; }, [contractType]);
+    useEffect(() => { useMartingaleRef.current = useMartingale; }, [useMartingale]);
+    useEffect(() => { useBulkRef.current = useBulk; }, [useBulk]);
+    useEffect(() => { predictionDigitRef.current = predictionDigit; }, [predictionDigit]);
+    useEffect(() => { initialStakeRef.current = initialStake; }, [initialStake]);
+    useEffect(() => { durationRef.current = duration; }, [duration]);
+    useEffect(() => { bulkCountRef.current = bulkCount; }, [bulkCount]);
+    useEffect(() => { targetProfitRef.current = targetProfit; }, [targetProfit]);
+    useEffect(() => { stopLossRef.current = stopLoss; }, [stopLoss]);
+    useEffect(() => { martingaleMultiplierRef.current = martingaleMultiplier; }, [martingaleMultiplier]);
+    useEffect(() => { useRecoveryRef.current = useRecovery; }, [useRecovery]);
+    useEffect(() => { recoveryContractTypeRef.current = recoveryContractType; }, [recoveryContractType]);
+    useEffect(() => { recoveryPredictionDigitRef.current = recoveryPredictionDigit; }, [recoveryPredictionDigit]);
+    useEffect(() => { symbolRef.current = symbol; }, [symbol]);
+    useEffect(() => { autoSwitchRef.current = autoSwitch; }, [autoSwitch]);
 
-        Object.values(store).forEach(s => {
-            if (s.ticks.length < 55) return;
-
-            const t255 = calcTrend(s.ticks, 255);
-            const t55 = calcTrend(s.ticks, 55);
-            const isBuy = t255.rise > 57 && t55.rise > 55;
-            const isSell = t255.fall > 57 && t55.fall > 55;
-
-            rf.push({
-                symbol: s.symbol,
-                label: s.label,
-                rise255: t255.rise,
-                fall255: t255.fall,
-                rise55: t55.rise,
-                fall55: t55.fall,
-                signal: isBuy ? 'buy' : isSell ? 'sell' : 'neutral',
-            });
-
-            const dc = calcDigits(s.ticks);
-            const total = s.ticks.length || 1;
-            const pcts = dc.map(c => (c / total) * 100);
-            const over = pcts[7] < 10 && pcts[8] < 10 && pcts[9] < 10;
-            const under = pcts[0] < 10 && pcts[1] < 10 && pcts[2] < 10;
-            ou.push({
-                symbol: s.symbol,
-                label: s.label,
-                digitPcts: pcts,
-                overSignal: over,
-                underSignal: under,
-            });
-        });
-
-        // Sort: signals first, then by label
-        rf.sort((a, b) => {
-            const rank = (x: RiseFallRow) => (x.signal !== 'neutral' ? 0 : 1);
-            return rank(a) - rank(b) || a.label.localeCompare(b.label);
-        });
-        ou.sort((a, b) => {
-            const rank = (x: OverUnderRow) => (x.overSignal || x.underSignal ? 0 : 1);
-            return rank(a) - rank(b) || a.label.localeCompare(b.label);
-        });
-
-        setRows(rf);
-        setOuRows(ou);
-        setLastUpdated(new Date());
+    const logMessage = useCallback((message: string) => {
+        setLogs(prev => [message, ...prev]);
     }, []);
 
-    useEffect(() => {
-        const url = `wss://${getSocketURL()}/websockets/v3?app_id=${getAppId()}`;
-        const ws = new WebSocket(url);
-        wsRef.current = ws;
-        setWsStatus('connecting');
+    const publishNativeContract = useCallback(
+        (contract_data: any) => {
+            if (!transactions || !summary_card) return;
+            transactions.onBotContractEvent(contract_data);
+            summary_card.onBotContractEvent(contract_data);
+        },
+        [summary_card, transactions]
+    );
 
-        const subscribe = (symbol: string) => {
-            ws.send(
-                JSON.stringify({
-                    ticks_history: symbol,
-                    count: 255,
-                    end: 'latest',
-                    style: 'ticks',
-                    subscribe: 1,
-                })
-            );
-        };
+    const publishNativeError = useCallback(
+        (message: string) => {
+            if (journal?.onError) journal.onError(message);
+        },
+        [journal]
+    );
 
-        ws.onopen = () => {
-            setWsStatus('connected');
-            ws.send(JSON.stringify({ active_symbols: 'brief' }));
-            STANDARD_SYMBOLS.forEach(sym => {
-                if (!storageRef.current[sym]) {
-                    storageRef.current[sym] = {
-                        symbol: sym,
-                        label: symbolLabel(sym),
-                        ticks: [],
-                        rise255: 0,
-                        fall255: 0,
-                        rise55: 0,
-                        fall55: 0,
-                        digitCounts: new Array(10).fill(0),
-                        totalTicks: 0,
-                    };
-                }
-                subscribe(sym);
-            });
-        };
-
-        ws.onmessage = e => {
-            const data = JSON.parse(e.data);
-            if (data.error) return;
-
-            if (data.active_symbols) {
-                const oneSecond = (data.active_symbols as any[]).filter(
-                    s => s.display_name?.includes('(1s)') || s.display_name?.includes('1 second')
-                );
-                oneSecond.forEach((s: any) => {
-                    if (!storageRef.current[s.symbol]) {
-                        storageRef.current[s.symbol] = {
-                            symbol: s.symbol,
-                            label: symbolLabel(s.symbol),
-                            ticks: [],
-                            rise255: 0,
-                            fall255: 0,
-                            rise55: 0,
-                            fall55: 0,
-                            digitCounts: new Array(10).fill(0),
-                            totalTicks: 0,
-                        };
-                        subscribe(s.symbol);
-                    }
+    const publishNativeResult = useCallback(
+        (contract_data: any) => {
+            if (journal?.onLogSuccess) {
+                journal.onLogSuccess({
+                    log_type: contract_data.profit > 0 ? 'profit' : 'lost',
+                    extra: { currency: contract_data.currency, profit: contract_data.profit },
                 });
+            }
+        },
+        [journal]
+    );
+
+    const clearRecoveryTimeouts = useCallback(() => {
+        transactionRecoveryTimeoutsRef.current.forEach(id => clearTimeout(id));
+        transactionRecoveryTimeoutsRef.current.clear();
+    }, []);
+
+    const clearContractTracking = useCallback(() => {
+        pendingProposalRef.current = false;
+        pendingTradeMetaRef.current = null;
+        contractMetaRef.current = {};
+        lastProcessedContractIdRef.current = null;
+        completedContractsRef.current.clear();
+        activeContractsRef.current.clear();
+        clearRecoveryTimeouts();
+    }, [clearRecoveryTimeouts]);
+
+    const getStoredAuthContext = useCallback(() => {
+        try {
+            const auth_raw = sessionStorage.getItem('auth_info');
+            const accounts_raw = sessionStorage.getItem('deriv_accounts');
+            if (!auth_raw || !accounts_raw) return null;
+
+            const { access_token } = JSON.parse(auth_raw);
+            const accounts = JSON.parse(accounts_raw);
+            if (!access_token || !Array.isArray(accounts) || accounts.length === 0) return null;
+
+            const active_login_id = localStorage.getItem('active_loginid');
+            const active_account =
+                accounts.find((a: any) => a.account_id === active_login_id) ||
+                accounts.find((a: any) => a.account_id?.startsWith('DOT')) ||
+                accounts[0];
+
+            if (!active_account?.account_id) return null;
+            return { accessToken: access_token, activeAccount: active_account };
+        } catch (error) {
+            console.error('[SmartTrader] Failed to parse Deriv session storage:', error);
+            return null;
+        }
+    }, []);
+
+    const getAuthenticatedUrl = useCallback(async () => {
+        try {
+            const auth_context = getStoredAuthContext();
+            if (!auth_context) throw new Error('Session Missing');
+
+            const { accessToken, activeAccount } = auth_context;
+            const response = await fetch(
+                `${DERIV_OPTIONS_API_URL}accounts/${activeAccount.account_id}/otp`,
+                { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+
+            if (!response.ok) throw new Error('OTP Request Failed');
+            const data = await response.json();
+            const authenticated_url = data?.data?.url;
+            if (!authenticated_url) throw new Error('Authenticated URL Missing');
+            return authenticated_url as string;
+        } catch (error: any) {
+            logMessage(`Auth Error: ${error.message}`);
+            return null;
+        }
+    }, [getStoredAuthContext, logMessage]);
+
+    const getActiveTradeSettings = useCallback(() => {
+        const using_recovery = lastTradeWasLossRef.current && useRecoveryRef.current;
+        const active_type = using_recovery ? recoveryContractTypeRef.current : contractTypeRef.current;
+        const active_prediction = using_recovery
+            ? recoveryPredictionDigitRef.current
+            : predictionDigitRef.current;
+        const deriv_contract_type = CONTRACT_TYPE_MAP[active_type] || active_type;
+        const barrier = BARRIER_CONTRACT_TYPES.includes(active_type)
+            ? parseInt(active_prediction, 10)
+            : undefined;
+        return { activeType: active_type, barrier, derivContractType: deriv_contract_type };
+    }, []);
+
+    const requestProposal = useCallback(() => {
+        if (!isRunningRef.current) return;
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            logMessage('WebSocket not ready for proposal request');
+            return;
+        }
+        if (!isAuthorizedRef.current) {
+            logMessage('Trading session is not authorized yet');
+            return;
+        }
+        if (pendingProposalRef.current) {
+            logMessage('Waiting for pending proposal to resolve');
+            return;
+        }
+        if (activeContractsRef.current.size > 0) {
+            logMessage(`Waiting for ${activeContractsRef.current.size} active contract(s) to settle`);
+            return;
+        }
+
+        const { activeType, barrier, derivContractType } = getActiveTradeSettings();
+        const parsed_duration = Math.max(1, parseInt(durationRef.current, 10) || 1);
+        const parsed_stake = Number(currentStakeRef.current).toFixed(2);
+
+        activeContractTypeRef.current = activeType;
+        pendingTradeMetaRef.current = { uiContractType: activeType, derivContractType, barrier, stake: parsed_stake };
+        pendingProposalRef.current = true;
+        setProposalError('');
+        run_panel?.setContractStage?.(contract_stages.PURCHASE_SENT);
+
+        wsRef.current.send(
+            JSON.stringify({
+                proposal: 1,
+                amount: parsed_stake,
+                basis: 'stake',
+                contract_type: derivContractType,
+                currency: client?.currency || 'USD',
+                underlying_symbol: symbolRef.current,
+                duration: parsed_duration,
+                duration_unit: 't',
+                ...(barrier !== undefined ? { barrier } : {}),
+            })
+        );
+    }, [client?.currency, getActiveTradeSettings, logMessage, run_panel]);
+
+    const firePrecisionBurst = useCallback(() => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isAuthorizedRef.current) {
+            logMessage('Trading socket is not ready for bulk execution');
+            return;
+        }
+
+        const parsed_count = Math.max(1, parseInt(bulkCountRef.current, 10) || 1);
+        const parsed_duration = Math.max(1, parseInt(durationRef.current, 10) || 1);
+        const parsed_stake = parseFloat(initialStakeRef.current) || 0;
+        const active_type = contractTypeRef.current;
+        const deriv_contract_type = CONTRACT_TYPE_MAP[active_type] || active_type;
+        const barrier = BARRIER_CONTRACT_TYPES.includes(active_type)
+            ? parseInt(predictionDigitRef.current, 10)
+            : undefined;
+
+        activeContractTypeRef.current = active_type;
+        pendingTradeMetaRef.current = {
+            uiContractType: active_type,
+            derivContractType: deriv_contract_type,
+            barrier,
+            stake: parsed_stake.toFixed(2),
+        };
+        setProposalError('');
+        run_panel?.setContractStage?.(contract_stages.PURCHASE_SENT);
+
+        for (let i = 0; i < parsed_count; i++) {
+            window.setTimeout(() => {
+                if (!isRunningRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+                wsRef.current.send(
+                    JSON.stringify({
+                        buy: 1,
+                        subscribe: 1,
+                        price: parsed_stake,
+                        parameters: {
+                            amount: parsed_stake,
+                            basis: 'stake',
+                            contract_type: deriv_contract_type,
+                            currency: client?.currency || 'USD',
+                            underlying_symbol: symbolRef.current,
+                            duration: parsed_duration,
+                            duration_unit: 't',
+                            ...(barrier !== undefined ? { barrier } : {}),
+                        },
+                    })
+                );
+            }, i * 50);
+        }
+    }, [client?.currency, logMessage, run_panel]);
+
+    const stopTradingBot = useCallback(
+        (reason = 'Bot stopped.', options: { preserveOpenContract?: boolean } = {}) => {
+            const preserve_open_contract =
+                options.preserveOpenContract ??
+                Boolean(activeContractsRef.current.size > 0 || run_panel?.has_open_contract);
+
+            setIsRunning(false);
+            isRunningRef.current = false;
+            pendingProposalRef.current = false;
+
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ forget_all: 'proposal' }));
+                if (!preserve_open_contract) {
+                    wsRef.current.send(JSON.stringify({ forget_all: 'proposal_open_contract' }));
+                }
+            }
+
+            if (!preserve_open_contract) clearContractTracking();
+
+            run_panel?.setIsRunning?.(false);
+            run_panel?.toggleDrawer?.(true);
+            run_panel?.setActiveTabIndex?.(run_panel_tabs.TRANSACTIONS);
+
+            if (preserve_open_contract) {
+                run_panel?.setHasOpenContract?.(true);
+                run_panel?.setContractStage?.(contract_stages.IS_STOPPING);
+            } else {
+                run_panel?.setHasOpenContract?.(false);
+                run_panel?.setContractStage?.(contract_stages.NOT_RUNNING);
+            }
+
+            logMessage(reason);
+        },
+        [clearContractTracking, logMessage, run_panel]
+    );
+
+    const handleStop = useCallback(() => {
+        const preserve = activeContractsRef.current.size > 0;
+        stopTradingBot(
+            preserve ? 'Bot stopped. Waiting for active contracts to finish...' : 'Bot stopped.',
+            { preserveOpenContract: preserve }
+        );
+    }, [stopTradingBot]);
+
+    const handleNormalSequence = useCallback(
+        (profit: number) => {
+            if (useMartingaleRef.current) {
+                currentStakeRef.current =
+                    profit <= 0
+                        ? parseFloat(
+                              (Number(currentStakeRef.current) * parseFloat(martingaleMultiplierRef.current || '1')).toFixed(2)
+                          )
+                        : parseFloat(String(baseStakeRef.current));
+            }
+
+            lastTradeWasLossRef.current = profit <= 0;
+
+            if (!isRunningRef.current) {
+                if (activeContractsRef.current.size === 0) {
+                    run_panel?.setHasOpenContract?.(false);
+                    run_panel?.setContractStage?.(contract_stages.NOT_RUNNING);
+                }
                 return;
             }
 
-            if (data.history?.prices) {
-                const sym = data.echo_req?.ticks_history;
-                if (sym && storageRef.current[sym]) {
-                    storageRef.current[sym].ticks = data.history.prices.map((p: string) => parseFloat(p));
-                }
-            } else if (data.tick) {
-                const sym = data.tick.symbol;
-                if (sym && storageRef.current[sym]) {
-                    storageRef.current[sym].ticks.push(parseFloat(data.tick.quote));
-                    if (storageRef.current[sym].ticks.length > 300) storageRef.current[sym].ticks.shift();
-                }
+            if (totalProfitRef.current >= parseFloat(targetProfitRef.current)) {
+                Swal.fire({ title: 'TARGET PROFIT HIT!', icon: 'success' });
+                stopTradingBot('Target profit reached. Bot stopped.', { preserveOpenContract: false });
+                return;
             }
-        };
 
-        ws.onerror = () => setWsStatus('error');
-        ws.onclose = () => {
-            if (wsStatus !== 'error') setWsStatus('error');
-        };
+            if (totalProfitRef.current <= -parseFloat(stopLossRef.current)) {
+                Swal.fire({ title: 'STOP LOSS HIT!', icon: 'error' });
+                stopTradingBot('Stop loss reached. Bot stopped.', { preserveOpenContract: false });
+                return;
+            }
 
-        timerRef.current = setInterval(recompute, 1500);
+            if (autoSwitchRef.current) {
+                const others = ALL_SYMBOLS.filter(s => s !== symbolRef.current);
+                const next = others[Math.floor(Math.random() * others.length)];
+                logMessage(`Auto-switching to ${next}`);
+                setSymbol(next);
+                symbolRef.current = next;
+            }
+
+            window.setTimeout(() => {
+                if (isRunningRef.current) requestProposal();
+            }, 500);
+        },
+        [logMessage, requestProposal, run_panel, stopTradingBot]
+    );
+
+    const handleSocketMessage = useCallback(
+        (event: MessageEvent) => {
+            const data = JSON.parse(event.data);
+
+            if (data.msg_type === 'authorize') {
+                isAuthorizedRef.current = true;
+                logMessage('Trading session authorized');
+                if (isRunningRef.current && activeContractsRef.current.size === 0) {
+                    useBulkRef.current ? firePrecisionBurst() : requestProposal();
+                }
+                return;
+            }
+
+            if (data.msg_type === 'proposal' && !data.error) {
+                if (!isRunningRef.current) return;
+                const proposal_id = data.proposal?.id;
+                const ask_price = data.proposal?.ask_price;
+                if (!proposal_id || ask_price === undefined) {
+                    logMessage('Proposal received without an id or ask price');
+                    pendingProposalRef.current = false;
+                    return;
+                }
+                wsRef.current?.send(JSON.stringify({ buy: proposal_id, price: ask_price }));
+                return;
+            }
+
+            if (data.error) {
+                const error_code = data.error.code;
+                const error_message = data.error.message;
+                const open_position_limit_reached =
+                    /(cannot hold more than \d+ contracts|open positions of this asset and trade type|open position limit)/i.test(
+                        error_message || ''
+                    );
+                const session_trading_limit_reached =
+                    [
+                        'CompanyWideLimitExceeded',
+                        'DailyProfitLimitExceeded',
+                        'ProductSpecificTurnoverLimitExceeded',
+                        'MaxAggregateOpenStakeExceeded',
+                    ].includes(error_code) ||
+                    /(no further trading is allowed|maximum daily stake|growth rate and instrument)/i.test(
+                        error_message || ''
+                    );
+
+                setProposalError(error_message);
+                pendingProposalRef.current = false;
+                logMessage(`Trade error: ${error_message}`);
+                publishNativeError(error_message);
+
+                if (open_position_limit_reached) {
+                    stopTradingBot('Open position limit reached. Bot stopped.', { preserveOpenContract: false });
+                    return;
+                }
+                if (session_trading_limit_reached) {
+                    stopTradingBot('Trading is blocked for this contract type in the current session.', {
+                        preserveOpenContract: false,
+                    });
+                }
+                return;
+            }
+
+            if (data.msg_type === 'transaction') {
+                const action = data.transaction?.action;
+                const sell_contract_id = data.transaction?.contract_id;
+                const contract_key = String(sell_contract_id ?? '');
+
+                if (action !== 'sell' || !sell_contract_id || !activeContractsRef.current.has(contract_key)) return;
+                if (completedContractsRef.current.has(contract_key)) return;
+
+                if (transactionRecoveryTimeoutsRef.current.has(contract_key)) {
+                    clearTimeout(transactionRecoveryTimeoutsRef.current.get(contract_key)!);
+                }
+
+                const timeout_id = window.setTimeout(() => {
+                    transactionRecoveryTimeoutsRef.current.delete(contract_key);
+                    if (
+                        !activeContractsRef.current.has(contract_key) ||
+                        completedContractsRef.current.has(contract_key) ||
+                        wsRef.current?.readyState !== WebSocket.OPEN
+                    ) return;
+                    wsRef.current.send(
+                        JSON.stringify({ proposal_open_contract: 1, contract_id: sell_contract_id })
+                    );
+                }, 1500);
+
+                transactionRecoveryTimeoutsRef.current.set(contract_key, timeout_id);
+                return;
+            }
+
+            if (data.msg_type === 'buy') {
+                const { contract_id, transaction_id, buy_price, longcode } = data.buy || {};
+                if (!contract_id) {
+                    pendingProposalRef.current = false;
+                    return;
+                }
+
+                const contract_key = String(contract_id);
+                const market = symbolRef.current;
+                const trade_meta = pendingTradeMetaRef.current || {
+                    uiContractType: activeContractTypeRef.current,
+                    derivContractType: CONTRACT_TYPE_MAP[activeContractTypeRef.current] || activeContractTypeRef.current,
+                    barrier: undefined,
+                    stake: Number(useBulkRef.current ? initialStakeRef.current : currentStakeRef.current).toFixed(2),
+                };
+
+                const transaction_payload = {
+                    id: contract_id,
+                    contract_id,
+                    transaction_ids: { buy: transaction_id },
+                    buy_price: buy_price ?? parseFloat(trade_meta.stake),
+                    currency: client?.currency || 'USD',
+                    display_name: getSymbolDisplayNameSync(market),
+                    underlying: market,
+                    underlying_symbol: market,
+                    contract_type: trade_meta.derivContractType,
+                    longcode,
+                    barrier: trade_meta.barrier,
+                    tick_count: Math.max(1, parseInt(durationRef.current, 10) || 1),
+                    date_start: Math.floor(Date.now() / 1000),
+                };
+
+                contractMetaRef.current[contract_key] = transaction_payload;
+                completedContractsRef.current.delete(contract_key);
+                activeContractsRef.current.add(contract_key);
+                pendingProposalRef.current = false;
+                setProposalError('');
+
+                publishNativeContract(transaction_payload);
+                run_panel?.setHasOpenContract?.(true);
+                run_panel?.setContractStage?.(contract_stages.PURCHASE_RECEIVED);
+
+                setResults(prev => [
+                    {
+                        contract_id,
+                        contract_type: trade_meta.uiContractType,
+                        entry_spot: '-',
+                        exit_spot: '-',
+                        stake: Number(buy_price ?? trade_meta.stake).toFixed(2),
+                        profit: null,
+                        status: 'PENDING',
+                    },
+                    ...prev,
+                ]);
+
+                wsRef.current?.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
+                return;
+            }
+
+            if (data.msg_type === 'proposal_open_contract') {
+                const contract = data.proposal_open_contract;
+                if (!contract) return;
+
+                const contract_key = String(contract.contract_id);
+                const is_tracked = activeContractsRef.current.has(contract_key);
+                if (!isRunningRef.current && !is_tracked) return;
+                if (completedContractsRef.current.has(contract_key)) return;
+
+                const normalized_status = String(contract.status || '').toLowerCase();
+                const has_closed = Boolean(normalized_status) && normalized_status !== 'open';
+                const is_expired =
+                    contract.is_expired === 1 || contract.is_expired === true || contract.is_expired === '1';
+                const is_settleable =
+                    contract.is_settleable === 1 ||
+                    contract.is_settleable === true ||
+                    contract.is_settleable === '1';
+                const is_sold =
+                    contract.is_sold === 1 ||
+                    contract.is_sold === true ||
+                    contract.is_sold === '1' ||
+                    has_closed ||
+                    is_expired ||
+                    is_settleable;
+
+                const entry_spot =
+                    contract.entry_spot_display_value ??
+                    contract.entry_tick_display_value ??
+                    contract.entry_spot ??
+                    contract.entry_tick ??
+                    '-';
+
+                const exit_spot =
+                    contract.exit_spot_display_value ??
+                    contract.exit_tick_display_value ??
+                    contract.exit_spot ??
+                    contract.exit_tick ??
+                    contract.current_spot_display_value ??
+                    contract.current_spot ??
+                    '-';
+
+                const profit = parseFloat(contract.profit ?? 0);
+                const result_status = profit > 0 ? 'won' : 'lost';
+                const native_contract = {
+                    ...(contractMetaRef.current[contract_key] || {}),
+                    ...contract,
+                    id: contract.contract_id,
+                    contract_id: contract.contract_id,
+                    contract_type:
+                        contract.contract_type ||
+                        contractMetaRef.current[contract_key]?.contract_type ||
+                        pendingTradeMetaRef.current?.derivContractType,
+                    display_name:
+                        contract.display_name ||
+                        contractMetaRef.current[contract_key]?.display_name ||
+                        getSymbolDisplayNameSync(
+                            contract.underlying_symbol || contract.underlying || symbolRef.current
+                        ),
+                    underlying_symbol:
+                        contract.underlying_symbol ||
+                        contractMetaRef.current[contract_key]?.underlying_symbol ||
+                        contract.underlying ||
+                        symbolRef.current,
+                    underlying:
+                        contract.underlying ||
+                        contractMetaRef.current[contract_key]?.underlying ||
+                        contract.underlying_symbol ||
+                        symbolRef.current,
+                    buy_price:
+                        contract.buy_price ??
+                        contractMetaRef.current[contract_key]?.buy_price ??
+                        parseFloat(pendingTradeMetaRef.current?.stake || String(currentStakeRef.current)),
+                    currency: contract.currency || client?.currency || 'USD',
+                    transaction_ids:
+                        contract.transaction_ids ||
+                        contractMetaRef.current[contract_key]?.transaction_ids ||
+                        undefined,
+                    entry_spot,
+                    exit_spot: is_sold ? exit_spot : undefined,
+                    is_sold,
+                    is_expired: is_expired || contract.is_expired,
+                    is_settleable: is_settleable || contract.is_settleable,
+                    result: is_sold ? result_status : undefined,
+                    status: is_sold ? normalized_status || result_status : contract.status || 'open',
+                };
+
+                contractMetaRef.current[contract_key] = native_contract;
+                publishNativeContract(native_contract);
+
+                setResults(prev =>
+                    prev.map(r =>
+                        r.contract_id === contract.contract_id
+                            ? {
+                                  ...r,
+                                  entry_spot,
+                                  ...(is_sold
+                                      ? { exit_spot, profit: profit.toFixed(2), status: profit >= 0 ? 'WIN' : 'LOSS' }
+                                      : {}),
+                              }
+                            : r
+                    )
+                );
+
+                if (!is_sold) return;
+                if (lastProcessedContractIdRef.current === contract_key) return;
+
+                if (transactionRecoveryTimeoutsRef.current.has(contract_key)) {
+                    clearTimeout(transactionRecoveryTimeoutsRef.current.get(contract_key)!);
+                    transactionRecoveryTimeoutsRef.current.delete(contract_key);
+                }
+
+                completedContractsRef.current.add(contract_key);
+                activeContractsRef.current.delete(contract_key);
+                lastProcessedContractIdRef.current = contract_key;
+                totalProfitRef.current += profit;
+
+                setTotalProfit(totalProfitRef.current.toFixed(2));
+                setTotalRuns(prev => prev + 1);
+                if (profit > 0) setWins(prev => prev + 1);
+                else setLosses(prev => prev + 1);
+
+                run_panel?.setHasOpenContract?.(activeContractsRef.current.size > 0);
+                run_panel?.setContractStage?.(
+                    activeContractsRef.current.size > 0
+                        ? contract_stages.PURCHASE_RECEIVED
+                        : isRunningRef.current
+                          ? contract_stages.CONTRACT_CLOSED
+                          : contract_stages.NOT_RUNNING
+                );
+                publishNativeResult(native_contract);
+
+                if (useBulkRef.current) {
+                    if (activeContractsRef.current.size === 0) {
+                        setIsRunning(false);
+                        isRunningRef.current = false;
+                        run_panel?.setIsRunning?.(false);
+                        run_panel?.setHasOpenContract?.(false);
+                        run_panel?.setContractStage?.(contract_stages.NOT_RUNNING);
+                        logMessage('Bulk Finished');
+                    }
+                    return;
+                }
+
+                handleNormalSequence(profit);
+            }
+        },
+        [
+            client?.currency,
+            firePrecisionBurst,
+            handleNormalSequence,
+            logMessage,
+            publishNativeContract,
+            publishNativeError,
+            publishNativeResult,
+            requestProposal,
+            run_panel,
+            stopTradingBot,
+        ]
+    );
+
+    const connectTradingSocket = useCallback(
+        async (options: { requireAuth?: boolean; forceReconnect?: boolean } = {}) => {
+            const { requireAuth = false, forceReconnect = false } = options;
+            const socket_state = wsRef.current?.readyState;
+
+            if (
+                !forceReconnect &&
+                (socket_state === WebSocket.OPEN ||
+                    socket_state === WebSocket.CONNECTING ||
+                    isConnectingRef.current)
+            ) {
+                return true;
+            }
+
+            if (forceReconnect && wsRef.current) {
+                skipReconnectRef.current = true;
+                const existing = wsRef.current;
+                wsRef.current = null;
+                isAuthorizedRef.current = false;
+                try { existing.close(); } catch (_) {}
+            }
+
+            isConnectingRef.current = true;
+            socketRequiresAuthRef.current = requireAuth;
+
+            try {
+                const authenticated_url = requireAuth ? await getAuthenticatedUrl() : null;
+
+                if (requireAuth && !authenticated_url) {
+                    setProposalError('Unable to create an authenticated Deriv session.');
+                    return false;
+                }
+
+                const socket_url = authenticated_url || DERIV_PUBLIC_WS_URL;
+                const is_authenticated_socket = Boolean(authenticated_url);
+
+                wsRef.current = new WebSocket(socket_url);
+
+                wsRef.current.onopen = () => {
+                    logMessage(is_authenticated_socket ? 'Trading socket connected' : 'Public socket connected');
+                    setProposalError('');
+                    isAuthorizedRef.current = is_authenticated_socket;
+
+                    if (is_authenticated_socket) {
+                        wsRef.current?.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
+                        activeContractsRef.current.forEach(cid => {
+                            wsRef.current?.send(
+                                JSON.stringify({ proposal_open_contract: 1, contract_id: Number(cid), subscribe: 1 })
+                            );
+                        });
+                        if (isRunningRef.current && activeContractsRef.current.size === 0) {
+                            useBulkRef.current ? firePrecisionBurst() : requestProposal();
+                        }
+                    }
+                };
+
+                wsRef.current.onmessage = handleSocketMessage;
+
+                wsRef.current.onerror = () => {
+                    logMessage('Trading socket error');
+                };
+
+                wsRef.current.onclose = () => {
+                    logMessage('Trading socket closed');
+                    isAuthorizedRef.current = false;
+                    wsRef.current = null;
+
+                    const should_reconnect = shouldReconnectRef.current && !skipReconnectRef.current;
+                    skipReconnectRef.current = false;
+
+                    if (should_reconnect) {
+                        reconnectTimeoutRef.current = window.setTimeout(() => {
+                            connectTradingSocket({ requireAuth: socketRequiresAuthRef.current });
+                        }, 1000);
+                    }
+                };
+
+                return true;
+            } catch (err: any) {
+                logMessage(`Trading connection failed: ${err?.message}`);
+                setProposalError(err?.message || 'Connection failed');
+                return false;
+            } finally {
+                isConnectingRef.current = false;
+            }
+        },
+        [firePrecisionBurst, getAuthenticatedUrl, handleSocketMessage, logMessage, requestProposal]
+    );
+
+    const handleStart = useCallback(async () => {
+        if (isRunningRef.current) {
+            handleStop();
+            return;
+        }
+
+        if (!getStoredAuthContext()) {
+            Swal.fire({ title: 'Login Required!', text: 'Please log in to your Deriv account first.', icon: 'error', draggable: false });
+            return;
+        }
+
+        totalProfitRef.current = parseFloat(String(totalProfit)) || 0;
+        baseStakeRef.current = parseFloat(initialStakeRef.current) || 0;
+        currentStakeRef.current = parseFloat(initialStakeRef.current) || 0;
+        activeContractsRef.current.clear();
+        completedContractsRef.current.clear();
+        contractMetaRef.current = {};
+        lastProcessedContractIdRef.current = null;
+        pendingProposalRef.current = false;
+        pendingTradeMetaRef.current = null;
+        clearRecoveryTimeouts();
+        setProposalError('');
+
+        setIsRunning(true);
+        isRunningRef.current = true;
+
+        run_panel?.setIsRunning?.(true);
+        run_panel?.setHasOpenContract?.(false);
+        run_panel?.setContractStage?.(contract_stages.STARTING);
+        run_panel?.toggleDrawer?.(true);
+        run_panel?.setActiveTabIndex?.(run_panel_tabs.TRANSACTIONS);
+
+        if (run_panel) {
+            (run_panel as any).run_id = `smarttrader-${Date.now()}`;
+        }
+
+        const socket_state = wsRef.current?.readyState;
+        if (wsRef.current && socket_state === WebSocket.OPEN && isAuthorizedRef.current) {
+            useBulkRef.current ? firePrecisionBurst() : requestProposal();
+            return;
+        }
+
+        const did_connect = await connectTradingSocket({
+            requireAuth: true,
+            forceReconnect: Boolean(wsRef.current && !isAuthorizedRef.current),
+        });
+
+        if (!did_connect) {
+            setIsRunning(false);
+            isRunningRef.current = false;
+            run_panel?.setIsRunning?.(false);
+            run_panel?.setHasOpenContract?.(false);
+            run_panel?.setContractStage?.(contract_stages.NOT_RUNNING);
+        }
+    }, [
+        clearRecoveryTimeouts,
+        connectTradingSocket,
+        firePrecisionBurst,
+        getStoredAuthContext,
+        handleStop,
+        requestProposal,
+        run_panel,
+        totalProfit,
+    ]);
+
+    const handleToggleBot = useCallback(() => {
+        if (isRunningRef.current) { handleStop(); return; }
+        handleStart();
+    }, [handleStart, handleStop]);
+
+    const handleReset = () => {
+        setLogs([]);
+        setResults([]);
+        setWins(0);
+        setLosses(0);
+        setTotalRuns(0);
+        setTotalProfit(0);
+        totalProfitRef.current = 0;
+        currentStakeRef.current = baseStakeRef.current;
+        lastTradeWasLossRef.current = false;
+    };
+
+    useEffect(() => {
+        shouldReconnectRef.current = true;
+        const need_auth = Boolean(getStoredAuthContext());
+        connectTradingSocket({ requireAuth: need_auth });
+
+        const watchdog = window.setInterval(() => {
+            if (!shouldReconnectRef.current) return;
+            connectTradingSocket({ requireAuth: socketRequiresAuthRef.current || need_auth });
+        }, 1500);
 
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-            ws.close();
+            shouldReconnectRef.current = false;
+            window.clearInterval(watchdog);
+            if (reconnectTimeoutRef.current) {
+                window.clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+            clearRecoveryTimeouts();
+            if (wsRef.current) {
+                skipReconnectRef.current = true;
+                wsRef.current.close();
+                wsRef.current = null;
+            }
         };
-    }, []);
+    }, [clearRecoveryTimeouts, connectTradingSocket, getStoredAuthContext]);
 
-    const hasData = rows.length > 0;
-    const activeBuy = rows.filter(r => r.signal === 'buy').length;
-    const activeSell = rows.filter(r => r.signal === 'sell').length;
-    const activeOu = ouRows.filter(r => r.overSignal || r.underSignal).length;
+    useEffect(() => {
+        observer.register('smarttrader.start', handleStart);
+        observer.register('smarttrader.stop', handleStop);
+        return () => {
+            if (observer.isRegistered('smarttrader.start')) observer.unregister('smarttrader.start', handleStart);
+            if (observer.isRegistered('smarttrader.stop')) observer.unregister('smarttrader.stop', handleStop);
+        };
+    }, [handleStart, handleStop]);
+
+    useEffect(() => {
+        const price_socket = new WebSocket(DERIV_PUBLIC_WS_URL);
+        price_socket.onopen = () => {
+            price_socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+        };
+        price_socket.onmessage = (event: MessageEvent) => {
+            const data = JSON.parse(event.data);
+            if (data.msg_type === 'tick') setCurrentPrice(data.tick.quote);
+        };
+        return () => { price_socket.close(); };
+    }, [symbol]);
+
+    useEffect(() => {
+        if (isRunning) return;
+    }, [isRunning]);
+
+    const getDecimalPlaces = (sym: string) =>
+        ['1HZ15V', '1HZ30V', '1HZ90V'].includes(sym)
+            ? 3
+            : sym.startsWith('R_50') || sym.startsWith('R_75')
+              ? 4
+              : 2;
+
+    const profitNum = parseFloat(String(totalProfit)) || 0;
 
     return (
-        <div className='st-scanner'>
-            {/* Status bar */}
-            <div className='st-scanner__status-bar'>
-                <div className='st-scanner__status-left'>
-                    <ConnectionDot status={wsStatus} />
-                    <span className='st-scanner__status-label'>
-                        {wsStatus === 'connected' ? 'Live' : wsStatus === 'connecting' ? 'Connecting…' : 'Disconnected'}
-                    </span>
-                    {lastUpdated && (
-                        <span className='st-scanner__updated'>
-                            Updated {lastUpdated.toLocaleTimeString()}
-                        </span>
-                    )}
+        <div className='overall-container'>
+            <div className='pro-master-wrapper'>
+                <div className='pro-header-flex'>
+                    <div className='pro-titles'>
+                        <h2 className='pro-main-heading'>360 Smart Trader</h2>
+                        <p className='pro-sub-heading'>
+                            Execute Bulk Trades | Recover with any Contract Type | Vol Autoswitch
+                        </p>
+                    </div>
+                    <div className='pro-price-ticker'>
+                        Price:{' '}
+                        {currentPrice !== null ? currentPrice.toFixed(getDecimalPlaces(symbol)) : 'Loading...'}
+                    </div>
                 </div>
-                <div className='st-scanner__status-right'>
-                    <span className='st-scanner__stat st-scanner__stat--buy'>{activeBuy} Buy</span>
-                    <span className='st-scanner__stat st-scanner__stat--sell'>{activeSell} Sell</span>
-                    <span className='st-scanner__stat st-scanner__stat--ou'>{activeOu} Digit</span>
-                </div>
-            </div>
 
-            {!hasData && (
-                <div className='st-scanner__loading'>
-                    <div className='st-spinner' />
-                    <p>Collecting tick data… signals appear after 55+ ticks per market.</p>
-                </div>
-            )}
+                <div className={`pro-control-deck${isRunning ? ' pro-minimized' : ''}`}>
+                    <div className='pro-input-grid'>
+                        <label className='pro-input-box'>
+                            Volatility:
+                            <select value={symbol} onChange={e => setSymbol(e.target.value)} className='pro-select-field'>
+                                {ALL_SYMBOLS.map(s => (
+                                    <option key={s} value={s}>
+                                        {s.startsWith('1HZ')
+                                            ? `Volatility ${s.replace('1HZ', '').replace('V', '')} 1s`
+                                            : s.startsWith('R_')
+                                              ? `Volatility ${s.replace('R_', '')}`
+                                              : s}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
 
-            {hasData && (
-                <div className='st-scanner__grid'>
-                    {/* Rise / Fall */}
-                    <div className='st-table-card'>
-                        <h3 className='st-table-card__title'>📈 Rise / Fall Signals</h3>
-                        <table className='st-table'>
+                        <label className='pro-input-box'>
+                            Contract Type:
+                            <select className='pro-select-field' value={contractType} onChange={e => setContractType(e.target.value)}>
+                                <option value='CALL'>Rise</option>
+                                <option value='PUT'>Fall</option>
+                                <option value='EVEN'>Even</option>
+                                <option value='ODD'>Odd</option>
+                                <option value='OVER'>Over</option>
+                                <option value='UNDER'>Under</option>
+                                <option value='MATCHES'>Matches</option>
+                                <option value='DIFFERS'>Differs</option>
+                            </select>
+                        </label>
+
+                        {BARRIER_CONTRACT_TYPES.includes(contractType) && (
+                            <label className='pro-input-box'>
+                                Prediction:
+                                <input
+                                    className='pro-field-entry'
+                                    type='number'
+                                    min={0}
+                                    max={9}
+                                    value={predictionDigit}
+                                    onChange={e => setPredictionDigit(e.target.value)}
+                                />
+                            </label>
+                        )}
+
+                        <label className='pro-input-box'>
+                            Stake:
+                            <input
+                                className='pro-field-entry'
+                                type='number'
+                                value={initialStake}
+                                onChange={e => setInitialStake(e.target.value)}
+                            />
+                        </label>
+
+                        <label className='pro-input-box'>
+                            Duration (ticks):
+                            <input
+                                className='pro-field-entry'
+                                type='number'
+                                value={duration}
+                                onChange={e => setDuration(e.target.value)}
+                            />
+                        </label>
+
+                        <label className='pro-input-box'>
+                            Target Profit:
+                            <input
+                                className='pro-field-entry'
+                                type='number'
+                                value={targetProfit}
+                                onChange={e => setTargetProfit(e.target.value)}
+                            />
+                        </label>
+
+                        <label className='pro-input-box'>
+                            Stop Loss:
+                            <input
+                                className='pro-field-entry'
+                                type='number'
+                                value={stopLoss}
+                                onChange={e => setStopLoss(e.target.value)}
+                            />
+                        </label>
+                    </div>
+
+                    <div className='pro-logic-bar'>
+                        <label className='pro-switch-container'>
+                            <input type='checkbox' checked={autoSwitch} onChange={e => setAutoSwitch(e.target.checked)} />
+                            <span className='pro-slider-track' />
+                            <span className='pro-switch-label'>Auto-Switch Volatility</span>
+                        </label>
+
+                        <div className='pro-feature-row'>
+                            <label className='pro-switch-container'>
+                                <input type='checkbox' checked={useBulk} onChange={e => setUseBulk(e.target.checked)} />
+                                <span className='pro-slider-track' />
+                                <span className='pro-switch-label'>Enable Bulk</span>
+                            </label>
+                            {useBulk && (
+                                <input
+                                    type='number'
+                                    value={bulkCount}
+                                    onChange={e => setBulkCount(e.target.value)}
+                                    className='checkbox-entry'
+                                />
+                            )}
+                        </div>
+
+                        <div className='pro-feature-row'>
+                            <label className='pro-switch-container'>
+                                <input type='checkbox' checked={useMartingale} onChange={e => setUseMartingale(e.target.checked)} />
+                                <span className='pro-slider-track' />
+                                <span className='pro-switch-label'>Use Martingale</span>
+                            </label>
+                            {useMartingale && (
+                                <input
+                                    className='checkbox-entry'
+                                    type='number'
+                                    step='0.1'
+                                    value={martingaleMultiplier}
+                                    onChange={e => setMartingaleMultiplier(e.target.value)}
+                                />
+                            )}
+                        </div>
+
+                        <div className='pro-feature-row'>
+                            <label className='pro-switch-container'>
+                                <input type='checkbox' checked={useRecovery} onChange={e => setUseRecovery(e.target.checked)} />
+                                <span className='pro-slider-track' />
+                                <span className='pro-switch-label'>Recover with:</span>
+                            </label>
+                            {useRecovery && (
+                                <div className='pro-recovery-inputs'>
+                                    <select
+                                        className='pro-mini-select'
+                                        value={recoveryContractType}
+                                        onChange={e => setRecoveryContractType(e.target.value)}
+                                    >
+                                        <option value='CALL'>Rise</option>
+                                        <option value='PUT'>Fall</option>
+                                        <option value='EVEN'>Even</option>
+                                        <option value='ODD'>Odd</option>
+                                        <option value='OVER'>Over</option>
+                                        <option value='UNDER'>Under</option>
+                                        <option value='MATCHES'>Matches</option>
+                                        <option value='DIFFERS'>Differs</option>
+                                    </select>
+                                    {BARRIER_CONTRACT_TYPES.includes(recoveryContractType) && (
+                                        <input
+                                            className='checkbox-entry'
+                                            type='number'
+                                            min={0}
+                                            max={9}
+                                            value={recoveryPredictionDigit}
+                                            onChange={e => setRecoveryPredictionDigit(e.target.value)}
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className='pro-action-btns'>
+                    <button onClick={handleToggleBot} className={isRunning ? 'pro-btn-stop' : 'pro-btn-run'}>
+                        {isRunning ? (
+                            <><FaStop /> {useBulk ? ' STOP BULK' : ' STOP BOT'}</>
+                        ) : (
+                            <><FaPlay /> {useBulk ? ' RUN BULK' : ' RUN BOT'}</>
+                        )}
+                    </button>
+                </div>
+
+                <Marketview
+                    isRunning={isRunning}
+                    useBulk={useBulk}
+                    handleToggleBot={handleToggleBot}
+                    sharedSymbol={symbol}
+                    setSharedSymbol={setSymbol}
+                />
+
+                {proposalError && (
+                    <div className='bot-errors'>
+                        <strong>Error:</strong> {proposalError}
+                    </div>
+                )}
+
+                <div className='pro-summary-grid'>
+                    <div className='pro-summary-card'>
+                        <h3>Total Runs</h3>
+                        <p>{totalRuns}</p>
+                    </div>
+                    <div className='pro-summary-card'>
+                        <h3>Wins</h3>
+                        <p style={{ color: '#16a34a' }}>{wins}</p>
+                    </div>
+                    <div className='pro-summary-card'>
+                        <h3>Losses</h3>
+                        <p style={{ color: '#dc2626' }}>{losses}</p>
+                    </div>
+                    <div className='pro-summary-card'>
+                        <h3>Total P/L</h3>
+                        <p className={profitNum >= 0 ? 'profit-won' : 'profit-lost'}>
+                            {profitNum >= 0 ? '+' : ''}{totalProfit}
+                        </p>
+                    </div>
+                </div>
+
+                {results.length > 0 && (
+                    <div className='pro-table-scroller'>
+                        <table className='pro-results-table'>
                             <thead>
                                 <tr>
-                                    <th>Market</th>
-                                    <th>255-tick trend</th>
-                                    <th>55-tick trend</th>
-                                    <th>Signal</th>
+                                    <th>Type</th>
+                                    <th>Stake</th>
+                                    <th>Entry</th>
+                                    <th>Exit</th>
+                                    <th>P/L</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map(r => (
-                                    <tr
-                                        key={r.symbol}
-                                        className={
-                                            r.signal !== 'neutral' ? `st-table__row--${r.signal}` : ''
-                                        }
-                                    >
-                                        <td className='st-table__market'>{r.label}</td>
-                                        <td>
-                                            <span className='st-pct st-pct--rise'>
-                                                ↑ {r.rise255.toFixed(0)}%
-                                            </span>
-                                            {' / '}
-                                            <span className='st-pct st-pct--fall'>
-                                                ↓ {r.fall255.toFixed(0)}%
-                                            </span>
+                                {results.slice(0, 50).map((r, i) => (
+                                    <tr key={r.contract_id || i} className='pro-row'>
+                                        <td>{r.contract_type}</td>
+                                        <td>{r.stake}</td>
+                                        <td>{r.entry_spot}</td>
+                                        <td>{r.exit_spot ?? '-'}</td>
+                                        <td className={
+                                            r.profit === null ? '' :
+                                            parseFloat(r.profit) >= 0 ? 'pro-pl-win' : 'pro-pl-loss'
+                                        }>
+                                            {r.profit !== null
+                                                ? parseFloat(r.profit) >= 0 ? `+${r.profit}` : r.profit
+                                                : '…'}
                                         </td>
-                                        <td>
-                                            <span className='st-pct st-pct--rise'>
-                                                ↑ {r.rise55.toFixed(0)}%
-                                            </span>
-                                            {' / '}
-                                            <span className='st-pct st-pct--fall'>
-                                                ↓ {r.fall55.toFixed(0)}%
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {r.signal === 'buy' ? (
-                                                <SignalBadge type='buy' label='BUY ↑' />
-                                            ) : r.signal === 'sell' ? (
-                                                <SignalBadge type='sell' label='SELL ↓' />
-                                            ) : (
-                                                <SignalBadge type='neutral' label='——' />
-                                            )}
-                                        </td>
+                                        <td>{r.status}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
+                )}
 
-                    {/* Over / Under */}
-                    <div className='st-table-card'>
-                        <h3 className='st-table-card__title'>🎲 Digit — Over 2 / Under 7</h3>
-                        <table className='st-table'>
-                            <thead>
-                                <tr>
-                                    <th>Market</th>
-                                    <th>Low digits (0-2)</th>
-                                    <th>High digits (7-9)</th>
-                                    <th>Signal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {ouRows.map(r => {
-                                    const lowAvg = ((r.digitPcts[0] + r.digitPcts[1] + r.digitPcts[2]) / 3).toFixed(1);
-                                    const highAvg = ((r.digitPcts[7] + r.digitPcts[8] + r.digitPcts[9]) / 3).toFixed(1);
-                                    const hasSignal = r.overSignal || r.underSignal;
-                                    return (
-                                        <tr
-                                            key={r.symbol}
-                                            className={hasSignal ? 'st-table__row--digit' : ''}
-                                        >
-                                            <td className='st-table__market'>{r.label}</td>
-                                            <td>
-                                                <span className='st-pct st-pct--under'>{lowAvg}% avg</span>
-                                            </td>
-                                            <td>
-                                                <span className='st-pct st-pct--over'>{highAvg}% avg</span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                                    {r.overSignal ? (
-                                                        <SignalBadge type='over' label='Over 2' />
-                                                    ) : null}
-                                                    {r.underSignal ? (
-                                                        <SignalBadge type='under' label='Under 7' />
-                                                    ) : null}
-                                                    {!r.overSignal && !r.underSignal ? (
-                                                        <SignalBadge type='neutral' label='——' />
-                                                    ) : null}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ─── Risk Calculator (React-state based) ──────────────────────────────────────
-const RiskCalculator: React.FC = () => {
-    const [capital, setCapital] = useState<string>('');
-
-    const cap = parseFloat(capital) || 0;
-    const stake = (cap * 0.02).toFixed(2);
-    const takeProfit = (cap * 0.02 * 5).toFixed(2);
-    let stopLoss = 0;
-    let cur = cap * 0.02;
-    for (let i = 0; i < 4; i++) {
-        stopLoss += cur;
-        cur *= 2;
-    }
-
-    return (
-        <div className='st-calc'>
-            <div className='st-calc__card'>
-                <h2 className='st-calc__title'>Martingale Risk Calculator</h2>
-                <p className='st-calc__desc'>
-                    Enter your total capital to calculate recommended stake, take-profit and stop-loss using
-                    Martingale risk rules.
-                </p>
-
-                <div className='st-calc__field'>
-                    <label className='st-calc__label' htmlFor='st-capital'>
-                        Initial Capital (USD)
-                    </label>
-                    <input
-                        id='st-capital'
-                        className='st-calc__input'
-                        type='number'
-                        min='0'
-                        step='0.01'
-                        placeholder='e.g. 500'
-                        value={capital}
-                        onChange={e => setCapital(e.target.value)}
-                    />
-                </div>
-
-                <div className='st-calc__results'>
-                    <div className='st-calc__result-item st-calc__result-item--stake'>
-                        <span className='st-calc__result-label'>Stake (2% of capital)</span>
-                        <span className='st-calc__result-value'>${stake}</span>
-                    </div>
-                    <div className='st-calc__result-item st-calc__result-item--tp'>
-                        <span className='st-calc__result-label'>Take Profit (5× stake)</span>
-                        <span className='st-calc__result-value'>${takeProfit}</span>
-                    </div>
-                    <div className='st-calc__result-item st-calc__result-item--sl'>
-                        <span className='st-calc__result-label'>Stop Loss (4 Martingale losses)</span>
-                        <span className='st-calc__result-value'>${stopLoss.toFixed(2)}</span>
-                    </div>
-                </div>
-
-                {cap > 0 && (
-                    <div className='st-calc__sequence'>
-                        <p className='st-calc__seq-title'>Martingale stake sequence:</p>
-                        <div className='st-calc__seq-row'>
-                            {Array.from({ length: 4 }, (_, i) => {
-                                const s = (cap * 0.02 * Math.pow(2, i)).toFixed(2);
-                                return (
-                                    <span key={i} className='st-calc__seq-pill'>
-                                        L{i + 1}: ${s}
-                                    </span>
-                                );
-                            })}
-                        </div>
+                {(totalRuns > 0 || results.length > 0) && (
+                    <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                        <button className='pro-btn-reset' onClick={handleReset} style={{ padding: '8px 24px' }}>
+                            Reset
+                        </button>
                     </div>
                 )}
-            </div>
-        </div>
-    );
-};
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-const MODES = [
-    { value: 'signals', label: '📡 Live Signals' },
-    { value: 'risk-calculator', label: '🧮 Risk Calculator' },
-];
-
-const SmartTrader = observer(() => {
-    const [mode, setMode] = useState<string>('signals');
-
-    return (
-        <div className='smart-trader'>
-            <div className='smart-trader__container'>
-                {/* Top bar */}
-                <div className='smart-trader__topbar'>
-                    <div className='smart-trader__mode-selector'>
-                        <div className='smart-trader__mode-dropdown-container'>
-                            <select
-                                value={mode}
-                                onChange={e => setMode(e.target.value)}
-                                className='smart-trader__mode-dropdown'
-                            >
-                                {MODES.map(m => (
-                                    <option key={m.value} value={m.value}>
-                                        {m.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className='smart-trader__dropdown-indicator'>
-                                <svg width='12' height='12' viewBox='0 0 24 24' fill='none'>
-                                    <path d='M7 10L12 15L17 10H7Z' fill='currentColor' />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className='smart-trader__content'>
-                    {mode === 'signals' && <SignalsScanner />}
-                    {mode === 'risk-calculator' && <RiskCalculator />}
-                </div>
             </div>
         </div>
     );
