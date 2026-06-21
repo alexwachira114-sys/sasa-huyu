@@ -41,6 +41,8 @@ const DerivNewApiPage = lazy(() => import('../deriv-new-api/DerivNewApiPage'));
 import TradingBots from '../free-bots/trading-bots';
 import { CaxynexusAiWidget } from '@/components/caxynexus-ai-widget/caxynexus-ai-widget';
 import BlocklyIOSPrompt from '@/components/blockly-ios-prompt/blockly-ios-prompt';
+import SmartTrader from '../customizations/standalones/SmartTrader';
+import ElitePremium from '../customizations/SignalTools/ElitePremium';
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -70,8 +72,10 @@ const AppWrapper = observer(() => {
         'analysis_tool', // 6 - Analysis Tool
         'strategies',    // 7 - Strategies
         'copy_trading',  // 8 - Copy Trading
-        'tradingview',   // 9 - TradingView
-        'deriv_api',     // 10 - Deriv New API
+        'smart_trader',  // 9 - Smart Trader
+        'elite_prime',   // 10 - Elite Prime AI
+        'tradingview',   // 11 - TradingView
+        'deriv_api',     // 12 - Deriv New API
     ];
     
     const { isDesktop } = useDevice();
@@ -155,6 +159,12 @@ const AppWrapper = observer(() => {
                         <div label={<><LabelPairedObjectsColumnCaptionRegularIcon height='24px' width='24px' /><Localize i18n_default_text='Copy Trading' /></>} id='id-copy-trading'>
                             <Suspense fallback={<ChunkLoader message={localize('Please wait, loading Copy Trading...')} />}><CopyTrading /></Suspense>
                         </div>
+                        <div label={<><LabelPairedChartLineCaptionRegularIcon height='24px' width='24px' /><Localize i18n_default_text='Smart Trader' /></>} id='id-smart-trader'>
+                            <SmartTrader />
+                        </div>
+                        <div label={<><LabelPairedPlayCaptionBoldIcon height='24px' width='24px' /><Localize i18n_default_text='Elite Prime AI' /></>} id='id-elite-prime'>
+                            <ElitePremium />
+                        </div>
                         <div label={<><LegacyChartsIcon height='16px' width='16px' /><Localize i18n_default_text='TradingView' /></>} id='id-tradingview'>
                             <Suspense fallback={<ChunkLoader message={localize('Please wait, loading TradingView...')} />}><TradingView /></Suspense>
                         </div>
@@ -165,7 +175,7 @@ const AppWrapper = observer(() => {
                 </div>
             </div>
             <DesktopWrapper>
-                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && (
+                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'smart_trader' && hash[active_tab] !== 'elite_prime' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && (
                     <div className='main__run-strategy-wrapper'>
                         {hash[active_tab] !== 'over_under' && <RunStrategy />}
                         <RunPanel />
@@ -173,7 +183,7 @@ const AppWrapper = observer(() => {
                 )}
                 <ChartModal /><TradingViewModal />
             </DesktopWrapper>
-            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && <RunPanel />}</MobileWrapper>
+            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'smart_trader' && hash[active_tab] !== 'elite_prime' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && <RunPanel />}</MobileWrapper>
             <SpeedBotFloatingStop />
             {hash[active_tab] === 'bot_builder' && <CaxynexusAiWidget />}
             <BlocklyIOSPrompt />
