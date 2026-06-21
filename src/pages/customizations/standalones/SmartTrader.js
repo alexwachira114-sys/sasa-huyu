@@ -57,7 +57,7 @@ const SmartTrader = () => {
     const [autoSwitch, setAutoSwitch] = useState(false);
 
     const [isRunning, setIsRunning] = useState(false);
-    const [, setLogs] = useState([]);
+    const [logs, setLogs] = useState([]);
     const [results, setResults] = useState([]);
     const [wins, setWins] = useState(0);
     const [losses, setLosses] = useState(0);
@@ -67,6 +67,7 @@ const SmartTrader = () => {
     const [currentPrice, setCurrentPrice] = useState(null);
     const [isExpanded, setIsExpanded] = useState(false);
 
+    const monitorEndRef = useRef(null);
     const wsRef = useRef(null);
     const totalProfitRef = useRef(0);
     const baseStakeRef = useRef(1);
@@ -1109,6 +1110,14 @@ const SmartTrader = () => {
         }
     }, [isRunning]);
 
+    useEffect(() => {
+        monitorEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [logs]);
+
+    const handleClearLogs = useCallback(() => {
+        setLogs([]);
+    }, []);
+
     const getDecimalPlaces = selected_symbol =>
         ['1HZ15V', '1HZ30V', '1HZ90V'].includes(selected_symbol)
             ? 3
@@ -1323,6 +1332,44 @@ const SmartTrader = () => {
                             </>
                         )}
                     </button>
+                </div>
+
+                <div className='st-monitor'>
+                    <div className='st-monitor__head'>
+                        <span className='st-monitor__title'>
+                            <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.2'><polyline points='4 17 10 11 4 5'/><line x1='12' y1='19' x2='20' y2='19'/></svg>
+                            {' '}Live Monitor
+                        </span>
+                        <button className='st-monitor__clr' onClick={handleClearLogs} title='Clear log'>
+                            <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/></svg>
+                        </button>
+                    </div>
+                    <div className='st-monitor__body'>
+                        {logs.length === 0 ? (
+                            <div className='st-monitor__empty'>
+                                <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'/></svg>
+                                <span>Waiting for signals…</span>
+                            </div>
+                        ) : (
+                            <div className='st-monitor__logs'>
+                                {[...logs].reverse().map((line, i) => {
+                                    const isWin = /WON|won|WIN|profit.*\+/i.test(line);
+                                    const isLoss = /LOST|lost|LOSS|error|Error/i.test(line);
+                                    const isInfo = /authorized|started|stopped|reset|Bulk/i.test(line);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className={`st-log${isWin ? ' st-log--win' : isLoss ? ' st-log--loss' : isInfo ? ' st-log--info' : ''}`}
+                                        >
+                                            <span className='st-log__bar' />
+                                            <span className='st-log__txt'>{line}</span>
+                                        </div>
+                                    );
+                                })}
+                                <div ref={monitorEndRef} />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <Marketview

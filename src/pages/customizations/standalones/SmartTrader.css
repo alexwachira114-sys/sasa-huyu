@@ -598,3 +598,101 @@ input:checked + .pro-slider-track::before {
   }
 }
 
+
+/* ── Live Monitor ──────────────────────────────────────────────── */
+.st-monitor {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f172a;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.st-monitor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.st-monitor__title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #38bdf8;
+}
+
+.st-monitor__clr {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+.st-monitor__clr:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.st-monitor__body {
+  height: 180px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.st-monitor__body::-webkit-scrollbar { width: 4px; }
+.st-monitor__body::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+.st-monitor__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.st-monitor__logs {
+  display: flex;
+  flex-direction: column;
+}
+
+.st-log {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 12px;
+  font-size: 11px;
+  color: #94a3b8;
+  transition: background 0.1s;
+}
+.st-log:hover { background: rgba(255,255,255,0.03); }
+
+.st-log__bar {
+  flex-shrink: 0;
+  width: 2px;
+  height: 14px;
+  margin-top: 1px;
+  border-radius: 2px;
+  background: #334155;
+}
+.st-log--win .st-log__bar  { background: #22c55e; }
+.st-log--loss .st-log__bar { background: #ef4444; }
+.st-log--info .st-log__bar { background: #38bdf8; }
+
+.st-log__txt { flex: 1; line-height: 1.5; word-break: break-all; }
+.st-log--win  .st-log__txt { color: #4ade80; }
+.st-log--loss .st-log__txt { color: #f87171; }
+.st-log--info .st-log__txt { color: #7dd3fc; }
