@@ -122,7 +122,20 @@ export default defineConfig({
     tools: {
         rspack: {
             plugins: [],
-            resolve: {},
+            resolve: {
+                alias: {
+                    // Intercept Illustration imports at rspack level (covers
+                    // node_modules → node_modules chains that source.alias misses)
+                    '@deriv/quill-icons/dist/react/Illustration': path.resolve(
+                        __dirname,
+                        'src/components/shims/quill-icons-illustration/index.js'
+                    ),
+                    '@deriv/quill-icons/Illustration': path.resolve(
+                        __dirname,
+                        'src/components/shims/quill-icons-illustration/index.js'
+                    ),
+                },
+            },
             module: {
                 rules: [
                     {

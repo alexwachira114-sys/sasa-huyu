@@ -1,1 +1,2 @@
 - [SmartTrader auth adaptation](smarttrader-auth.md) — zip uses sessionStorage OTP auth; this project uses localStorage authToken/active_loginid/clientAccounts with standard WS authorize flow.
+- [rsbuild quill-icons illustration fix](quill-icons-illustration-fix.md) — source.alias misses node_modules chains; use tools.rspack.resolve.alias to intercept Illustration imports everywhere.

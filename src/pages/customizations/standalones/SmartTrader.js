@@ -175,9 +175,13 @@ const SmartTrader = () => {
         autoSwitchRef.current = autoSwitch;
     }, [autoSwitch]);
 
-    const logMessage = useCallback(message => {
-        setLogs(prev_logs => [message, ...prev_logs]);
-    }, []);
+    const logMessage = useCallback(
+        message => {
+            setLogs(prev_logs => [message, ...prev_logs]);
+            journal?.pushMessage?.(message, 'notify');
+        },
+        [journal]
+    );
 
     const publishNativeContract = useCallback(
         contract_data => {
@@ -967,6 +971,9 @@ const SmartTrader = () => {
         setIsRunning(true);
         isRunningRef.current = true;
 
+        summary_card?.clear?.();
+        transactions?.clear?.();
+
         run_panel?.setIsRunning?.(true);
         run_panel?.setHasOpenContract?.(false);
         run_panel?.setContractStage?.(contract_stages.STARTING);
@@ -976,6 +983,8 @@ const SmartTrader = () => {
         if (run_panel) {
             run_panel.run_id = `smarttrader-${Date.now()}`;
         }
+
+        logMessage('Smart Trader bot started.');
 
         const socket_state = wsRef.current?.readyState;
         if (wsRef.current && socket_state === WebSocket.OPEN && isAuthorizedRef.current) {
@@ -1001,9 +1010,12 @@ const SmartTrader = () => {
         firePrecisionBurst,
         getStoredAuthContext,
         handleStop,
+        logMessage,
         requestProposal,
         run_panel,
+        summary_card,
         totalProfit,
+        transactions,
     ]);
 
     const handleToggleBot = useCallback(() => {
