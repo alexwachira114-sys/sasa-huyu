@@ -8,7 +8,6 @@ import {
 import {
     DerivProductBrandLightDerivBotLogoWordmarkIcon as DerivBotLogo,
     DerivProductBrandLightDerivTraderLogoWordmarkIcon as DerivTraderLogo,
-    PartnersProductBrandLightSmarttraderLogoWordmarkIcon as SmarttraderLogo,
 } from '@deriv/quill-icons/Logo';
 import { localize } from '@deriv-com/translations';
 
@@ -55,14 +54,6 @@ export const platformsConfig: PlatformsConfig[] = [
         description: localize('Automated trading at your fingertips. No coding needed.'),
         href: standalone_routes.bot,
         icon: <DerivBotLogo height={32} width={121} />,
-        showInEU: false,
-    },
-    {
-        active: false,
-        buttonIcon: <SmarttraderLogo height={24} width={115} />,
-        description: localize('Trade the world’s markets with our popular user-friendly platform.'),
-        href: standalone_routes.smarttrader,
-        icon: <SmarttraderLogo height={32} width={153} />,
         showInEU: false,
     },
 ];

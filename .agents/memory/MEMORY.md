@@ -1,2 +1,1 @@
-- [SmartTrader auth adaptation](smarttrader-auth.md) — project uses sessionStorage OTP auth (auth_info + deriv_accounts) + REST OTP endpoint, same as zip. WS_SERVERS are https:// URLs from @/components/shared.
 - [rsbuild quill-icons illustration fix](quill-icons-illustration-fix.md) — source.alias misses node_modules chains; use tools.rspack.resolve.alias to intercept Illustration imports everywhere.

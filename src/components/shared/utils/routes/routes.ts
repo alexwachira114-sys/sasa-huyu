@@ -1,4 +1,4 @@
-type Service = 'derivCom' | 'derivApp' | 'smartTrader' | 'derivHub';
+type Service = 'derivCom' | 'derivApp' | 'derivHub';
 type DomainType = 'me' | 'be' | 'com';
 
 interface DomainConfig {
@@ -21,18 +21,6 @@ const domains: Record<Service, DomainConfig> = {
             me: 'https://app.deriv.me',
             be: 'https://app.deriv.be',
             com: 'https://app.deriv.com',
-        },
-    },
-    smartTrader: {
-        staging: {
-            me: 'https://staging-smarttrader.deriv.me',
-            be: 'https://staging-smarttrader.deriv.be',
-            com: 'https://staging-smarttrader.deriv.com',
-        },
-        production: {
-            me: 'https://smarttrader.deriv.me',
-            be: 'https://smarttrader.deriv.be',
-            com: 'https://smarttrader.deriv.com',
         },
     },
     derivHub: {
@@ -79,7 +67,6 @@ export const standalone_routes = {
     profit: `${getDerivDomain('derivApp')}/reports/profit`,
     reports: `${getDerivDomain('derivApp')}/reports`,
     root: getDerivDomain('derivApp'),
-    smarttrader: getDerivDomain('smartTrader'),
     statement: `${getDerivDomain('derivApp')}/reports/statement`,
     trade: `${getDerivDomain('derivApp')}/dtrader`,
     traders_hub: getDerivDomain('derivApp'),

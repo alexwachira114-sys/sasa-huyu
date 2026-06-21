@@ -21,10 +21,9 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     ANALYSIS_TOOL: 6,   // DOM position 6 in main.tsx
     STRATEGIES: 7,      // DOM position 7 in main.tsx
     COPY_TRADING: 8,    // DOM position 8 in main.tsx
-    SMART_TRADER: 9,    // DOM position 9 in main.tsx
-    TRADINGVIEW: 10,    // DOM position 10 in main.tsx
-    DERIV_API: 11,      // DOM position 11 in main.tsx
-    SPEEDBOT: 12,
+    TRADINGVIEW: 9,     // DOM position 9 in main.tsx
+    DERIV_API: 10,      // DOM position 10 in main.tsx
+    SPEEDBOT: 11,
     // Keep TUTORIAL as a non-active sentinel to avoid index mismatches in legacy checks
     TUTORIAL: 999,
     // Legacy tabs - kept for backward compatibility but redirect to TRADING_BOTS
@@ -35,8 +34,6 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     DIFFBOT: 3,
     DCIRCLES: 6,
     DP_TOOLS: 6,
-    // Legacy SMART_TRADER redirects to STRATEGIES
-    SMART_TRADER: 7,
 });
 
 export const MAX_STRATEGIES = 10;
@@ -49,7 +46,6 @@ export const TAB_IDS = [
     'id-analysis-tool',
     'id-strategies',
     'id-copy-trading',
-    'id-smart-trader',
     'id-tradingview',
     'id-speedbot',
 ];

@@ -27,11 +27,6 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     const { has_active_bot, has_saved_bots } = blockly_store;
     const { isMobile } = useDevice();
     
-    // Don't show TradeAnimation (Run button) on Smart Trader tab - manual trading only
-    if (active_tab === DBOT_TABS.SMART_TRADER) {
-        return null;
-    }
-
     const { is_contract_completed, profit } = summary_card;
     const {
         contract_stage,
