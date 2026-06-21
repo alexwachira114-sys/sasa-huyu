@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaPlay, FaStop } from 'react-icons/fa';
+import { observer } from 'mobx-react-lite';
 import Swal from 'sweetalert2';
 import { isProduction, WS_SERVERS } from '@/components/shared';
 import { contract_stages } from '@/constants/contract-stage';
 import { run_panel as run_panel_tabs } from '@/constants/run-panel';
-import { observer } from '@/external/bot-skeleton';
+import { observer as botObserver } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
 import { getSymbolDisplayNameSync } from '@/utils/symbol-display-name';
 import Marketview from './marketview';
@@ -915,11 +916,11 @@ const SmartTrader = observer(() => {
     }, [clearRecoveryTimeouts, connectTradingSocket, getStoredAuthContext]);
 
     useEffect(() => {
-        observer.register('smarttrader.start', handleStart);
-        observer.register('smarttrader.stop', handleStop);
+        botObserver.register('smarttrader.start', handleStart);
+        botObserver.register('smarttrader.stop', handleStop);
         return () => {
-            if (observer.isRegistered('smarttrader.start')) observer.unregister('smarttrader.start', handleStart);
-            if (observer.isRegistered('smarttrader.stop')) observer.unregister('smarttrader.stop', handleStop);
+            if (botObserver.isRegistered('smarttrader.start')) botObserver.unregister('smarttrader.start', handleStart);
+            if (botObserver.isRegistered('smarttrader.stop')) botObserver.unregister('smarttrader.stop', handleStop);
         };
     }, [handleStart, handleStop]);
 
