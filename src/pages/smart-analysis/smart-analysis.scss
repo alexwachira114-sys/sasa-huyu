@@ -1,0 +1,938 @@
+@use 'components/shared/styles/devices' as *;
+
+.sa {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #f4f6fa;
+    font-family: inherit;
+    overflow: hidden;
+}
+
+// ── Tab bar ───────────────────────────────────────────────────────────────────
+.sa__tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #fff;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0 1.6rem;
+    flex-shrink: 0;
+}
+
+.sa__tab {
+    padding: 1.2rem 2rem;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    margin-bottom: -2px;
+    transition:
+        color 0.15s ease,
+        border-color 0.15s ease;
+    white-space: nowrap;
+
+    &:hover {
+        color: #0f172a;
+    }
+
+    &--active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+    }
+
+    @include mobile-screen {
+        padding: 1rem 1.2rem;
+        font-size: 1.2rem;
+    }
+}
+
+// ── Body scroll area ──────────────────────────────────────────────────────────
+.sa__body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+// ── Summary tab ───────────────────────────────────────────────────────────────
+.sa__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    padding: 1.6rem;
+
+    @include mobile-screen {
+        padding: 1rem;
+        gap: 1rem;
+    }
+}
+
+// ── No signals placeholder ────────────────────────────────────────────────────
+.sa__no-signals {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 2.4rem 1.6rem;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+.sa__no-signals-icon {
+    font-size: 2.4rem;
+}
+
+// ── Signals section ───────────────────────────────────────────────────────────
+.sa__signals-section {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.sa__signals-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+    padding: 1.2rem 1.6rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.sa__signals-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.sa__signals-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 700px;
+
+    th {
+        padding: 0.8rem 1.2rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #64748b;
+        text-align: left;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 1rem 1.2rem;
+        font-size: 1.25rem;
+        color: #0f172a;
+        vertical-align: top;
+        border-bottom: 1px solid #f1f5f9;
+    }
+}
+
+.sa__signal-row {
+    background: #f0fdf4;
+
+    &:hover {
+        background: #dcfce7;
+    }
+}
+
+.sa__rank {
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.sa__market-name {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+// ── Signal badges ─────────────────────────────────────────────────────────────
+.sa__badge {
+    display: inline-block;
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    white-space: nowrap;
+
+    &--green {
+        background: #22c55e;
+        color: #fff;
+    }
+
+    &--blue {
+        background: #3b82f6;
+        color: #fff;
+    }
+
+    &--teal {
+        background: #14b8a6;
+        color: #fff;
+    }
+
+    &--purple {
+        background: #8b5cf6;
+        color: #fff;
+    }
+
+    &--red {
+        background: #ef4444;
+        color: #fff;
+    }
+}
+
+// ── Condition block ───────────────────────────────────────────────────────────
+.sa__condition-cell {
+    min-width: 280px;
+}
+
+.sa__condition-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.sa__cond-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0.3rem 0 0;
+}
+
+.sa__cond-text {
+    font-size: 1.15rem;
+    color: #475569;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.sa__cond-value {
+    font-size: 1.15rem;
+    color: #0f172a;
+    margin: 0;
+}
+
+// ── Load signal button ────────────────────────────────────────────────────────
+.sa__load-btn {
+    display: inline-block;
+    padding: 0.7rem 1.6rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+
+    &:hover {
+        background: #1d4ed8;
+    }
+
+    &:active {
+        background: #1e40af;
+    }
+}
+
+// ── Market summary ────────────────────────────────────────────────────────────
+.sa__market-summary {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.sa__market-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.2rem 1.6rem;
+    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+}
+
+.sa__market-summary-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.sa__ticks-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.sa__ticks-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.sa__ticks-input {
+    width: 80px;
+    padding: 0.5rem 0.8rem;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 7px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: center;
+    background: #f8fafc;
+    appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        appearance: none;
+    }
+
+    &:focus {
+        outline: 2px solid #2563eb;
+        outline-offset: 1px;
+    }
+}
+
+// ── View toggle ───────────────────────────────────────────────────────────────
+.sa__view-toggle {
+    display: flex;
+    gap: 0.4rem;
+    padding: 1rem 1.6rem 0;
+}
+
+.sa__view-btn {
+    padding: 0.5rem 1.6rem;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &--active {
+        background: #0f172a;
+        border-color: #0f172a;
+        color: #fff;
+    }
+
+    &--red {
+        color: #ef4444;
+        border-color: #fecaca;
+
+        &:hover {
+            background: #fef2f2;
+        }
+    }
+
+    &--active-red {
+        background: #ef4444;
+        border-color: #ef4444;
+        color: #fff;
+
+        &:hover {
+            background: #dc2626;
+        }
+    }
+}
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+.sa__legend {
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+    padding: 0.8rem 1.6rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.sa__legend-item {
+    font-size: 1.2rem;
+    font-weight: 600;
+
+    &--green { color: #16a34a; }
+    &--blue { color: #2563eb; }
+    &--red { color: #dc2626; }
+    &--yellow { color: #ca8a04; }
+}
+
+// ── Market table ──────────────────────────────────────────────────────────────
+.sa__mkt-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.sa__mkt-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 750px;
+
+    th {
+        padding: 0.8rem 1rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #64748b;
+        text-align: center;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+
+        &:first-child,
+        &:nth-child(2) {
+            text-align: left;
+        }
+    }
+
+    td {
+        padding: 0.8rem 1rem;
+        font-size: 1.25rem;
+        color: #0f172a;
+        text-align: center;
+        border-bottom: 1px solid #f1f5f9;
+
+        &:first-child {
+            text-align: left;
+        }
+
+        &:nth-child(2) {
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+    }
+}
+
+.sa__mkt-row {
+    &:hover td {
+        background: #f8fafc;
+    }
+
+    &--signal {
+        background: #fefce8;
+
+        td {
+            background: #fefce8;
+        }
+
+        &:hover td {
+            background: #fef9c3;
+        }
+    }
+}
+
+.sa__mkt-label {
+    min-width: 160px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.sa__mkt-price {
+    font-variant-numeric: tabular-nums;
+}
+
+.sa__mkt-signal-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sa__cell--highlight {
+    color: #16a34a;
+    font-weight: 700;
+}
+
+// ── Inline digit ──────────────────────────────────────────────────────────────
+.sa__inline-digit {
+    font-weight: 700;
+    font-size: 1.2rem;
+
+    &--green { color: #16a34a; }
+    &--red { color: #dc2626; }
+}
+
+// ── Digit circles ─────────────────────────────────────────────────────────────
+.sa__digit-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    margin: 0 auto;
+
+    &--green { background: #22c55e; color: #fff; }
+    &--blue { background: #3b82f6; color: #fff; }
+    &--red { background: #ef4444; color: #fff; }
+    &--yellow { background: #eab308; color: #fff; }
+
+    @include mobile-screen {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+.sa__digit-circle-num {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1;
+
+    @include mobile-screen {
+        font-size: 1.2rem;
+    }
+}
+
+.sa__digit-circle-pct {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.9;
+
+    @include mobile-screen {
+        font-size: 0.7rem;
+    }
+}
+
+// ── Detailed tab ──────────────────────────────────────────────────────────────
+.sa__detailed {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    padding: 1.6rem;
+
+    @include mobile-screen {
+        padding: 1rem;
+        gap: 1rem;
+    }
+}
+
+.sa__detailed-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem 1.6rem;
+    flex-wrap: wrap;
+
+    @include mobile-screen {
+        gap: 0.8rem;
+        padding: 1rem;
+    }
+}
+
+.sa__control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.sa__control-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.sa__control-select {
+    appearance: none;
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.55rem 2.4rem 0.55rem 1rem;
+    font-size: 1.25rem;
+    color: #0f172a;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+
+    &:focus {
+        outline: 2px solid #2563eb;
+        outline-offset: 1px;
+    }
+
+    @include mobile-screen {
+        font-size: 1.15rem;
+        padding: 0.5rem 2rem 0.5rem 0.8rem;
+    }
+}
+
+.sa__current-price-display {
+    margin-left: auto;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+
+    @include mobile-screen {
+        font-size: 1.6rem;
+        margin-left: 0;
+    }
+}
+
+// ── Pattern section ───────────────────────────────────────────────────────────
+.sa__pattern-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem 1.6rem;
+
+    @include mobile-screen {
+        padding: 1rem;
+    }
+}
+
+.sa__pattern-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.06em;
+    margin: 0 0 0.8rem;
+}
+
+.sa__pattern-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sa__pat-cell {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+
+    &--blue { background: #3b82f6; }
+    &--red { background: #ef4444; }
+    &--purple { background: #8b5cf6; }
+
+    @include mobile-screen {
+        width: 34px;
+        height: 34px;
+        font-size: 1.1rem;
+    }
+}
+
+.sa__show-more-btn {
+    padding: 0.5rem 1.2rem;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+
+    &:hover {
+        border-color: #2563eb;
+        color: #2563eb;
+    }
+}
+
+// ── Window rows ───────────────────────────────────────────────────────────────
+.sa__window-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.sa__window-row {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem 1.6rem;
+
+    @include mobile-screen {
+        padding: 1rem;
+    }
+}
+
+.sa__window-label {
+    font-size: 1.25rem;
+    color: #0f172a;
+    margin: 0 0 0.8rem;
+}
+
+.sa__split-bar-wrap {
+    width: 100%;
+}
+
+.sa__split-bar {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 52px;
+    gap: 2px;
+}
+
+.sa__split-bar-left {
+    background: #4d90e8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 0.8rem;
+    min-width: 0;
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa__split-bar-right {
+    background: #e05c5c;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 0.8rem;
+    min-width: 0;
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa__split-bar-pct {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+
+    @include mobile-screen {
+        font-size: 1.2rem;
+    }
+}
+
+.sa__split-bar-count {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: rgb(255 255 255 / 85%);
+    white-space: nowrap;
+
+    @include mobile-screen {
+        font-size: 0.95rem;
+    }
+}
+
+// ── Tick Analyser tab ─────────────────────────────────────────────────────────
+.sa__tick-analyser {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    padding: 1.6rem;
+
+    @include mobile-screen {
+        padding: 1rem;
+        gap: 1rem;
+    }
+}
+
+.sa__ta-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.6rem;
+    flex-wrap: wrap;
+}
+
+.sa__ta-price {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #16a34a;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-left: auto;
+
+    @include mobile-screen {
+        font-size: 1.5rem;
+        margin-left: 0;
+    }
+}
+
+.sa__ta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+
+    &--live {
+        color: #16a34a;
+        border-color: #bbf7d0;
+    }
+}
+
+.sa__ta-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #94a3b8;
+    flex-shrink: 0;
+
+    .sa__ta-badge--live & {
+        background: #16a34a;
+        animation: sa-pulse 1.5s ease-in-out infinite;
+    }
+}
+
+.sa__ta-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+
+    @include tablet-or-desktop-screen {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+.sa__ta-stat {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    text-align: center;
+}
+
+.sa__ta-stat-val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.sa__ta-stat-lbl {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+// ── Digit bar chart ───────────────────────────────────────────────────────────
+.sa__ta-dist {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem 1.6rem;
+}
+
+.sa__ta-dist-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #64748b;
+    margin: 0 0 1rem;
+}
+
+.sa__ta-digits {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 100px;
+}
+
+.sa__ta-digit-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+}
+
+.sa__ta-bar-wrap {
+    display: flex;
+    align-items: flex-end;
+    height: 60px;
+}
+
+.sa__ta-bar {
+    width: 100%;
+    min-width: 16px;
+    background: #3b82f6;
+    border-radius: 4px 4px 0 0;
+    transition: height 0.3s ease;
+}
+
+.sa__ta-digit-num {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.sa__ta-digit-pct {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+// ── Stream row ────────────────────────────────────────────────────────────────
+.sa__ta-stream {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem 1.6rem;
+}
+
+.sa__ta-stream-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sa__ta-cell {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+
+    &--even { background: #22c55e; color: #fff; }
+    &--odd { background: #ef4444; color: #fff; }
+}
+
+// ── Animations ────────────────────────────────────────────────────────────────
+@keyframes sa-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}

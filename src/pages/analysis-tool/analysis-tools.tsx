@@ -5,6 +5,7 @@ import Dcircles from '../dtrader/dcircles/dcircles';
 import AllAnalysis from './all-analysis';
 import Signals from '../signals';
 import TickAnalyser from './tick-analyser';
+import SmartAnalysis from '../smart-analysis';
 import IframeWrapper from '@/components/iframe-wrapper';
 import { useStore } from '@/hooks/useStore';
 import { ApiHelpers } from '@/external/bot-skeleton';
@@ -662,13 +663,7 @@ const AnalysisTools: React.FC = () => {
             case 'dp-tools':
                 return <DpTools />;
             case 'smart-analysis':
-                return (
-                    <IframeWrapper
-                        src='https://www.smartanalysistool.com/signal-center'
-                        title='Smart Analysis'
-                        className='smart-analysis-container'
-                    />
-                );
+                return <SmartAnalysis />;
             case 'all-analysis':
                 return <AllAnalysis />;
             case 'tick-analyser':
