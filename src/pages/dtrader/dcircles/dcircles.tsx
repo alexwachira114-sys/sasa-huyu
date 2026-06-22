@@ -5,7 +5,11 @@ import './dcircles.scss';
 const Dcircles = () => {
     return (
         <div className='dcircles'>
-            <IframeWrapper src='https://dcircles.vercel.app/' title='Dcircles' className='dcircles-container' />
+            <IframeWrapper
+                src='https://bot-analysis-tool-belex.web.app'
+                title='Bot Analysis Tool'
+                className='dcircles-container'
+            />
         </div>
     );
 };
