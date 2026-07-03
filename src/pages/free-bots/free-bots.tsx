@@ -73,6 +73,8 @@ const FreeBots = observer(() => {
                 'Balanced Rise/Fall bot on Volatility 25 (1s) Index. Trades both contract directions with optional 2× Martingale, $10 take-profit, and $50 stop-loss guard.',
             'UNDER DESTROYER V11':
                 'Precision Under/Over bot on Volatility 90 (1s) Index. Starts Under 8 and flips to Over 4 on consecutive losses, with a 2.2× Martingale across up to 7 recovery levels.',
+            'AUTO GREENFLAKES E O':
+                'Adaptive Even/Odd multiplier bot on Volatility 75 Index. Confirms entry with a digit trigger, tracks streaks over a timed window, and applies a 2× Martingale recovery toward a target profit.',
                         };
 
         // Try exact match first
@@ -114,6 +116,7 @@ const FreeBots = observer(() => {
             'OVER_DESTROYER_V1.xml',
             'RISE_FALL_KIND.xml',
             'UNDER_DESTROYER_V11.xml',
+            'AUTO_GREENFLAKES_E_O.xml',
         ];
     };
 

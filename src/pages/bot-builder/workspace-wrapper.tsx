@@ -2,13 +2,45 @@ import React from 'react';
 import { observer } from 'mobx-react-lite';
 import Flyout from '@/components/flyout';
 import { useStore } from '@/hooks/useStore';
-import { load } from '@/external/bot-skeleton/scratch/utils';
+import { load, runIrreversibleEvents } from '@/external/bot-skeleton/scratch/utils';
 import { save_types } from '@/external/bot-skeleton/constants/save-type';
 import { NOTIFICATION_TYPE } from '@/components/bot-notification/bot-notification-utils';
+import ApiHelpers from '@/external/bot-skeleton/services/api/api-helpers';
 import StopBotModal from '../dashboard/stop-bot-modal';
 import Toolbar from './toolbar';
 import Toolbox from './toolbox';
 import './workspace.scss';
+
+// After loading a bot's XML into a fresh workspace, the Market/Trade Type/Contract Type
+// dropdowns in the "Trade parameters" block can render blank if active_symbols data
+// wasn't fully loaded at the exact moment the trade_definition_market block was created
+// (e.g. bots loaded immediately on navigation from the Free Bots library). Re-firing a
+// BlockCreate event once active symbols are confirmed loaded re-triggers the same
+// dropdown population chain (market -> submarket -> symbol -> trade type -> contract type)
+// used elsewhere in the app on reconnect/account switch.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const repopulateTradeParameterDropdowns = async (workspace: any) => {
+    const active_symbols = ApiHelpers?.instance?.active_symbols;
+    if (!active_symbols) return;
+
+    try {
+        await active_symbols.retrieveActiveSymbols();
+    } catch {
+        return;
+    }
+
+    workspace
+        .getAllBlocks()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((block: any) => block.type === 'trade_definition_market')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .forEach((block: any) => {
+            runIrreversibleEvents(() => {
+                const fake_create_event = new window.Blockly.Events.BlockCreate(block);
+                window.Blockly.Events.fire(fake_create_event);
+            });
+        });
+};
 
 const WorkspaceWrapper = observer(() => {
     const { blockly_store, dashboard } = useStore();
@@ -60,6 +92,10 @@ const WorkspaceWrapper = observer(() => {
                     // Show import notification and clear handoff
                     setOpenSettings?.(NOTIFICATION_TYPE.BOT_IMPORT);
                     clearPendingFreeBot();
+
+                    // Ensure Market/Trade Type/Contract Type dropdowns render populated,
+                    // even if active symbols weren't fully loaded when the blocks were created.
+                    await repopulateTradeParameterDropdowns(window.Blockly.derivWorkspace);
 
                     // Reset the processed bot ref after successful load
                     processedBotRef.current = null;
