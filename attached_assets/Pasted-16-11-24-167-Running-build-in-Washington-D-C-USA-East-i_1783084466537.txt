@@ -1,0 +1,38 @@
+16:11:24.167 Running build in Washington, D.C., USA (East) – iad1
+16:11:24.168 Build machine configuration: 2 cores, 8 GB
+16:11:24.473 Cloning github.com/alexwachira114-sys/sasa-huyu (Branch: main, Commit: 84d6848)
+16:11:31.633 Cloning completed: 7.160s
+16:11:31.879 Found .vercelignore
+16:11:31.949 Removed 42 ignored files defined in .vercelignore
+16:11:31.949   /.git/config
+16:11:31.950   /.git/description
+16:11:31.950   /.git/FETCH_HEAD
+16:11:31.950   /.git/HEAD
+16:11:31.950   /.git/hooks/applypatch-msg.sample
+16:11:31.950   /.git/hooks/commit-msg.sample
+16:11:31.950   /.git/hooks/fsmonitor-watchman.sample
+16:11:31.951   /.git/hooks/post-update.sample
+16:11:31.951   /.git/hooks/pre-applypatch.sample
+16:11:31.951   /.git/hooks/pre-commit.sample
+16:11:32.110 Restored build cache from previous deployment (24dyPDw1dAL8gBYgFv6dHxadhvQd)
+16:11:32.422 Running "vercel build"
+16:11:32.449 Vercel CLI 54.19.0
+16:11:33.755 Error: Node.js version 20.x is deprecated. Deployments created on or after 2026-10-01 will fail to build. Please set "engines": { "node": "24.x" } in your `package.json` file to use Node.js 24.
+16:11:33.757 Warning: Due to "engines": { "node": "20.x" } in your `package.json` file, the Node.js Version defined in your Project Settings ("24.x") will not apply, Node.js Version "20.x" will be used instead. Learn More: https://vercel.link/node-version
+16:11:33.788 Installing dependencies...
+16:11:42.695 npm warn EBADENGINE Unsupported engine {
+16:11:42.696 npm warn EBADENGINE   package: '@deriv-com/analytics@1.42.1',
+16:11:42.697 npm warn EBADENGINE   required: { node: '>=24.13.0', npm: '>=11.7.0' },
+16:11:42.697 npm warn EBADENGINE   current: { node: 'v20.20.2', npm: '10.8.2' }
+16:11:42.698 npm warn EBADENGINE }
+16:12:53.084 npm error code ENOTFOUND
+16:12:53.085 npm error syscall getaddrinfo
+16:12:53.085 npm error errno ENOTFOUND
+16:12:53.086 npm error network request to http://package-firewall.replit.local/npm/i18next/-/i18next-26.3.4.tgz failed, reason: getaddrinfo ENOTFOUND package-firewall.replit.local
+16:12:53.086 npm error network This is a problem related to network connectivity.
+16:12:53.086 npm error network In most cases you are behind a proxy or have bad network settings.
+16:12:53.087 npm error network
+16:12:53.087 npm error network If you are behind a proxy, please make sure that the
+16:12:53.087 npm error network 'proxy' config is set properly.  See: 'npm help config'
+16:12:53.088 npm error A complete log of this run can be found in: /vercel/.npm/_logs/2026-07-03T13_11_33_947Z-debug-0.log
+16:12:53.113 Error: Command "npm install" exited with 1
