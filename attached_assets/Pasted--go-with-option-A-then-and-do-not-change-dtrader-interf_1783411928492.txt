@@ -1,0 +1,99 @@
+
+go with option A then and do not change dtrader interface the way it is our issue is placing trades only ...be 100% accurate
+
+43 minutes ago
+Porting existing UI
+
+Porting existing UI
+Let me check what files NewDTrader.tsx needs that we might not have.
+
+
+3 actions
+Good. Two files needed from sasa-huyu: indicators.ts and the full NewDTrader.tsx. Let me read both in parallel.
+
+
+3 actions
+Let me read the rest of NewDTrader.tsx in parallel chunks.
+
+
+4 actions
+Need the two truncated sections before writing. Reading them now.
+
+
+3 actions
+I have everything. Now writing all three files in parallel — indicators.ts, NewDTrader.tsx, and the updated dtrader.tsx.
+
+
+4 actions
+Let me check the logs and verify the build compiles cleanly.
+
+
+2 actions
+The dev server rebuilt pages/dtrader/dtrader.tsx cleanly in 3.71s with no TypeScript errors. Now running the required code review.
+
+
+3 actions
+The code review caught a real bug: useCallback and useEffect in dtrader.tsx come after the early return, violating Rules of Hooks. Fixing by moving all hooks before the gate, and branching only in the final JSX return.
+
+
+4 actions
+Clean build — dtrader.tsx rebuilt in 1.00s with no errors after the hooks fix.
+
+Here's what was delivered:
+
+src/pages/dtrader/indicators.ts — new file with SMA, EMA, RSI, MACD, Bollinger Bands, Stochastic, ATR, and CCI calculation functions used by the chart.
+
+src/pages/dtrader/NewDTrader.tsx — full self-contained trading interface for new-auth users: canvas chart (line + candlestick), 10 drawing tools, live tick WebSocket, digit statistics, trade placement via sendViaNewSystemWithPromise, accumulator support, contract history, session P&L, and both desktop and mobile layouts.
+
+src/pages/dtrader/dtrader.tsx — updated to call isNewLoggedIn() and render <NewDTrader /> for OTP/PKCE users, while leaving the legacy iframe path completely intact for legacy-token users. All hooks are called unconditionally before any branching (Rules of Hooks compliant, as flagged and fixed by code review).
+
+
+Checkpoint made
+30 minutes ago
+
+Worked for 13 minutes
+10:48:08.798 Running build in Washington, D.C., USA (East) – iad1 10:48:08.799 Build machine configuration: 2 cores, 8 GB 10:48:08.895 Cloning github.com/alexwachira114-sys/sasa-huyu (Branch: main, Commit: 0808257) 10:48:17.630 Cloning completed: 8.735s 10:48:17.801 Found .vercelignore 10:48:17.891 Removed 42 ignored files defined in .vercelignore 10:48:17.892 /.git/config 10:48:17.892 /.git/description 10:48:17.892 /.git/FETCH_HEAD 10:48:17.893 /.git/HEAD 10:48:17.893 /.git/hooks/applypatch-msg.sample 10:48:17.893 /.git/hooks/commit-msg.sample 10:48:17.893 /.git/hooks/fsmonitor-watchman.sample 10:48:17.894 /.git/hooks/post-update.sample 10:48:17.894 /.git/hooks/pre-applypatch.sample 10:48:17.894 /.git/hooks/pre-commit.sample 10:48:17.968 Restored build cache from previous deployment (EJQw3Y82er8tL8o5ZrPKPMfGxko7) 10:48:18.189 Running "vercel build" 10:48:18.209 Vercel CLI 54.19.0 10:48:19.155 Installing dependencies... 10:49:31.689 npm error code ENOTFOUND 10:49:31.689 npm error syscall getaddrinfo 10:49:31.689 npm error errno ENOTFOUND 10:49:31.689 npm error network request to http://package-firewall.replit.local/npm/npm/-/npm-10.9.8.tgz failed, reason: getaddrinfo ENOTFOUND package-firewall.replit.local 10:49:31.690 npm error network This is a problem related to network connectivity. 10:49:31.691 npm error network In most cases you are behind a proxy or have bad network settings. 10:49:31.691 npm error network 10:49:31.693 npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly. See: 'npm help config' 10:49:31.693 npm error A complete log of this run can be found in: /vercel/.npm/_logs/2026-07-07T07_48_19_261Z-debug-0.log 10:49:31.729 Error: Command "npm install" exited with 1
+
+20 minutes ago
+Diagnosing Vercel deployment issue
+
+Diagnosing Vercel deployment issue
+The Vercel build for sasa-huyu is failing because Replit injects a .npmrc that points npm at its internal registry (package-firewall.replit.local), which Vercel can't reach. Let me check if this current project has the same issue, and provide the fix.
+
+
+2 actions
+Good news — this project's .npmrc already points at the public registry (https://registry.npmjs.org/), so it won't have that problem if you deploy it.
+
+For sasa-huyu on Vercel, the cause is clear: Replit injects registry=http://package-firewall.replit.local into that project's .npmrc, and Vercel's build servers can't reach Replit's internal network. There are two ways to fix it inside the sasa-huyu repo:
+
+Option A — override in vercel.json (quickest, no .npmrc changes)
+
+Add a vercel.json at the project root:
+
+{
+  "installCommand": "npm install --registry https://registry.npmjs.org"
+}
+
+Option B — fix .npmrc directly
+
+Open sasa-huyu/.npmrc and replace:
+
+registry=http://package-firewall.replit.local
+
+with:
+
+registry=https://registry.npmjs.org/
+
+Then commit and push. Vercel will pick it up on the next deploy.
+
+Option A is safer because it doesn't break the Replit development environment (which needs the local registry to work). The vercel.json override only applies during Vercel builds.
+
+
+Worked for 48 seconds
+10:48:08.798 Running build in Washington, D.C., USA (East) – iad1 10:48:08.799 Build machine configuration: 2 cores, 8 GB 10:48:08.895 Cloning github.com/alexwachira114-sys/sasa-huyu (Branch: main, Commit: 0808257) 10:48:17.630 Cloning completed: 8.735s 10:48:17.801 Found .vercelignore 10:48:17.891 Removed 42 ignored files defined in .vercelignore 10:48:17.892 /.git/config 10:48:17.892 /.git/description 10:48:17.892 /.git/FETCH_HEAD 10:48:17.893 /.git/HEAD 10:48:17.893 /.git/hooks/applypatch-msg.sample 10:48:17.893 /.git/hooks/commit-msg.sample 10:48:17.893 /.git/hooks/fsmonitor-watchman.sample 10:48:17.894 /.git/hooks/post-update.sample 10:48:17.894 /.git/hooks/pre-applypatch.sample 10:48:17.894 /.git/hooks/pre-commit.sample 10:48:17.968 Restored build cache from previous deployment (EJQw3Y82er8tL8o5ZrPKPMfGxko7) 10:48:18.189 Running "vercel build" 10:48:18.209 Vercel CLI 54.19.0 10:48:19.155 Installing dependencies... 10:49:31.689 npm error code ENOTFOUND 10:49:31.689 npm error syscall getaddrinfo 10:49:31.689 npm error errno ENOTFOUND 10:49:31.689 npm error network request to http://package-firewall.replit.local/npm/npm/-/npm-10.9.8.tgz failed, reason: getaddrinfo ENOTFOUND package-firewall.replit.local 10:49:31.690 npm error network This is a problem related to network connectivity. 10:49:31.691 npm error network In most cases you are behind a proxy or have bad network settings. 10:49:31.691 npm error network 10:49:31.693 npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly. See: 'npm help config' 10:49:31.693 npm error A complete log of this run can be found in: /vercel/.npm/_logs/2026-07-07T07_48_19_261Z-debug-0.log 10:49:31.729 Error: Command "npm install" exited with 1 fix this error
+
+18 minutes ago
+Fixing Vercel build error
+
+Fixing Vercel build error
+I can't directly push to the sasa-huyu GitHub repo from here, but I can create the fix file and walk you through applying it. Let me check if there's a git remote configured for it.
