@@ -58,6 +58,17 @@ npm run build   # outputs to dist/
 
 The deployment target is Cloudflare Pages (see `.replit` deploy config). For Replit deployment, `dist/` is served via `http-server`.
 
+## Installing dependencies on Replit
+
+The Replit package firewall blocks certain old tarball versions. To install cleanly:
+
+```bash
+npm install --legacy-peer-deps --omit=optional
+npm install @rspack/binding-linux-x64-gnu   # Rspack native binding for Linux x64
+```
+
+The `package.json` overrides section pins `npm` and `npm-run-path` to newer versions to satisfy the firewall registry. A side effect: `lint-staged@10` pre-commit hooks may fail because `execa@4` (its dep) is incompatible with `npm-run-path@5` (ESM-only). This does not affect the dev server or build.
+
 ## Known shims
 
 - `src/components/shims/quill-icons-illustration/` — stubs missing `.webp` assets in `@deriv/quill-icons`
