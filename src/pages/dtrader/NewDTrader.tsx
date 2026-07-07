@@ -2001,7 +2001,7 @@ const NewDTrader: React.FC = () => {
 
   /* ─── PHONE LAYOUT ─── */
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', color: '#333', fontSize: '13px', background: '#fff', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, color: '#333', fontSize: '13px', background: '#fff', overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: '4px', padding: '6px 8px', background: '#f0f0f0', overflowX: 'auto', whiteSpace: 'nowrap', borderBottom: '1px solid #ddd', alignItems: 'center', minHeight: '36px' }}>
         {navTradeTypes.map(t => (
           <button key={t.value} onClick={() => setTradeType(t.value)}

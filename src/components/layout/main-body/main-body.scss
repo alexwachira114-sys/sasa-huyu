@@ -1,5 +1,9 @@
 .main-body {
     flex-grow: 1;
-    margin: 0; // Remove any default margins
-    padding: 0; // Remove any default padding
+    margin: 0;
+    padding: 0;
+    min-height: 0;       // Allows flex child to shrink below content size
+    overflow: hidden;    // Prevents children from punching out of the layout
+    display: flex;
+    flex-direction: column;
 }
