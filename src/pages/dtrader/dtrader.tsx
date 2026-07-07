@@ -2,49 +2,41 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import IframeWrapper from '@/components/iframe-wrapper';
 import { getAppId } from '@/components/shared/utils/config/config';
-import { V2GetActiveToken, V2GetActiveClientId } from '@/external/bot-skeleton/services/api/appId';
+import { getMainAppActiveToken, getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
+import { isNewLoggedIn } from '@/auth/NewDerivAuth';
+import NewDTrader from './NewDTrader';
 
 const Dtrader = observer(() => {
+    // Determine auth mode first — but ALL hooks must be called unconditionally
+    // before any early return (Rules of Hooks).
+    const newAuth = isNewLoggedIn();
+
     const [iframeSrc, setIframeSrc] = useState<string>('');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
     const buildIframeUrl = useCallback((token: string, loginId: string) => {
-        // Get currency from clientAccounts or accountsList
+        // Skip work for new-auth users — they get NewDTrader, not the iframe.
+        if (newAuth) return;
+
         const clientAccountsStr = localStorage.getItem('clientAccounts') || '{}';
-        const accountsListStr = localStorage.getItem('accountsList') || '{}';
-        let currency = 'USD'; // Default currency
+        let currency = 'USD';
 
         try {
             const clientAccounts = JSON.parse(clientAccountsStr);
             const account = clientAccounts[loginId];
             if (account?.currency) {
                 currency = account.currency;
-            } else {
-                // Fallback to accountsList
-                const accountsList = JSON.parse(accountsListStr);
-                const accountInfo = Object.keys(accountsList).find(key => key === loginId);
-                if (accountInfo) {
-                    // Try to get currency from account info if available
-                    const accountData = JSON.parse(localStorage.getItem('accountList') || '[]');
-                    const acc = accountData.find((a: any) => a.loginid === loginId);
-                    if (acc?.currency) {
-                        currency = acc.currency;
-                    }
-                }
             }
         } catch (error) {
             console.error('Error parsing clientAccounts:', error);
         }
 
-        // Get app ID (same as used in login auth)
-        // getAppId() always returns the correct app_id and updates localStorage
         const appId = getAppId() || 114292;
+        const effectiveToken = token || loginId;
 
-        // Build iframe URL with authentication parameters
-        // Try multiple parameters to disable bot controls in DTrader
         const params = new URLSearchParams({
             acct1: loginId,
-            token1: token,
+            token1: effectiveToken,
             cur1: currency,
             lang: 'EN',
             app_id: appId.toString(),
@@ -52,7 +44,6 @@ const Dtrader = observer(() => {
             interval: '1t',
             symbol: '1HZ100V',
             trade_type: 'over_under',
-            // Multiple attempts to disable bot controls
             hide_bot: '1',
             bot_disabled: 'true',
             disable_bot: '1',
@@ -63,36 +54,47 @@ const Dtrader = observer(() => {
 
         const url = `https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`;
         setIframeSrc(url);
-    }, []);
+    }, [newAuth]);
 
     useEffect(() => {
-        // Check if user is authenticated
-        const token = V2GetActiveToken();
-        const activeLoginId = V2GetActiveClientId();
+        // No iframe work needed for new-auth users.
+        if (newAuth) return;
 
-        if (token && activeLoginId) {
+        const token = getMainAppActiveToken();
+        const activeLoginId = getMainAppActiveLoginId();
+
+        if (activeLoginId && token) {
             setIsAuthenticated(true);
             buildIframeUrl(token, activeLoginId);
+        } else if (activeLoginId) {
+            setIsAuthenticated(true);
+            buildIframeUrl(activeLoginId, activeLoginId);
         } else {
             setIsAuthenticated(false);
-            // Load dtrader without authentication (will prompt login)
             setIframeSrc(
                 'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
             );
         }
-    }, [buildIframeUrl]);
+    }, [buildIframeUrl, newAuth]);
 
-    // Listen for account switches and authentication changes
     useEffect(() => {
-        const checkAuthAndUpdate = () => {
-            const token = V2GetActiveToken();
-            const activeLoginId = V2GetActiveClientId();
+        // No polling needed for new-auth users.
+        if (newAuth) return;
 
-            if (token && activeLoginId) {
+        const checkAuthAndUpdate = () => {
+            const token = getMainAppActiveToken();
+            const activeLoginId = getMainAppActiveLoginId();
+
+            if (activeLoginId && token) {
                 if (!isAuthenticated) {
                     setIsAuthenticated(true);
                 }
                 buildIframeUrl(token, activeLoginId);
+            } else if (activeLoginId) {
+                if (!isAuthenticated) {
+                    setIsAuthenticated(true);
+                }
+                buildIframeUrl(activeLoginId, activeLoginId);
             } else if (isAuthenticated) {
                 setIsAuthenticated(false);
                 setIframeSrc(
@@ -101,30 +103,33 @@ const Dtrader = observer(() => {
             }
         };
 
-        // Listen for storage changes (account switches from other tabs)
         const handleStorageChange = (e: StorageEvent) => {
             if (
                 e.key === 'authToken' ||
                 e.key === 'active_loginid' ||
                 e.key === 'clientAccounts' ||
                 e.key === 'accountsList' ||
-                e.key === 'show_as_cr'
+                e.key === 'show_as_cr' ||
+                e.key === 'NEW_AUTH_token'
             ) {
                 checkAuthAndUpdate();
             }
         };
 
         window.addEventListener('storage', handleStorageChange);
-
-        // Check periodically for localStorage changes (same tab)
-        // This handles cases where auth is set after component mount
         const interval = setInterval(checkAuthAndUpdate, 2000);
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             clearInterval(interval);
         };
-    }, [isAuthenticated, buildIframeUrl]);
+    }, [isAuthenticated, buildIframeUrl, newAuth]);
+
+    // New-auth users: render the fully functional custom trading interface.
+    // It connects directly via the OTP WebSocket so trades work immediately.
+    if (newAuth) {
+        return <NewDTrader />;
+    }
 
     if (!iframeSrc) {
         return (
