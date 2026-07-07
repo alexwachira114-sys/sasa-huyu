@@ -43,6 +43,7 @@ import { CaxynexusAiWidget } from '@/components/caxynexus-ai-widget/caxynexus-ai
 import BlocklyIOSPrompt from '@/components/blockly-ios-prompt/blockly-ios-prompt';
 import SmartTrader from '../customizations/standalones/SmartTrader';
 import ElitePremium from '../customizations/SignalTools/ElitePremium';
+import Dtrader from '../dtrader';
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -76,6 +77,7 @@ const AppWrapper = observer(() => {
         'elite_prime',   // 10 - Elite Prime AI
         'tradingview',   // 11 - TradingView
         'deriv_api',     // 12 - Deriv New API
+        'dtrader',       // 13 - DTrader
     ];
     
     const { isDesktop } = useDevice();
@@ -171,11 +173,14 @@ const AppWrapper = observer(() => {
                         <div label={<><LabelPairedPuzzlePieceTwoCaptionBoldIcon height='24px' width='24px' /><Localize i18n_default_text='Deriv API' /></>} id='id-deriv-api'>
                             <Suspense fallback={<ChunkLoader message={localize('Please wait...')} />}><DerivNewApiPage /></Suspense>
                         </div>
+                        <div label={<><LabelPairedChartLineCaptionRegularIcon height='24px' width='24px' /><Localize i18n_default_text='DTrader' /></>} id='id-dtrader'>
+                            <Dtrader />
+                        </div>
                     </Tabs>
                 </div>
             </div>
             <DesktopWrapper>
-                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && (
+                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && hash[active_tab] !== 'dtrader' && (
                     <div className='main__run-strategy-wrapper'>
                         {hash[active_tab] !== 'over_under' && hash[active_tab] !== 'smart_trader' && hash[active_tab] !== 'elite_prime' && <RunStrategy />}
                         <RunPanel />
@@ -183,7 +188,7 @@ const AppWrapper = observer(() => {
                 )}
                 <ChartModal /><TradingViewModal />
             </DesktopWrapper>
-            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && <RunPanel />}</MobileWrapper>
+            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'tradingview' && hash[active_tab] !== 'deriv_api' && hash[active_tab] !== 'dtrader' && <RunPanel />}</MobileWrapper>
             <SpeedBotFloatingStop />
             {hash[active_tab] === 'bot_builder' && <CaxynexusAiWidget />}
             <BlocklyIOSPrompt />
