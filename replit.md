@@ -1,54 +1,69 @@
-# Caxynexus-Ai — Professional Deriv trading bot builder and copy trading dashboard
+# Caxynexus-Ai / Freezy Trading Hub
 
-## Run & Operate
-- **Dev server**: `npm run start` (runs on port 5000)
-- **Build**: `npm run build` → outputs to `dist/`
-- **Test**: `npm test`
-- **Required env vars** (optional, analytics/translations only): `TRANSLATIONS_CDN_URL`, `R2_PROJECT_NAME`, `CROWDIN_BRANCH_NAME`, `TRACKJS_TOKEN`, `APP_ENV`, `DATADOG_*`, `RUDDERSTACK_KEY`, `GROWTHBOOK_*`
+A professional trading bot builder and copy trading dashboard powered by the Deriv ecosystem.
+
+## Overview
+
+- **Bot Builder**: Visual drag-and-drop strategy editor using Blockly
+- **Copy Trading**: Dashboard to follow and replicate other traders
+- **Live Charts**: Real-time charting via `@deriv/deriv-charts`
+- **Auth**: Deriv OIDC/PKCE flow — tokens arrive via URL params, exchanged by the Express server
 
 ## Stack
-- React 18 + TypeScript, rsbuild (RSPack-based bundler)
-- MobX for state management, SCSS/Sass for styling
-- `@deriv-com/auth-client` for Deriv OIDC auth (URL-param token flow)
-- `@deriv/deriv-api` for WebSocket API communication
-- Blockly for visual bot builder
-- Node 20.x
 
-## Where things live
-- `src/main.tsx` — app entry point
-- `src/app/` — routing, auth wrapper, app bootstrap
-- `src/pages/` — page-level features (main dashboard, callback, endpoint)
-- `src/components/` — UI components (layout, header, modals, bot builder)
-- `src/external/bot-skeleton/` — Deriv API/WebSocket abstraction
-- `src/stores/` — MobX stores
-- `src/hooks/` — custom hooks
-- `src/utils/supabase.ts` — Supabase client (copy trading token storage)
-- `rsbuild.config.ts` — build config (entry, aliases, server config)
-- `index.html` — HTML template (rsbuild injects bundles automatically)
+| Layer | Tech |
+|---|---|
+| Frontend | React 18, TypeScript, rsbuild (RSPack) |
+| State | MobX + MobX React Lite |
+| Styling | SCSS/Sass |
+| Bot Engine | Blockly + `@deriv/js-interpreter` |
+| API | `@deriv/deriv-api` (WebSocket) |
+| Backend | Express (Node.js) — port 3001 |
+| Storage | Supabase (copy trading tokens) |
 
-## Architecture decisions
-- Uses rsbuild (not Webpack/Vite) — bundler config is in `rsbuild.config.ts`
-- Auth is Deriv's own OIDC flow via URL params (tokens come back in the URL after login redirect); no Replit Auth replacement needed
-- Supabase is used as a data store for copy trading tokens, not for authentication
-- Firebase is used only for remote config (country allow-lists), with a local fallback
-- `historyApiFallback: true` enables SPA routing in dev mode
+## Running the project
 
-## Product
-- Visual trading bot builder (Blockly-based)
-- Copy trading (follow/replicate other traders)
-- Live charts, trading signals, over/under tools
-- Free bots library with XML bot definitions
-- Multi-account support via Deriv's account switcher
+Two workflows run in parallel:
+
+| Workflow | Command | Port |
+|---|---|---|
+| Dev Server | `node --experimental-vm-modules node_modules/@rsbuild/core/bin/rsbuild.js dev` | 5000 |
+| API Server | `npm run server` | 3001 |
+
+Start both with the **Project** run button, or individually via the workflow list.
+
+The frontend dev server (port 5000) proxies `/api/*` to the Express server on port 3001.
+
+## Environment variables / Secrets
+
+These are optional — the app runs without them but with reduced functionality:
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Copy trading token storage |
+| `SUPABASE_KEY` | Copy trading token storage |
+| `GD_CLIENT_ID` | Google Drive bot save/load |
+| `GD_API_KEY` | Google Drive bot save/load |
+| `TRACKJS_TOKEN` | Error tracking |
+| `DATADOG_APPLICATION_ID` | Analytics |
+| `DATADOG_CLIENT_TOKEN` | Analytics |
+| `RUDDERSTACK_KEY` | Analytics |
+| `GROWTHBOOK_CLIENT_KEY` | Feature flags |
+
+## Build for production
+
+```bash
+npm run build   # outputs to dist/
+```
+
+The deployment target is Cloudflare Pages (see `.replit` deploy config). For Replit deployment, `dist/` is served via `http-server`.
+
+## Known shims
+
+- `src/components/shims/quill-icons-illustration/` — stubs missing `.webp` assets in `@deriv/quill-icons`
+- `src/components/shims/ui-submenu/` — patches a malformed import path in `@deriv-com/ui`
+- `src/components/shims/object-fromentries/` — stubs broken `es-abstract` dependency chain
 
 ## User preferences
-- Port 5000, host 0.0.0.0 for Replit preview pane
-- `pluginBasicSsl` disabled (Replit handles TLS)
 
-## Gotchas
-- Do NOT add `<script type="module" src="/src/main.tsx">` to `index.html` — rsbuild injects the bundle script automatically
-- `source.alias` is deprecated in rsbuild v1.7+; use `resolve.alias` instead (warning only, doesn't break build)
-- Black screen on load is expected when not authenticated with Deriv — the app requires a Deriv account login
-
-## Pointers
-- rsbuild docs: https://rsbuild.dev/
-- Deriv API: https://api.deriv.com/
+_No preferences recorded yet._
