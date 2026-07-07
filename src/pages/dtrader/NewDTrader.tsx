@@ -1448,6 +1448,17 @@ const NewDTrader: React.FC = () => {
 
   const handleBuyContract = (ct: string) => {
     if (isTrading) return;
+
+    // Guard: OTP trading socket must be open before we attempt a buy.
+    // If it isn't, sendViaNewSystem returns false silently and isTrading
+    // would hang on "Buying…" forever with no trade sent.
+    const ws = (window as any)._newSystemWS;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setTradeResult({ isWin: false, profit: 0, contract_type: 'NOT_CONNECTED', entry_digit: 0, exit_digit: 0 });
+      setTimeout(() => setTradeResult(null), 3000);
+      return;
+    }
+
     setIsTrading(true);
     const isAccu = tradeType === 'accumulator';
     const params: Record<string, any> = {
@@ -1466,7 +1477,13 @@ const NewDTrader: React.FC = () => {
     if (ct === 'DIGITOVER' || ct === 'DIGITUNDER' || ct === 'DIGITMATCH' || ct === 'DIGITDIFF') {
       params.barrier = barrier;
     }
-    sendViaNewSystem({ buy: 1, price: parseFloat(stake) || 0.35, parameters: params });
+    const sent = sendViaNewSystem({ buy: 1, price: parseFloat(stake) || 0.35, parameters: params });
+    // If send failed after the readyState check (race), reset immediately.
+    if (!sent) {
+      setIsTrading(false);
+      setTradeResult({ isWin: false, profit: 0, contract_type: 'NOT_CONNECTED', entry_digit: 0, exit_digit: 0 });
+      setTimeout(() => setTradeResult(null), 3000);
+    }
   };
 
   const handleSellContract = async (contractId: string) => {
@@ -1961,11 +1978,17 @@ const NewDTrader: React.FC = () => {
         {tradeResult && (
           <div style={{
             position: 'fixed', top: '16px', right: '16px', zIndex: 9999,
-            background: tradeResult.isWin ? '#1b5e20' : '#b71c1c',
+            background: tradeResult.contract_type === 'NOT_CONNECTED' ? '#e65100'
+              : tradeResult.contract_type === 'SELL_ERR' ? '#b71c1c'
+              : tradeResult.isWin ? '#1b5e20' : '#b71c1c',
             color: '#fff', padding: '12px 20px', borderRadius: '8px',
             fontSize: '14px', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
           }}>
-            {tradeResult.isWin ? 'WIN' : 'LOSS'} · {tradeResult.contract_type} · {tradeResult.entry_digit}→{tradeResult.exit_digit} · {tradeResult.isWin ? '+' : ''}${tradeResult.profit.toFixed(2)}
+            {tradeResult.contract_type === 'NOT_CONNECTED'
+              ? '⚠ Trading socket not ready — please wait'
+              : tradeResult.contract_type === 'SELL_ERR'
+              ? '⚠ Sell failed — please try again'
+              : `${tradeResult.isWin ? 'WIN' : 'LOSS'} · ${tradeResult.contract_type} · ${tradeResult.entry_digit}→${tradeResult.exit_digit} · ${tradeResult.isWin ? '+' : ''}${tradeResult.profit.toFixed(2)}`}
           </div>
         )}
       </div>
@@ -2305,12 +2328,18 @@ const NewDTrader: React.FC = () => {
       {tradeResult && (
         <div style={{
           position: 'fixed', top: '60px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
-          background: tradeResult.isWin ? '#1b5e20' : '#b71c1c',
+          background: tradeResult.contract_type === 'NOT_CONNECTED' ? '#e65100'
+            : tradeResult.contract_type === 'SELL_ERR' ? '#b71c1c'
+            : tradeResult.isWin ? '#1b5e20' : '#b71c1c',
           color: '#fff', padding: '10px 18px', borderRadius: '8px',
           fontSize: '13px', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           whiteSpace: 'nowrap',
         }}>
-          {tradeResult.isWin ? 'WIN' : 'LOSS'} · {tradeResult.contract_type} · {tradeResult.entry_digit}→{tradeResult.exit_digit} · {tradeResult.isWin ? '+' : ''}${tradeResult.profit.toFixed(2)}
+          {tradeResult.contract_type === 'NOT_CONNECTED'
+            ? '⚠ Trading socket not ready — please wait'
+            : tradeResult.contract_type === 'SELL_ERR'
+            ? '⚠ Sell failed — please try again'
+            : `${tradeResult.isWin ? 'WIN' : 'LOSS'} · ${tradeResult.contract_type} · ${tradeResult.entry_digit}→${tradeResult.exit_digit} · ${tradeResult.isWin ? '+' : ''}${tradeResult.profit.toFixed(2)}`}
         </div>
       )}
     </div>

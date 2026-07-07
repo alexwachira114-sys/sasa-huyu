@@ -3,13 +3,17 @@ import { observer } from 'mobx-react-lite';
 import IframeWrapper from '@/components/iframe-wrapper';
 import { getAppId } from '@/components/shared/utils/config/config';
 import { getMainAppActiveToken, getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
-import { isNewLoggedIn } from '@/auth/NewDerivAuth';
+import { isNewLoggedIn, createNewWebSocket } from '@/auth/NewDerivAuth';
 import NewDTrader from './NewDTrader';
 
 const Dtrader = observer(() => {
     // Determine auth mode first — but ALL hooks must be called unconditionally
     // before any early return (Rules of Hooks).
     const newAuth = isNewLoggedIn();
+
+    // For PKCE users: track whether the OTP trading socket is open.
+    // We poll every 500 ms until window._newSystemWSReady is true.
+    const [otpReady, setOtpReady] = useState<boolean>(() => !!(window as any)._newSystemWSReady);
 
     const [iframeSrc, setIframeSrc] = useState<string>('');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -54,6 +58,27 @@ const Dtrader = observer(() => {
 
         const url = `https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`;
         setIframeSrc(url);
+    }, [newAuth]);
+
+    // Poll until the OTP WebSocket is open, then stop. Also kick off
+    // createNewWebSocket() if App.tsx hasn't done it yet (e.g. fast nav).
+    useEffect(() => {
+        if (!newAuth) return;
+        if ((window as any)._newSystemWSReady) { setOtpReady(true); return; }
+
+        // Trigger connection if it hasn't started yet
+        if (!(window as any)._newSystemWS) {
+            createNewWebSocket();
+        }
+
+        const poll = setInterval(() => {
+            if ((window as any)._newSystemWSReady) {
+                setOtpReady(true);
+                clearInterval(poll);
+            }
+        }, 500);
+
+        return () => clearInterval(poll);
     }, [newAuth]);
 
     useEffect(() => {
@@ -125,9 +150,19 @@ const Dtrader = observer(() => {
         };
     }, [isAuthenticated, buildIframeUrl, newAuth]);
 
-    // New-auth users: render the fully functional custom trading interface.
-    // It connects directly via the OTP WebSocket so trades work immediately.
+    // New-auth users: wait for the OTP trading socket before rendering.
+    // Without this, handleBuyContract fires while window._newSystemWS is null
+    // → sendViaNewSystem returns false → isTrading hangs on "Buying..." forever.
     if (newAuth) {
+        if (!otpReady) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: '#ccc' }}>
+                    <div style={{ width: '32px', height: '32px', border: '3px solid #444', borderTop: '3px solid #4caf50', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    <span style={{ fontSize: '14px' }}>Connecting trading socket…</span>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            );
+        }
         return <NewDTrader />;
     }
 
