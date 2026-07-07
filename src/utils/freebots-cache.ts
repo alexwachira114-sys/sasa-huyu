@@ -10,7 +10,7 @@ export type TBotsManifestItem = {
     features?: string[];
 };
 
-const XML_CACHE_PREFIX = 'freebots:xml:';
+const XML_CACHE_PREFIX = 'freebots:xml:v2:';
 
 // In-memory cache for faster access
 const memoryCache = new Map<string, string>();
