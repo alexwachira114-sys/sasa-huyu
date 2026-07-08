@@ -10,6 +10,7 @@ export default defineConfig({
         pluginSass({
             sassLoaderOptions: {
                 sourceMap: true,
+                implementation: require('sass'),
                 sassOptions: {
                     // includePaths: [path.resolve(__dirname, 'src')],
                 },
