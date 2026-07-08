@@ -1,0 +1,105 @@
+10:29:52.119 Running build in Washington, D.C., USA (East) – iad1
+10:29:52.124 Build machine configuration: 2 cores, 8 GB
+10:29:52.344 Cloning github.com/alexwachira114-sys/sasa-huyu (Branch: main, Commit: f888386)
+10:30:02.657 Cloning completed: 10.313s
+10:30:02.843 Found .vercelignore
+10:30:02.943 Removed 42 ignored files defined in .vercelignore
+10:30:02.943   /.git/config
+10:30:02.944   /.git/description
+10:30:02.944   /.git/FETCH_HEAD
+10:30:02.945   /.git/HEAD
+10:30:02.945   /.git/hooks/applypatch-msg.sample
+10:30:02.945   /.git/hooks/commit-msg.sample
+10:30:02.945   /.git/hooks/fsmonitor-watchman.sample
+10:30:02.946   /.git/hooks/post-update.sample
+10:30:02.946   /.git/hooks/pre-applypatch.sample
+10:30:02.946   /.git/hooks/pre-commit.sample
+10:30:03.093 Restored build cache from previous deployment (E25soUJXQPi2HZf7yXSv6wGufmoB)
+10:30:03.329 Running "vercel build"
+10:30:03.345 Vercel CLI 54.19.0
+10:30:04.339 Running "install" command: `npm install --legacy-peer-deps --omit=optional`...
+10:31:00.655 
+10:31:00.655 > bot@0.0.1 prepare
+10:31:00.655 > husky install
+10:31:00.656 
+10:31:00.705 fatal: not a git repository (or any parent up to mount point /vercel)
+10:31:00.705 Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+10:31:00.725 
+10:31:00.725 removed 182 packages, and audited 1894 packages in 56s
+10:31:00.726 
+10:31:00.726 382 packages are looking for funding
+10:31:00.726   run `npm fund` for details
+10:31:00.889 
+10:31:00.890 17 vulnerabilities (6 moderate, 11 high)
+10:31:00.890 
+10:31:00.891 To address issues that do not require attention, run:
+10:31:00.891   npm audit fix
+10:31:00.891 
+10:31:00.891 To address all issues (including breaking changes), run:
+10:31:00.892   npm audit fix --force
+10:31:00.892 
+10:31:00.892 Run `npm audit` for details.
+10:31:01.264 
+10:31:01.265 > bot@0.0.1 build
+10:31:01.265 > node node_modules/@rsbuild/core/bin/rsbuild.js build
+10:31:01.266 
+10:31:01.354 /vercel/path0/node_modules/@rspack/binding/binding.js:395
+10:31:01.354     throw new Error(
+10:31:01.354           ^
+10:31:01.354 
+10:31:01.354 Error: Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+10:31:01.354 
+10:31:01.354 Cannot find module './rspack.linux-x64-gnu.node'
+10:31:01.354 Require stack:
+10:31:01.354 - /vercel/path0/node_modules/@rspack/binding/binding.js
+10:31:01.354 Cannot find module '@rspack/binding-linux-x64-gnu'
+10:31:01.354 Require stack:
+10:31:01.355 - /vercel/path0/node_modules/@rspack/binding/binding.js
+10:31:01.355     at Object.<anonymous> (/vercel/path0/node_modules/@rspack/binding/binding.js:395:11)
+10:31:01.355     at Module._compile (node:internal/modules/cjs/loader:1830:14)
+10:31:01.355     at Object..js (node:internal/modules/cjs/loader:1961:10)
+10:31:01.355     at Module.load (node:internal/modules/cjs/loader:1553:32)
+10:31:01.355     at Module._load (node:internal/modules/cjs/loader:1355:12)
+10:31:01.356     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+10:31:01.356     at Module.require (node:internal/modules/cjs/loader:1576:12)
+10:31:01.356     at require (node:internal/modules/helpers:153:16)
+10:31:01.356     at @rspack/binding (/vercel/path0/node_modules/@rspack/core/dist/index.js:221:27)
+10:31:01.356     at __webpack_require__ (/vercel/path0/node_modules/@rspack/core/dist/index.js:254:41) {
+10:31:01.356   [cause]: [
+10:31:01.356     Error: Cannot find module './rspack.linux-x64-gnu.node'
+10:31:01.356     Require stack:
+10:31:01.357     - /vercel/path0/node_modules/@rspack/binding/binding.js
+10:31:01.357         at Module._resolveFilename (node:internal/modules/cjs/loader:1476:15)
+10:31:01.357         at wrapResolveFilename (node:internal/modules/cjs/loader:1049:27)
+10:31:01.357         at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1073:10)
+10:31:01.357         at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1094:12)
+10:31:01.357         at Module._load (node:internal/modules/cjs/loader:1262:25)
+10:31:01.357         at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+10:31:01.357         at Module.require (node:internal/modules/cjs/loader:1576:12)
+10:31:01.357         at require (node:internal/modules/helpers:153:16)
+10:31:01.357         at requireNative (/vercel/path0/node_modules/@rspack/binding/binding.js:213:18)
+10:31:01.357         at Object.<anonymous> (/vercel/path0/node_modules/@rspack/binding/binding.js:362:17) {
+10:31:01.357       code: 'MODULE_NOT_FOUND',
+10:31:01.363       requireStack: [ '/vercel/path0/node_modules/@rspack/binding/binding.js' ]
+10:31:01.363     },
+10:31:01.363     Error: Cannot find module '@rspack/binding-linux-x64-gnu'
+10:31:01.363     Require stack:
+10:31:01.364     - /vercel/path0/node_modules/@rspack/binding/binding.js
+10:31:01.364         at Module._resolveFilename (node:internal/modules/cjs/loader:1476:15)
+10:31:01.364         at wrapResolveFilename (node:internal/modules/cjs/loader:1049:27)
+10:31:01.364         at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1073:10)
+10:31:01.364         at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1094:12)
+10:31:01.364         at Module._load (node:internal/modules/cjs/loader:1262:25)
+10:31:01.364         at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+10:31:01.364         at Module.require (node:internal/modules/cjs/loader:1576:12)
+10:31:01.364         at require (node:internal/modules/helpers:153:16)
+10:31:01.364         at requireNative (/vercel/path0/node_modules/@rspack/binding/binding.js:218:18)
+10:31:01.365         at Object.<anonymous> (/vercel/path0/node_modules/@rspack/binding/binding.js:362:17) {
+10:31:01.365       code: 'MODULE_NOT_FOUND',
+10:31:01.365       requireStack: [ '/vercel/path0/node_modules/@rspack/binding/binding.js' ]
+10:31:01.367     }
+10:31:01.368   ]
+10:31:01.368 }
+10:31:01.368 
+10:31:01.369 Node.js v24.15.0
+10:31:01.388 Error: Command "npm run build" exited with 1

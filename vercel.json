@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "installCommand": "npm install --legacy-peer-deps --omit=optional",
+    "installCommand": "HUSKY=0 npm install --legacy-peer-deps",
     "buildCommand": "npm run build",
     "rewrites": [
         {
