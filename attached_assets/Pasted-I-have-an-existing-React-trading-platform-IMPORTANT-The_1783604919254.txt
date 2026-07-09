@@ -1,0 +1,201 @@
+I have an existing React trading platform.
+
+IMPORTANT:
+The DTrader tab component is already working.
+Do NOT redesign DTrader.
+Do NOT change the iframe logic.
+Do NOT change trading UI.
+
+The only thing we are migrating is authentication.
+
+Current DTrader depends on:
+
+V2GetActiveToken()
+V2GetActiveClientId()
+
+and expects these localStorage values:
+
+authToken
+active_loginid
+clientAccounts
+
+
+Current flow:
+
+Old legacy Deriv auth
+        |
+        |
+stores token/loginid
+        |
+        |
+DTrader reads it
+
+
+I want to replace ONLY the authentication layer with the new Deriv OAuth 2.0 + PKCE authentication.
+
+
+Required final flow:
+
+User
+ |
+Login with Deriv OAuth
+ |
+Deriv OAuth 2.0 Authorization Code + PKCE
+ |
+Receive access_token
+ |
+Call Deriv authorize WebSocket
+ |
+Get:
+- loginid
+- currency
+ |
+Save session using existing storage format:
+ 
+localStorage:
+authToken = access_token
+
+active_loginid = loginid
+
+clientAccounts:
+{
+ loginid:{
+   token,
+   currency,
+   loginid
+ }
+}
+
+
+After this existing components should continue working without changes.
+
+
+Tasks:
+
+1. Find and remove the old legacy authentication flow.
+
+Identify:
+- old login functions
+- old token generation
+- old authorize handling
+- old authentication redirects
+
+Replace them with OAuth PKCE.
+
+
+2. Create a centralized authentication service.
+
+Example:
+
+src/auth/DerivOAuth.ts
+
+
+It should handle:
+
+- PKCE verifier generation
+- PKCE challenge generation
+- OAuth redirect
+- state validation
+- code exchange
+- authorize websocket call
+- session persistence
+
+
+3. Handle OAuth callback globally.
+
+Do not put OAuth callback logic inside DTrader.
+
+Place it in the main app authentication initialization:
+
+App.tsx
+Layout.tsx
+AuthProvider
+or existing auth store.
+
+
+When returning from:
+
+/dtrader?code=xxx&state=xxx
+
+the app should:
+
+- exchange code
+- get token
+- authorize account
+- save session
+- remove code/state from URL
+
+
+4. Keep DTrader unchanged.
+
+The existing DTrader should continue doing:
+
+const token = V2GetActiveToken();
+
+const loginId = V2GetActiveClientId();
+
+
+If values exist:
+load authenticated iframe.
+
+
+If values do not exist:
+show unauthenticated DTrader/login state.
+
+
+5. Check the existing MobX architecture.
+
+If there is already an auth store:
+integrate OAuth into it.
+
+Do not create duplicate authentication states.
+
+
+6. Check environment variables.
+
+This project may not use process.env.
+
+Inspect whether it uses:
+- Vite
+- Rsbuild
+- Webpack
+
+and use the correct env syntax.
+
+
+7. Test:
+
+Scenario 1:
+User opens app logged out.
+
+Expected:
+Login button appears.
+
+Scenario 2:
+User completes Deriv OAuth.
+
+Expected:
+Token stored.
+Loginid stored.
+DTrader loads automatically.
+
+Scenario 3:
+User switches accounts.
+
+Expected:
+DTrader updates using the new account.
+
+Scenario 4:
+Logout.
+
+Expected:
+All tabs lose authentication.
+
+
+Before editing:
+First show me:
+1. Current authentication files.
+2. Current login flow.
+3. Files you will modify.
+
+Then implement only authentication migration.

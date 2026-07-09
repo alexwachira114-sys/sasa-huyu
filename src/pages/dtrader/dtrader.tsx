@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import IframeWrapper from '@/components/iframe-wrapper';
 import { getAppId } from '@/components/shared/utils/config/config';
-import { V2GetActiveToken, V2GetActiveClientId } from '@/external/bot-skeleton/services/api/appId';
+import { getMainAppActiveToken, getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
 
 const Dtrader = observer(() => {
     const [iframeSrc, setIframeSrc] = useState<string>('');
@@ -66,9 +66,11 @@ const Dtrader = observer(() => {
     }, []);
 
     useEffect(() => {
-        // Check if user is authenticated
-        const token = V2GetActiveToken();
-        const activeLoginId = V2GetActiveClientId();
+        // Check if user is authenticated. Use the same PKCE-aware auth source
+        // as every other bot tab (via IframeWrapper) so DTrader picks up the
+        // new OAuth 2.0 + PKCE session instead of only recognizing legacy auth.
+        const token = getMainAppActiveToken();
+        const activeLoginId = getMainAppActiveLoginId();
 
         if (token && activeLoginId) {
             setIsAuthenticated(true);
@@ -85,8 +87,8 @@ const Dtrader = observer(() => {
     // Listen for account switches and authentication changes
     useEffect(() => {
         const checkAuthAndUpdate = () => {
-            const token = V2GetActiveToken();
-            const activeLoginId = V2GetActiveClientId();
+            const token = getMainAppActiveToken();
+            const activeLoginId = getMainAppActiveLoginId();
 
             if (token && activeLoginId) {
                 if (!isAuthenticated) {
