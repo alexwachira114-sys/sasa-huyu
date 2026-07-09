@@ -71,16 +71,10 @@
     pointer-events: auto !important;
     z-index: 1;
 
-    .iframe-wrapper {
-        flex: 1;
-        min-height: 0;
-        width: 100%;
-        margin: 0;
-        padding: 0;
-        position: relative;
-        overflow: hidden;
-    }
-
+    // Note: IframeWrapper renders a single element with both `iframe-wrapper`
+    // and `dtrader-container` classes combined (not nested), so the base
+    // `.iframe-wrapper` rule above already applies here. These extra
+    // `iframe-wrapper__frame` / `iframe` rules just reinforce fill behavior.
     .iframe-wrapper__frame,
     iframe {
         width: 100%;
