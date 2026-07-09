@@ -10,9 +10,10 @@ interface IframeWrapperProps {
     src: string;
     title: string;
     className?: string;
+    sandbox?: string;
 }
 
-const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, className = '' }) => {
+const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, className = '', sandbox }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [hasError, setHasError] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -409,6 +410,7 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
                 loading='eager'
                 allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; display-capture'
                 referrerPolicy='no-referrer-when-downgrade'
+                {...(sandbox ? { sandbox } : {})}
                 style={{
                     display: 'block',
                     width: '100%',

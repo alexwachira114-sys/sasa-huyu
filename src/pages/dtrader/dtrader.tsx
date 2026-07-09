@@ -136,7 +136,14 @@ const Dtrader = observer(() => {
         );
     }
 
-    return <IframeWrapper src={iframeSrc} title='DTrader' className='dtrader-container' />;
+    return (
+        <IframeWrapper
+            src={iframeSrc}
+            title='DTrader'
+            className='dtrader-container'
+            sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads'
+        />
+    );
 });
 
 export default Dtrader;
