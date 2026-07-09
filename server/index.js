@@ -143,11 +143,14 @@ app.use('/api/trading', async (req, res) => {
    - Hides login/signup buttons via CSS
    - Bridges auth via postMessage (AUTH_TOKEN)
 ──────────────────────────────────────────── */
-const DERIV_APP = 'https://app.deriv.com';
+const DTRADER_TARGET = 'https://dtradercaxy.vercel.app';
 
 app.get('/dtrader-proxy', async (req, res) => {
     try {
-        const upstream = await fetch(`${DERIV_APP}/dtrader`, {
+        const queryStr = Object.keys(req.query).length
+            ? '?' + new URLSearchParams(req.query).toString()
+            : '';
+        const upstream = await fetch(`${DTRADER_TARGET}/${queryStr}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
                 Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -157,22 +160,16 @@ app.get('/dtrader-proxy', async (req, res) => {
 
         let html = await upstream.text();
 
-        /* 1 — Rewrite absolute asset paths to full CDN URLs */
-        html = html
-            .replace(/(['"\s])(\/js\/)/g,     `$1${DERIV_APP}/js/`)
-            .replace(/(['"\s])(\/css\/)/g,     `$1${DERIV_APP}/css/`)
-            .replace(/(['"\s])(\/public\/)/g,  `$1${DERIV_APP}/public/`)
-            .replace(/(['"\s])(\/assets\/)/g,  `$1${DERIV_APP}/assets/`)
-            .replace(/(['"\s])(\/static\/)/g,  `$1${DERIV_APP}/static/`)
-            .replace(/(src|href)="\/(?!\/)/g,  `$1="${DERIV_APP}/`);
+        /* 1 — Inject base href so all relative assets resolve against original domain */
+        html = html.replace('<head>', `<head><base href="${DTRADER_TARGET}/">`);
 
-        /* 2 — Neutralise anti-iframe redirect */
+        /* 2 — Strip the entire Anti-Clickjack block (style + script) */
         html = html
-            .replace(/else\s*top\.location\s*=\s*self\.location/g, 'else void(0)')
-            .replace(/if\s*\(\s*self\s*===?\s*top\s*\)/g, 'if(false)')
+            .replace(/<!-- Start Anti-Clickjack -->[\s\S]*?<!-- End Anti-Clickjack -->/gi, '')
+            .replace(/else\s*\{?\s*top\.location\s*=\s*self\.location\s*;?\s*\}?/g, 'else void(0)')
+            .replace(/if\s*\(\s*self\s*===?\s*top\s*\)/g, 'if(true)')
             .replace(/if\s*\(\s*window\.top\s*!==?\s*window\.self\s*\)/g, 'if(false)')
-            .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi,
-                     '<style id="antiClickjack"></style>');
+            .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi, '');
 
         /* 3 — Inject hide-login CSS + auth bridge before </head> */
         const injection = `
