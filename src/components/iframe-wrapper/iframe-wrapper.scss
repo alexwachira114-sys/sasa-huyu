@@ -85,12 +85,11 @@
 }
 
 // Specific styling for dtrader container
-// Height = viewport minus fixed header (4rem) and fixed footer (3.6rem).
-// Uses dvh on mobile so the calc matches the *visible* area when the browser
-// address bar is shown — 100vh on mobile can exceed the actual visible height.
+// Desktop: 100vh − header(4rem) − tab-bar(~5.3rem) − footer(3.6rem) = 100vh − 12.9rem
+// Mobile:  100dvh − header(3.5rem) − tab-bar(~5.3rem) − mobile-footer(6rem) = 100dvh − 14.8rem
 .dtrader-container {
     width: 100%;
-    height: calc(100vh - 4rem - 3.6rem);       // desktop: header + footer
+    height: calc(100vh - 12.9rem);
     flex: 1 1 0;
     display: flex;
     flex-direction: column;
@@ -102,9 +101,8 @@
     z-index: 1;
 
     @media (width <= 768px) {
-        // dvh accounts for dynamic browser chrome; fallback to vh for older browsers
-        height: calc(100vh - 3.5rem - 3.6rem);
-        height: calc(100dvh - 3.5rem - 3.6rem);
+        height: calc(100vh - 14.8rem);
+        height: calc(100dvh - 14.8rem);
     }
 
     .iframe-wrapper {
