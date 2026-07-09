@@ -40,6 +40,25 @@
         }
     }
 
+    // DTrader native panel — allow its inner panels to scroll independently
+    &[data-active-tab='dtrader'] {
+        .dc-tabs__content {
+            overflow: hidden !important;
+        }
+
+        .dtrader-native {
+            overflow: hidden;
+
+            &__panel {
+                overflow-y: auto;
+            }
+
+            &__feed {
+                overflow-y: auto;
+            }
+        }
+    }
+
     &__container {
         position: relative;
         border: none;
