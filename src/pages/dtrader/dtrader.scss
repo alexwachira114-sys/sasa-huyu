@@ -326,7 +326,275 @@
 }
 
 // ═══════════════════════════════════════════════
-// DTrader Native Trading Panel
+// DTrader Layout — iframe + floating trade panel
+// ═══════════════════════════════════════════════
+.dtrader-layout {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    display: flex;
+
+    &__iframe {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        min-height: 600px;
+
+        .dtrader-container {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    }
+
+    // Floating "⚡ Trade" toggle button
+    &__toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 100;
+        background: linear-gradient(135deg, #1976d2, #2196f3);
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgb(25 118 210 / 40%);
+        transition: all 0.2s ease;
+        letter-spacing: 0.3px;
+
+        &:hover {
+            background: linear-gradient(135deg, #1565c0, #1976d2);
+            box-shadow: 0 6px 20px rgb(25 118 210 / 55%);
+            transform: translateY(-1px);
+        }
+
+        &--open {
+            background: #333;
+            box-shadow: none;
+        }
+    }
+
+    // Slide-in trade panel
+    &__panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 280px;
+        height: 100%;
+        background: #161b22;
+        border-left: 1px solid #30363d;
+        overflow-y: auto;
+        z-index: 99;
+        box-shadow: -4px 0 24px rgb(0 0 0 / 40%);
+        animation: dtp-slide-in 0.22s ease;
+        padding-bottom: 8rem;
+    }
+}
+
+@keyframes dtp-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+
+// ── Trade Panel inner styles ──────────────────────────────────────────────────
+.dtp {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    color: #e6edf3;
+
+    &__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 0.6rem;
+        border-bottom: 1px solid #30363d;
+    }
+
+    &__title {
+        font-size: 1rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #2ea8ff, #58a6ff);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    &__tick {
+        font-size: 0.85rem;
+        font-family: 'Courier New', monospace;
+        color: #58a6ff;
+        font-weight: 600;
+    }
+
+    &__digits {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    &__digit {
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #e6edf3;
+    }
+
+    &__row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        flex: 1;
+
+        label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        input,
+        select {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #e6edf3;
+            padding: 0.4rem 0.5rem;
+            font-size: 0.82rem;
+            width: 100%;
+            outline: none;
+            appearance: none;
+            transition: border-color 0.15s;
+
+            &:focus { border-color: #58a6ff; }
+            &:disabled { opacity: 0.45; cursor: not-allowed; }
+        }
+    }
+
+    &__loading {
+        font-size: 0.75rem;
+        color: #8b949e;
+        text-align: center;
+        padding: 0.25rem;
+    }
+
+    &__buys {
+        display: flex;
+        gap: 0.4rem;
+    }
+
+    &__buy {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.15rem;
+        padding: 0.65rem 0.25rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: all 0.18s ease;
+
+        &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        small {
+            font-size: 0.65rem;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        &--rise {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: #fff;
+            box-shadow: 0 3px 10px rgb(35 134 54 / 35%);
+
+            &:hover:not(:disabled) {
+                background: linear-gradient(135deg, #2ea043, #3fb950);
+                transform: translateY(-1px);
+            }
+        }
+
+        &--fall {
+            background: linear-gradient(135deg, #b91c1c, #dc2626);
+            color: #fff;
+            box-shadow: 0 3px 10px rgb(185 28 28 / 35%);
+
+            &:hover:not(:disabled) {
+                background: linear-gradient(135deg, #dc2626, #ef4444);
+                transform: translateY(-1px);
+            }
+        }
+    }
+
+    &__status {
+        font-size: 0.76rem;
+        padding: 0.45rem 0.6rem;
+        border-radius: 6px;
+        text-align: center;
+        background: rgb(88 166 255 / 10%);
+        border: 1px solid rgb(88 166 255 / 25%);
+        color: #58a6ff;
+        word-break: break-word;
+
+        &--win {
+            background: rgb(35 134 54 / 15%);
+            border-color: rgb(35 134 54 / 30%);
+            color: #3fb950;
+        }
+
+        &--loss {
+            background: rgb(248 81 73 / 15%);
+            border-color: rgb(248 81 73 / 30%);
+            color: #f85149;
+        }
+    }
+
+    &__running {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        color: #8b949e;
+    }
+
+    &__spinner {
+        width: 12px;
+        height: 12px;
+        border: 2px solid #30363d;
+        border-top-color: #58a6ff;
+        border-radius: 50%;
+        animation: dtp-spin 0.8s linear infinite;
+        flex-shrink: 0;
+    }
+}
+
+@keyframes dtp-spin {
+    to { transform: rotate(360deg); }
+}
+
+// ═══════════════════════════════════════════════
+// DTrader Native Trading Panel (legacy — kept for reference)
 // ═══════════════════════════════════════════════
 .dtrader-native {
     width: 100%;
