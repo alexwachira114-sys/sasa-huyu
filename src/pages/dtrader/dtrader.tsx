@@ -1,56 +1,82 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
-import { V2GetActiveToken, V2GetActiveClientId } from '@/external/bot-skeleton/services/api/appId';
-import { isNewLoggedIn } from '../../auth/NewDerivAuth';
-import DTraderPanel from './DTraderPanel';
 import './dtrader.scss';
 
-function getTokenAndCurrency(): { token: string | null; currency: string } {
-    const legacyToken = V2GetActiveToken();
-    const loginId = V2GetActiveClientId();
+function getAuthPayload() {
+    const accountsList: { loginid: string; token: string; currency: string }[] = [];
+    let activeLoginid = '';
 
-    let currency = 'USD';
-    if (loginId) {
-        try {
-            const accounts = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
-            if (accounts[loginId]?.currency) {
-                currency = accounts[loginId].currency;
+    try {
+        const raw = localStorage.getItem('clientAccounts') || localStorage.getItem('client.accounts') || '{}';
+        const accounts = JSON.parse(raw);
+        Object.entries(accounts).forEach(([loginid, info]: [string, any]) => {
+            if (info?.token) {
+                accountsList.push({ loginid, token: info.token, currency: info.currency || 'USD' });
             }
-        } catch {}
+        });
+    } catch {}
+
+    try {
+        activeLoginid =
+            localStorage.getItem('active_loginid') ||
+            localStorage.getItem('activeLoginid') ||
+            '';
+    } catch {}
+
+    if (!activeLoginid && accountsList.length > 0) {
+        activeLoginid = accountsList[0].loginid;
     }
 
-    if (legacyToken) {
-        return { token: legacyToken, currency };
-    }
-
-    if (isNewLoggedIn()) {
-        const newToken = localStorage.getItem('__new_auth_token');
-        if (newToken) return { token: newToken, currency };
-        return { token: '__new_auth__', currency };
-    }
-
-    return { token: null, currency };
+    return { accountsList, activeLoginid };
 }
 
 const Dtrader = observer(() => {
-    const [auth, setAuth] = useState(() => getTokenAndCurrency());
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
-    useEffect(() => {
-        const refresh = () => setAuth(getTokenAndCurrency());
-
-        const handle = (e: StorageEvent) => {
-            if (['authToken', 'active_loginid', 'clientAccounts', '__new_auth_token'].includes(e.key || '')) {
-                refresh();
-            }
-        };
-
-        window.addEventListener('storage', handle);
-        return () => window.removeEventListener('storage', handle);
+    const sendAuth = useCallback(() => {
+        const iframe = iframeRef.current;
+        if (!iframe?.contentWindow) return;
+        const payload = getAuthPayload();
+        iframe.contentWindow.postMessage(
+            { type: 'DT_AUTH_DATA', payload },
+            window.location.origin
+        );
     }, []);
 
+    useEffect(() => {
+        const handler = (e: MessageEvent) => {
+            if (e.source !== iframeRef.current?.contentWindow) return;
+            if (e.data?.type === 'DT_REQUEST_AUTH') {
+                sendAuth();
+            }
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, [sendAuth]);
+
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (
+                ['clientAccounts', 'client.accounts', 'active_loginid', 'activeLoginid',
+                 'authToken', '__new_auth_token'].includes(e.key || '')
+            ) {
+                sendAuth();
+            }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, [sendAuth]);
+
     return (
-        <div className='dtrader'>
-            <DTraderPanel token={auth.token} currency={auth.currency} />
+        <div className='dtrader-embed'>
+            <iframe
+                ref={iframeRef}
+                src='/dtrader-proxy'
+                className='dtrader-embed__frame'
+                title='Deriv DTrader'
+                allow='clipboard-write'
+                onLoad={sendAuth}
+            />
         </div>
     );
 });

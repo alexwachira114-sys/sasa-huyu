@@ -133,6 +133,102 @@ app.use('/api/trading', async (req, res) => {
     }
 });
 
+/* ────────────────────────────────────────────
+   GET /dtrader-proxy
+   Server-side proxy for app.deriv.com/dtrader.
+   Strips X-Frame-Options / CSP, rewrites asset
+   paths to full deriv CDN URLs, neutralises the
+   anti-iframe redirect, hides login/signup UI,
+   and injects an auth-bridge postMessage script.
+──────────────────────────────────────────── */
+const DTRADER_ORIGIN = 'https://app.deriv.com';
+
+app.get('/dtrader-proxy', async (req, res) => {
+    try {
+        const upstream = await fetch(`${DTRADER_ORIGIN}/dtrader`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+        });
+
+        const allowedHeaders = ['content-type', 'cache-control', 'etag', 'last-modified', 'vary'];
+        allowedHeaders.forEach(h => {
+            const v = upstream.headers.get(h);
+            if (v) res.set(h, v);
+        });
+
+        let html = await upstream.text();
+
+        /* 1. Rewrite absolute-path asset references to full deriv CDN URLs */
+        html = html
+            .replace(/(['"\s])(\/js\/)/g,  `$1${DTRADER_ORIGIN}/js/`)
+            .replace(/(['"\s])(\/css\/)/g,  `$1${DTRADER_ORIGIN}/css/`)
+            .replace(/(['"\s])(\/public\/)/g, `$1${DTRADER_ORIGIN}/public/`)
+            .replace(/(['"\s])(\/assets\/)/g, `$1${DTRADER_ORIGIN}/assets/`)
+            .replace(/(['"\s])(\/static\/)/g, `$1${DTRADER_ORIGIN}/static/`)
+            .replace(/(src|href)="\/(?!\/)/g, `$1="${DTRADER_ORIGIN}/`);
+
+        /* 2. Neutralise anti-iframe redirect */
+        html = html
+            .replace(/else\s*top\.location\s*=\s*self\.location/g, 'else void(0)')
+            .replace(/if\s*\(\s*self\s*===?\s*top\s*\)/g, 'if(false)')
+            .replace(/if\s*\(\s*window\.top\s*!==?\s*window\.self\s*\)/g, 'if(false)')
+            .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi,
+                     '<style id="antiClickjack"></style>');
+
+        /* 3. Inject hide-login CSS + auth-bridge script before </head> */
+        const injection = `
+<style>
+  .account-header__logged-out,
+  .account-header__login,
+  .account-header__signup,
+  [class*="login-signup"],
+  [class*="login_signup"],
+  button[class*="login"],
+  button[class*="signup"] { display: none !important; }
+</style>
+<script>
+(function () {
+  function writeAuth(data) {
+    try {
+      if (!data || !data.accountsList) return;
+      var accounts = {};
+      data.accountsList.forEach(function(acc) {
+        accounts[acc.loginid] = { token: acc.token, currency: acc.currency || 'USD' };
+      });
+      localStorage.setItem('client.accounts', JSON.stringify(accounts));
+      if (data.activeLoginid) {
+        localStorage.setItem('active_loginid', data.activeLoginid);
+      }
+    } catch(e) {}
+  }
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'DT_AUTH_DATA') return;
+    writeAuth(e.data.payload);
+    if (document.readyState === 'complete') location.reload();
+    else window.addEventListener('load', function() { location.reload(); }, {once:true});
+  });
+  window.parent.postMessage({ type: 'DT_REQUEST_AUTH' }, '*');
+  setTimeout(function() {
+    window.parent.postMessage({ type: 'DT_REQUEST_AUTH' }, '*');
+  }, 2000);
+})();
+</script>`;
+
+        html = html.replace('</head>', injection + '</head>');
+
+        res.setHeader('X-Frame-Options', 'ALLOWALL');
+        res.setHeader('Content-Security-Policy', "frame-ancestors *");
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (err) {
+        res.status(502).send(`<h2>DTrader proxy error</h2><pre>${err.message}</pre>`);
+    }
+});
+
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Deriv API backend ready on port ${PORT}`);
 });
