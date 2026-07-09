@@ -75,6 +75,10 @@ The `package.json` overrides section pins `npm` and `npm-run-path` to newer vers
 - `src/components/shims/ui-submenu/` — patches a malformed import path in `@deriv-com/ui`
 - `src/components/shims/object-fromentries/` — stubs broken `es-abstract` dependency chain
 
+## Setup status
+
+Project imported from GitHub and dependencies installed on 2026-07-09 following the steps above (`npm install --legacy-peer-deps --omit=optional` + `npm install @rspack/binding-linux-x64-gnu`). Both workflows (Dev Server, API Server) run cleanly. No secrets have been configured yet — all listed env vars are optional and the app runs with reduced functionality without them.
+
 ## User preferences
 
 _No preferences recorded yet._
