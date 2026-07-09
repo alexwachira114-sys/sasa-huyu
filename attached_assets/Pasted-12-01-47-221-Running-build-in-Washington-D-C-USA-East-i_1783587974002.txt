@@ -1,0 +1,93 @@
+12:01:47.221 Running build in Washington, D.C., USA (East) – iad1
+12:01:47.222 Build machine configuration: 2 cores, 8 GB
+12:01:47.324 Cloning github.com/alexwachira114-sys/sasa-huyu (Branch: main, Commit: b19a167)
+12:02:07.495 Cloning completed: 20.171s
+12:02:07.741 Found .vercelignore
+12:02:07.787 Removed 42 ignored files defined in .vercelignore
+12:02:07.788   /.git/config
+12:02:07.788   /.git/description
+12:02:07.789   /.git/FETCH_HEAD
+12:02:07.790   /.git/HEAD
+12:02:07.790   /.git/hooks/applypatch-msg.sample
+12:02:07.790   /.git/hooks/commit-msg.sample
+12:02:07.790   /.git/hooks/fsmonitor-watchman.sample
+12:02:07.790   /.git/hooks/post-update.sample
+12:02:07.790   /.git/hooks/pre-applypatch.sample
+12:02:07.790   /.git/hooks/pre-commit.sample
+12:02:07.924 Restored build cache from previous deployment (DyLe8Ahr25v1hSqrkoqvKpqzNHnW)
+12:02:08.206 Running "vercel build"
+12:02:08.232 Vercel CLI 54.21.1
+12:02:09.270 Running "install" command: `HUSKY=0 npm install --legacy-peer-deps`...
+12:03:05.726 
+12:03:05.727 > bot@0.0.1 prepare
+12:03:05.728 > husky install
+12:03:05.728 
+12:03:05.779 fatal: not a git repository (or any parent up to mount point /vercel)
+12:03:05.780 Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+12:03:05.797 
+12:03:05.798 removed 162 packages, and audited 1916 packages in 56s
+12:03:05.798 
+12:03:05.799 387 packages are looking for funding
+12:03:05.799   run `npm fund` for details
+12:03:05.965 
+12:03:05.966 17 vulnerabilities (6 moderate, 11 high)
+12:03:05.966 
+12:03:05.967 To address issues that do not require attention, run:
+12:03:05.967   npm audit fix
+12:03:05.967 
+12:03:05.967 To address all issues (including breaking changes), run:
+12:03:05.967   npm audit fix --force
+12:03:05.967 
+12:03:05.968 Run `npm audit` for details.
+12:03:06.448 
+12:03:06.449 > bot@0.0.1 build
+12:03:06.449 > node node_modules/@rsbuild/core/bin/rsbuild.js build
+12:03:06.449 
+12:03:06.576 Rsbuild v1.7.6
+12:03:06.577 
+12:03:07.140 (node:330) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///vercel/path0/rsbuild.config.ts?t=1783587786580 is not specified and it doesn't parse as CommonJS.
+12:03:07.140 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+12:03:07.141 To eliminate this warning, add "type": "module" to /vercel/path0/package.json.
+12:03:07.141 (Use `node --trace-warnings ...` to show where the warning was created)
+12:03:07.158 warn    [rsbuild:config] The "source.alias" config is deprecated, use "resolve.alias" instead.
+12:03:07.221 info    build started...
+12:04:00.756 error   Build error: 
+12:04:00.757 File: ./src/pages/analysis-tool/analysis-tools.tsx:5:1-52
+12:04:00.758   × Module not found: Can't resolve '../dtrader/dcircles/dcircles' in '/vercel/path0/src/pages/analysis-tool'
+12:04:00.758    ╭─[5:0]
+12:04:00.759  3 │ import AnalysisTool from './analysis-tool';
+12:04:00.759  4 │ import DpTools from '../dp-tools';
+12:04:00.759  5 │ import Dcircles from '../dtrader/dcircles/dcircles';
+12:04:00.759    · ────────────────────────────────────────────────────
+12:04:00.760  6 │ import AllAnalysis from './all-analysis';
+12:04:00.760  7 │ import Signals from '../signals';
+12:04:00.760    ╰────
+12:04:00.761 Import traces (entry → error):
+12:04:00.761   ./src/main.tsx
+12:04:00.761   ./src/app/AuthWrapper.tsx
+12:04:00.761   … (5 hidden)
+12:04:00.762   ./src/pages/analysis-tool/index.ts
+12:04:00.762   ./src/pages/analysis-tool/analysis-tools.tsx ×
+12:04:00.762 
+12:04:00.763 error   build failed in 53.5 s
+12:04:00.763 error   Rspack build failed.
+12:04:00.763     at file:///vercel/path0/node_modules/@rsbuild/core/dist/131.js:4214:145
+12:04:00.764     at /vercel/path0/node_modules/@rspack/core/dist/index.js:10967:46
+12:04:00.764     at /vercel/path0/node_modules/@rspack/core/dist/index.js:7135:113
+12:04:00.764     at done (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:373:13)
+12:04:00.765     at AsyncParallelHook.callAsyncStageRange (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:379:46)
+12:04:00.765     at AsyncParallelHook.callAsync (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:101:21)
+12:04:00.766     at Cache.shutdown (/vercel/path0/node_modules/@rspack/core/dist/index.js:7188:33)
+12:04:00.766     at /vercel/path0/node_modules/@rspack/core/dist/index.js:10966:28
+12:04:00.766     at done (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:426:13)
+12:04:00.767     at next (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:469:55)
+12:04:00.767     at AsyncSeriesHook.callAsyncStageRange (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:475:9)
+12:04:00.767     at AsyncSeriesHook.callAsync (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:101:21)
+12:04:00.768     at Compiler.close (/vercel/path0/node_modules/@rspack/core/dist/index.js:10964:38)
+12:04:00.768     at file:///vercel/path0/node_modules/@rsbuild/core/dist/131.js:4213:22
+12:04:00.768     at finalCallback (/vercel/path0/node_modules/@rspack/core/dist/index.js:10877:140)
+12:04:00.769     at /vercel/path0/node_modules/@rspack/core/dist/index.js:10894:84
+12:04:00.769     at done (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:426:13)
+12:04:00.770     at promise.then.index (/vercel/path0/node_modules/@rspack/core/node_modules/@rspack/lite-tapable/dist/index.cjs:442:55)
+12:04:00.770     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+12:04:00.863 Error: Command "npm run build" exited with 1

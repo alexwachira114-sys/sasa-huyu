@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AnalysisTool from './analysis-tool';
 import DpTools from '../dp-tools';
-import Dcircles from '../dtrader/dcircles/dcircles';
 import AllAnalysis from './all-analysis';
 import Signals from '../signals';
 import TickAnalyser from './tick-analyser';
@@ -12,7 +11,6 @@ import { ApiHelpers } from '@/external/bot-skeleton';
 import './analysis-tools.scss';
 
 type AnalysisToolSubTab =
-    | 'dcircles'
     | 'signals'
     | 'analysis-tool'
     | 'dp-tools'
@@ -22,7 +20,7 @@ type AnalysisToolSubTab =
 
 const AnalysisTools: React.FC = () => {
     const { run_panel } = useStore();
-    const [active_tool, setActiveTool] = useState<AnalysisToolSubTab>('dcircles');
+    const [active_tool, setActiveTool] = useState<AnalysisToolSubTab>('signals');
     const [show_trade_config, setShowTradeConfig] = useState(false);
     const [tradeConfig, setTradeConfig] = useState({
         market: 'synthetic_index',
@@ -654,8 +652,6 @@ const AnalysisTools: React.FC = () => {
         if (!active_tool) return null;
 
         switch (active_tool) {
-            case 'dcircles':
-                return <Dcircles />;
             case 'signals':
                 return <Signals />;
             case 'analysis-tool':
@@ -678,14 +674,6 @@ const AnalysisTools: React.FC = () => {
     return (
         <div className='analysis-tools'>
             <div className='analysis-tools__cards-container'>
-                <div
-                    className={`analysis-tools__card analysis-tools__card--dark ${active_tool === 'dcircles' ? 'analysis-tools__card--active' : ''}`}
-                    onClick={() => handleCardClick('dcircles')}
-                >
-                    <div className='analysis-tools__card-content'>
-                        <span className='analysis-tools__card-label'>Dcircles</span>
-                    </div>
-                </div>
                 <div
                     className={`analysis-tools__card analysis-tools__card--light ${active_tool === 'signals' ? 'analysis-tools__card--active' : ''}`}
                     onClick={() => handleCardClick('signals')}
