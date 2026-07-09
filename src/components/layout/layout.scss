@@ -10,18 +10,18 @@
 .layout {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
     margin: 0; // Remove any default margins
     padding: 0; // Remove any default padding
 
     .deriv-header {
         background: var(--general-main-1);
-        height: 4rem; // Increased to fit login/signup buttons properly
+        flex: 0 0 4rem; // Fixed height header, rest of layout fills around it
         margin: 0; // Remove any default margins
         padding: 0; // Remove any default padding
 
         @include mobile-or-tablet-screen {
-            height: 3.5rem; // Increased for mobile to fit buttons
+            flex: 0 0 3.5rem; // Fixed height header on mobile
         }
     }
 }
