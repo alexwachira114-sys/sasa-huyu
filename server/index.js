@@ -134,6 +134,115 @@ app.use('/api/trading', async (req, res) => {
 });
 
 
+/* ────────────────────────────────────────────
+   GET /dtrader-proxy
+   Proxies app.deriv.com/dtrader for iframe embed.
+   - Strips X-Frame-Options / CSP
+   - Rewrites asset paths to full CDN URLs
+   - Neutralises anti-iframe redirect
+   - Hides login/signup buttons via CSS
+   - Bridges auth via postMessage (AUTH_TOKEN)
+──────────────────────────────────────────── */
+const DERIV_APP = 'https://app.deriv.com';
+
+app.get('/dtrader-proxy', async (req, res) => {
+    try {
+        const upstream = await fetch(`${DERIV_APP}/dtrader`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+        });
+
+        let html = await upstream.text();
+
+        /* 1 — Rewrite absolute asset paths to full CDN URLs */
+        html = html
+            .replace(/(['"\s])(\/js\/)/g,     `$1${DERIV_APP}/js/`)
+            .replace(/(['"\s])(\/css\/)/g,     `$1${DERIV_APP}/css/`)
+            .replace(/(['"\s])(\/public\/)/g,  `$1${DERIV_APP}/public/`)
+            .replace(/(['"\s])(\/assets\/)/g,  `$1${DERIV_APP}/assets/`)
+            .replace(/(['"\s])(\/static\/)/g,  `$1${DERIV_APP}/static/`)
+            .replace(/(src|href)="\/(?!\/)/g,  `$1="${DERIV_APP}/`);
+
+        /* 2 — Neutralise anti-iframe redirect */
+        html = html
+            .replace(/else\s*top\.location\s*=\s*self\.location/g, 'else void(0)')
+            .replace(/if\s*\(\s*self\s*===?\s*top\s*\)/g, 'if(false)')
+            .replace(/if\s*\(\s*window\.top\s*!==?\s*window\.self\s*\)/g, 'if(false)')
+            .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi,
+                     '<style id="antiClickjack"></style>');
+
+        /* 3 — Inject hide-login CSS + auth bridge before </head> */
+        const injection = `
+<style>
+  /* Hide login/signup — project has its own auth */
+  .account-header__logged-out,
+  .account-header__login,
+  .account-header__signup,
+  [class*="login-signup"],
+  [class*="login_signup"],
+  button[class*="login"],
+  button[class*="signup"],
+  [class*="LoginButton"],
+  [class*="SignupButton"] { display: none !important; }
+</style>
+<script>
+(function () {
+  /* Write account data into localStorage in the format DTrader reads */
+  function applyAuth(data) {
+    try {
+      if (data.token && data.loginid) {
+        var accounts = {};
+        try { accounts = JSON.parse(localStorage.getItem('client.accounts') || '{}'); } catch(e) {}
+        accounts[data.loginid] = { token: data.token, currency: 'USD' };
+        localStorage.setItem('client.accounts', JSON.stringify(accounts));
+        localStorage.setItem('active_loginid', data.loginid);
+      }
+    } catch(e) {}
+  }
+
+  /* Listen for AUTH_TOKEN messages from the parent (IframeWrapper sends these) */
+  window.addEventListener('message', function(e) {
+    if (!e.data) return;
+    /* IframeWrapper format: { type: 'AUTH_TOKEN', token, loginid, appId } */
+    if (e.data.type === 'AUTH_TOKEN') {
+      applyAuth(e.data);
+      return;
+    }
+    /* Legacy format used by our proxy */
+    if (e.data.type === 'DT_AUTH_DATA' && e.data.payload) {
+      var p = e.data.payload;
+      if (p.accountsList) {
+        var accounts = {};
+        p.accountsList.forEach(function(a) {
+          accounts[a.loginid] = { token: a.token, currency: a.currency || 'USD' };
+        });
+        localStorage.setItem('client.accounts', JSON.stringify(accounts));
+        if (p.activeLoginid) localStorage.setItem('active_loginid', p.activeLoginid);
+      }
+    }
+  });
+
+  /* Ask parent for auth immediately and again after 2 s */
+  window.parent.postMessage({ type: 'REQUEST_AUTH' }, '*');
+  setTimeout(function() { window.parent.postMessage({ type: 'REQUEST_AUTH' }, '*'); }, 2000);
+})();
+</script>`;
+
+        html = html.replace('</head>', injection + '</head>');
+
+        res.setHeader('X-Frame-Options', 'ALLOWALL');
+        res.setHeader('Content-Security-Policy', 'frame-ancestors *');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(html);
+    } catch (err) {
+        res.status(502).send(`<h2>DTrader proxy error</h2><pre>${err.message}</pre>`);
+    }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Deriv API backend ready on port ${PORT}`);
 });
