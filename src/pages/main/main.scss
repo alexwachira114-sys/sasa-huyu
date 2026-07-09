@@ -38,15 +38,6 @@
         }
     }
 
-    // DTrader tab: let content fill only the real remaining space (not full 100vh)
-    &[data-active-tab='dtrader'] {
-        .dc-tabs__content {
-            height: 100% !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-        }
-    }
-
     &__container {
         position: relative;
         border: none;
