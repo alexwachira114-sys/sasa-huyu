@@ -61,7 +61,7 @@ const Dtrader = observer(() => {
             hide_bot_controls: 'true',
         });
 
-        const url = `https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`;
+        const url = `/dtrader-proxy?${params.toString()}`;
         setIframeSrc(url);
     }, []);
 
@@ -79,7 +79,7 @@ const Dtrader = observer(() => {
             setIsAuthenticated(false);
             // Load dtrader without authentication (will prompt login)
             setIframeSrc(
-                'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
+                '/dtrader-proxy?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
             );
         }
     }, [buildIframeUrl]);
@@ -98,7 +98,7 @@ const Dtrader = observer(() => {
             } else if (isAuthenticated) {
                 setIsAuthenticated(false);
                 setIframeSrc(
-                    'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
+                    '/dtrader-proxy?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
                 );
             }
         };

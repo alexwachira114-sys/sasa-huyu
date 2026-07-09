@@ -143,14 +143,14 @@ app.use('/api/trading', async (req, res) => {
    - Hides login/signup buttons via CSS
    - Bridges auth via postMessage (AUTH_TOKEN)
 ──────────────────────────────────────────── */
-const DTRADER_TARGET = 'https://dtradercaxy.vercel.app';
+const DTRADER_TARGET = 'https://deriv-dtrader.vercel.app';
 
 app.get('/dtrader-proxy', async (req, res) => {
     try {
         const queryStr = Object.keys(req.query).length
             ? '?' + new URLSearchParams(req.query).toString()
             : '';
-        const upstream = await fetch(`${DTRADER_TARGET}/${queryStr}`, {
+        const upstream = await fetch(`${DTRADER_TARGET}/dtrader${queryStr}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
                 Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -171,8 +171,21 @@ app.get('/dtrader-proxy', async (req, res) => {
             .replace(/if\s*\(\s*window\.top\s*!==?\s*window\.self\s*\)/g, 'if(false)')
             .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi, '');
 
-        /* 3 — Inject hide-login CSS + auth bridge before </head> */
+        /* 3 — Inject window.top patch + auth bridge before </head> */
         const injection = `
+<script>
+/* Patch window.top so the Deriv app thinks it is NOT inside an iframe.
+   This must run before any deferred/async scripts to neutralise all
+   anti-clickjack checks in the React bundle. */
+(function () {
+  try {
+    Object.defineProperty(window, 'top', {
+      get: function () { return window.self; },
+      configurable: true
+    });
+  } catch (e) {}
+})();
+</script>
 <style>
   /* Hide login/signup — project has its own auth */
   .account-header__logged-out,
