@@ -738,7 +738,8 @@ export default class OverUnderStore {
                 const data = JSON.parse(event.data);
                 if (data.msg_type === 'buy') {
                     this.is_purchasing = false;
-                    // OTP WS echoes underlying_symbol; legacy echoes symbol
+                    // Outgoing requests always send `symbol`; keep the legacy
+                    // `underlying_symbol` check only as a defensive fallback.
                     const symbol = data.echo_req?.parameters?.underlying_symbol
                         || data.echo_req?.parameters?.symbol;
                     if (data.error) {

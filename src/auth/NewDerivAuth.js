@@ -55,32 +55,21 @@ export function sendViaNewSystem(data) {
 
 /**
  * Convert legacy Deriv API message format to new Options API format.
- * Differences:
- *   - `symbol` → `underlying_symbol` in proposal / buy.parameters
- *   - `buy` integer must be string "1"
+ *
+ * The Deriv WS API (both legacy and OTP/v2) validates `proposal` and
+ * `buy.parameters` requests with a `symbol` property — there is no
+ * `underlying_symbol` property accepted by the server for these request
+ * types ("Input validation failed: Properties not allowed: underlying_symbol").
+ * So `symbol` must be passed through unchanged; only the `buy` flag needs
+ * to become a string for the OTP WS.
  */
 function convertToNewFormat(data) {
   if (!data || typeof data !== 'object') return data
   const out = Array.isArray(data) ? data.map(convertToNewFormat) : { ...data }
 
-  // proposal: symbol → underlying_symbol
-  if (out.proposal === 1 && out.symbol) {
-    out.underlying_symbol = out.symbol
-    delete out.symbol
-  }
-
   // buy: integer → string "1"
   if ('buy' in out) {
     out.buy = String(out.buy)
-  }
-
-  // buy.parameters: symbol → underlying_symbol
-  if (out.parameters && typeof out.parameters === 'object') {
-    out.parameters = { ...out.parameters }
-    if ('symbol' in out.parameters) {
-      out.parameters.underlying_symbol = out.parameters.symbol
-      delete out.parameters.symbol
-    }
   }
 
   return out
