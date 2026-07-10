@@ -1,0 +1,311 @@
+# Task: Wire the DTrader iframe to the existing PKCE authentication and trading engine
+
+## Objective
+
+We are **NOT** rebuilding DTrader.
+
+We are **NOT** migrating authentication.
+
+We are **NOT** replacing the trading engine.
+
+The only goal is:
+
+> Make the DTrader iframe execute trades using the existing PKCE-authenticated trading engine that already exists in the parent application.
+
+---
+
+## Architecture
+
+There are two separate applications.
+
+### 1. Parent Application (our main project)
+
+This application already has:
+
+* PKCE authentication
+* Active Deriv WebSocket connection
+* Trading engine
+* Account switching
+* Authorized session
+* Existing trade execution flow
+* `sendViaNewSystemWithPromise(...)`
+* `_newSystemWS`
+
+This application is already capable of placing trades successfully.
+
+---
+
+### 2. DTrader iframe
+
+The DTrader application is loaded inside an iframe.
+
+It is responsible for:
+
+* Chart
+* Market selection
+* Contract builder
+* Stake input
+* Duration
+* Barriers
+* Purchase UI
+
+The iframe **already contains an iframe bridge** using `window.postMessage()`.
+
+The iframe should **NOT** authenticate directly.
+
+The iframe should **NOT** create its own trading session.
+
+The parent application is the only application that should communicate with Deriv for trade execution.
+
+---
+
+## Existing Communication
+
+The iframe already contains an iframe bridge.
+
+It already uses:
+
+* `window.postMessage()`
+* `window.addEventListener("message")`
+
+This communication layer should be reused.
+
+Do NOT replace it.
+
+Only extend it.
+
+---
+
+## Required Flow
+
+The desired flow is:
+
+User presses BUY
+
+↓
+
+DTrader builds the complete trade payload
+
+↓
+
+Instead of calling Deriv API directly,
+
+send
+
+```ts
+window.parent.postMessage({
+    type: "BUY_REQUEST",
+    payload: {
+        symbol,
+        contract_type,
+        duration,
+        duration_unit,
+        amount,
+        basis,
+        currency,
+        barrier,
+        barrier2,
+        proposal_id,
+        ...any other required trade fields
+    }
+});
+```
+
+↓
+
+Parent application receives BUY_REQUEST
+
+↓
+
+Parent calls
+
+```ts
+sendViaNewSystemWithPromise(...)
+```
+
+using its existing trading implementation.
+
+↓
+
+Trade executes through the already authenticated PKCE WebSocket.
+
+↓
+
+Parent sends back
+
+```ts
+{
+    type: "BUY_RESULT",
+    payload: result
+}
+```
+
+↓
+
+Iframe updates its UI exactly as if it had executed the buy itself.
+
+---
+
+## What should NOT change
+
+Do NOT modify:
+
+* authentication
+* PKCE flow
+* login flow
+* account management
+* WebSocket initialization
+* proposal generation
+* chart logic
+* contract builder
+* market selection
+
+Those already work.
+
+Only intercept the final trade execution.
+
+---
+
+## What I am providing
+
+I am providing:
+
+1. The current DTrader tab component from the parent application.
+
+2. The iframe source code.
+
+Use these as the reference.
+
+---
+
+## What I want you to do
+
+### Step 1
+
+Inspect the DTrader iframe source.
+
+Locate:
+
+* Buy button
+* Buy handler
+* Final trade execution
+* Deriv buy request
+
+Trace the execution path from:
+
+BUY button
+
+↓
+
+proposal
+
+↓
+
+buy
+
+Identify the exact function where the trade is finally sent.
+
+---
+
+### Step 2
+
+Replace ONLY the final trade execution.
+
+Instead of calling Deriv directly, send a `BUY_REQUEST` message to the parent.
+
+Keep all existing validation and payload construction.
+
+---
+
+### Step 3
+
+Modify the parent DTrader tab so it listens for:
+
+```ts
+BUY_REQUEST
+```
+
+When received:
+
+* validate the message
+* map the payload if necessary
+* call the existing
+
+```ts
+sendViaNewSystemWithPromise(...)
+```
+
+Do not duplicate trading logic.
+
+Reuse the existing implementation.
+
+---
+
+### Step 4
+
+After trade execution:
+
+Return
+
+```ts
+BUY_RESULT
+```
+
+to the iframe.
+
+Include:
+
+* success
+* error
+* contract id
+* transaction id
+* any fields required for the iframe UI
+
+---
+
+### Step 5
+
+Inside the iframe:
+
+Receive BUY_RESULT.
+
+Update the existing purchase flow so the UI behaves exactly as if the iframe executed the trade itself.
+
+Do not rewrite the purchase UI.
+
+Reuse the existing success/error handling whenever possible.
+
+---
+
+## Constraints
+
+Do NOT perform large refactors.
+
+Do NOT rename unrelated files.
+
+Do NOT change project architecture.
+
+Do NOT introduce another authentication mechanism.
+
+Do NOT create another WebSocket.
+
+Do NOT duplicate trade execution code.
+
+Prefer the smallest possible change.
+
+---
+
+## Success Criteria
+
+When a user presses BUY inside the DTrader iframe:
+
+* the iframe gathers the trade payload
+* the payload is sent to the parent
+* the parent executes the trade using the existing PKCE trading engine
+* the trade succeeds
+* the iframe receives the result
+* the purchase confirmation behaves exactly as before
+
+From the user's perspective, nothing changes except that trades are now executed through the parent application's authenticated trading engine.
+
+The implementation should be clean, minimal, and fully reuse the existing infrastructure instead of recreating functionality.

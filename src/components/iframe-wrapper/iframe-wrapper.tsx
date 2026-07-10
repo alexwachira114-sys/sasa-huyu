@@ -5,6 +5,7 @@ import { getMainAppActiveToken, getMainAppActiveLoginId } from '@/external/bot-s
 import { getAppId } from '@/components/shared/utils/config/config';
 import { useStore } from '@/hooks/useStore';
 import { contract_stages } from '@/constants/contract-stage';
+import { sendViaNewSystemWithPromise, isNewLoggedIn } from '@/auth/NewDerivAuth';
 
 interface IframeWrapperProps {
     src: string;
@@ -175,6 +176,110 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
                         tradeData.contract_id
                     );
                 }
+                return;
+            }
+
+            // ── BUY_REQUEST: iframe delegates trade execution to the parent ──────
+            // DTrader's socket_base.js intercepts WS.buy() / WS.buyAndSubscribe()
+            // and posts BUY_REQUEST here instead of calling Deriv directly.
+            // The parent holds the PKCE-authenticated OTP WebSocket and is the
+            // single source of truth for trade execution.
+            if (event.data.type === 'BUY_REQUEST') {
+                // Security: only accept BUY_REQUEST from our own iframe, not from
+                // any other page or cross-origin actor.
+                if (!iframe?.contentWindow || event.source !== iframe.contentWindow) {
+                    console.warn(`⚠️ [${title}] BUY_REQUEST from unexpected source — ignored.`);
+                    return;
+                }
+
+                const { reqId, payload } = event.data as { reqId: string; payload: Record<string, unknown> };
+
+                // Validate required fields before doing anything with money.
+                const replyError = (code: string, message: string) => {
+                    iframe.contentWindow?.postMessage(
+                        { type: 'BUY_RESULT', reqId, payload: { error: { code, message } } },
+                        '*'
+                    );
+                };
+
+                if (typeof reqId !== 'string' || !reqId) {
+                    console.warn(`⚠️ [${title}] BUY_REQUEST missing reqId — ignored.`);
+                    return; // Can't reply without a reqId
+                }
+                if (!payload || typeof payload !== 'object') {
+                    replyError('InvalidPayload', 'BUY_REQUEST payload is missing or not an object.');
+                    return;
+                }
+
+                const hasBuyField     = 'buy' in payload && payload.buy !== undefined && payload.buy !== '';
+                const hasProposalId   = 'proposal_id' in payload && payload.proposal_id !== undefined && payload.proposal_id !== '';
+                const hasPrice        = 'price' in payload && payload.price !== undefined;
+
+                if (!hasBuyField && !hasProposalId) {
+                    replyError('InvalidPayload', 'BUY_REQUEST must include either "buy" (proposal_id) or "proposal_id".');
+                    return;
+                }
+                if (!hasPrice) {
+                    replyError('InvalidPayload', 'BUY_REQUEST must include "price".');
+                    return;
+                }
+
+                console.log(`🛒 [${title}] BUY_REQUEST received from iframe (reqId=${reqId}):`, payload);
+
+                if (!isNewLoggedIn()) {
+                    // Not a PKCE session — reject so the iframe can handle it via its own WS.
+                    console.warn(`⚠️ [${title}] Not PKCE session; rejecting BUY_REQUEST.`);
+                    replyError('NotPKCE', 'Parent is not PKCE-authenticated; cannot execute trade.');
+                    return;
+                }
+
+                // Build the buy request.  The payload from the iframe may arrive as:
+                //   { buy: proposal_id, price, ... }   (from buyAndSubscribe / raw buy)
+                //   { proposal_id, price, ... }         (from buy({ proposal_id, price }))
+                const buyRequest: Record<string, unknown> = { ...payload };
+                if (!hasBuyField && hasProposalId) {
+                    buyRequest.buy = payload.proposal_id;
+                    delete buyRequest.proposal_id;
+                }
+
+                sendViaNewSystemWithPromise(buyRequest)
+                    .then((result: unknown) => {
+                        console.log(`✅ [${title}] BUY_RESULT → iframe (reqId=${reqId}):`, result);
+                        iframe.contentWindow?.postMessage({ type: 'BUY_RESULT', reqId, payload: result }, '*');
+
+                        // Mirror the trade into the Run Panel so it appears in the
+                        // transactions list — same logic as TRADE_PLACED handling.
+                        const res      = result as Record<string, unknown> | null | undefined;
+                        const buyResp  = res?.buy as Record<string, unknown> | undefined;
+                        if (buyResp?.contract_id && transactions?.onBotContractEvent) {
+                            try {
+                                transactions.onBotContractEvent({
+                                    contract_id:     buyResp.contract_id,
+                                    transaction_ids: { buy: buyResp.transaction_id as string | undefined },
+                                    buy_price:       (buyResp.buy_price ?? buyResp.price ?? 0),
+                                    currency:        (buyResp.currency as string | undefined) ?? client?.currency ?? 'USD',
+                                    contract_type:   (buyResp.contract_type as string | undefined) ?? '',
+                                    underlying:      String(buyResp.underlying_symbol ?? buyResp.symbol ?? ''),
+                                    display_name:    String(buyResp.display_name ?? buyResp.underlying_symbol ?? ''),
+                                    date_start:      (buyResp.date_start as number | undefined) ?? Math.floor(Date.now() / 1000),
+                                    status:          'open',
+                                    is_virtual:      false,
+                                });
+                                if (run_panel) {
+                                    run_panel.setHasOpenContract(true);
+                                    run_panel.setContractStage(contract_stages.PURCHASE_SENT);
+                                    if (!run_panel.is_drawer_open) run_panel.toggleDrawer(true);
+                                    run_panel.setActiveTabIndex(1);
+                                }
+                            } catch (err) {
+                                console.warn(`⚠️ [${title}] Could not mirror trade to Run Panel:`, err);
+                            }
+                        }
+                    })
+                    .catch((err: unknown) => {
+                        console.error(`❌ [${title}] BUY trade failed (reqId=${reqId}):`, err);
+                        iframe.contentWindow?.postMessage({ type: 'BUY_RESULT', reqId, payload: err }, '*');
+                    });
                 return;
             }
 

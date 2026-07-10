@@ -2,3 +2,4 @@
 - [Blockly trade params blank dropdowns](blockly-trade-params-blank-dropdowns.md) — Market/Trade Type/Contract Type render blank if active_symbols isn't ready at block create; re-fire BlockCreate after fetch to repair.
 - [DTrader PKCE trading fix](dtrader-pkce-trading.md) — PKCE users need isNewLoggedIn()→NewDTrader, not iframe; V2GetActiveToken() returns null for PKCE; never use loginId as token fallback.
 - [DTrader self-contained trade panel](dtrader-trade-panel.md) — WS dual-path: window._newSystemWS for new auth (convertToNewFormat changes symbol→underlying_symbol), direct wss://ws.derivws.com for legacy; trade-execution-store.ts is the single source of truth.
+- [DTrader BUY bridge](dtrader-buy-bridge.md) — socket_base.js intercepts buy()/buyAndSubscribe() in iframe; parent IframeWrapper handles BUY_REQUEST via sendViaNewSystemWithPromise; source lives in dtrader-iframe/.
