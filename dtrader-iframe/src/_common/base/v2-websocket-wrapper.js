@@ -52,10 +52,12 @@ function transformV2Request(req) {
     Object.entries(req).forEach(([key, value]) => {
         if (STRIP_REQUEST_KEYS.has(key)) return;
         if (endpoint_strip_keys.has(key)) return;
-        if (key === 'symbol') {
-            out.underlying_symbol = value;
-            return;
-        }
+        // NOTE: `symbol` is intentionally NOT renamed to `underlying_symbol`.
+        // The OTP URL used by this bridge points at the standard Deriv
+        // WebSocket endpoint, which only accepts `symbol` on `proposal` and
+        // `buy.parameters` — sending `underlying_symbol` gets the whole
+        // request rejected with "Input validation failed: Properties not
+        // allowed: underlying_symbol". Fixed 2026-07-10.
         // v2 balance endpoint doesn't accept account/accounts params
         if (isBalance && (key === 'account' || (key === 'accounts' && value === 'all'))) return;
         out[key] = value;

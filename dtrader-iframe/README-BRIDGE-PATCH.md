@@ -1,8 +1,16 @@
-# DTrader Iframe — BUY_REQUEST Bridge Patch
+# DTrader Iframe — Bridge + Field-Naming Patch
 
 This directory contains the DTrader iframe source (hosted separately at your Vercel instance).
 
 ## What was changed
+
+**`src/_common/base/v2-websocket-wrapper.js`** — removed the `symbol` → `underlying_symbol`
+rewrite in `transformV2Request()`. The OTP URL this bridge connects to is the standard
+Deriv WebSocket endpoint, which only ever accepts `symbol` on `proposal` and
+`buy.parameters`. Sending `underlying_symbol` instead gets every proposal/buy request
+rejected with `Input validation failed: Properties not allowed: underlying_symbol`,
+which disables the Over/Under (and all other) trade buttons. Responses already keep
+both field names via `FIELD_ALIASES`, so nothing else needs to change.
 
 **`src/_common/base/socket_base.js`** — one surgical edit to `buy()` and `buyAndSubscribe()`.
 
@@ -30,10 +38,18 @@ All proposal generation, UI, chart, market selection, and auth logic is **unchan
 ## Deploying
 
 Build this directory using the existing DTrader build pipeline and deploy to your Vercel project.
-The only changed file relative to the original is:
+The changed files relative to the original are:
 
 ```
+src/_common/base/v2-websocket-wrapper.js
 src/_common/base/socket_base.js
 ```
 
-No new dependencies. No auth changes. No WebSocket changes.
+No new dependencies. No auth changes beyond the field-naming fix above.
+
+## After deploying
+
+Once this is live, wire the parent app's iframe URL back to `api_version=v2`
+(revert the `api_version=v1` override in `src/pages/dtrader/dtrader.tsx`) so the
+bridge auth path activates again — with this fix, trading will no longer be
+rejected by the real Deriv WS.
