@@ -106,6 +106,7 @@ export default defineConfig({
         host: '0.0.0.0',
         compress: true,
         historyApiFallback: true,
+        allowedHosts: 'all',
         headers: {
             'Access-Control-Allow-Origin': '*',
         },
