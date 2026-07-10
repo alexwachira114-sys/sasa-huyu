@@ -5,4 +5,4 @@ generated = []
 id = "bXrfqxMdn5bNbK-eeEmUx"
 uri = "file://attached_assets/dtrader-iframe-bridge-patch.zip"
 type = "unspecified"
-title = "DTrader bridge + field-naming patch"
+title = "DTrader patch (fixed real bug)"

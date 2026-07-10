@@ -67,11 +67,14 @@ const transformV2Request = request => {
         if (STRIP_REQUEST_KEYS.has(key)) return;
         if (endpoint_strip_keys.has(key)) return;
 
-        if (key === 'symbol') {
-            transformed_request.underlying_symbol = value;
-            return;
-        }
-
+        // NOTE: `symbol` is intentionally NOT renamed to `underlying_symbol`.
+        // The real Deriv WS behind otpUrl only accepts `symbol` on proposal/
+        // buy.parameters — sending `underlying_symbol` gets the whole request
+        // rejected with "Input validation failed: Properties not allowed:
+        // underlying_symbol". This is the actual live send path (wired via
+        // api_middleware.js's requestDataTransformer); v2-websocket-wrapper.js
+        // is a separate, unused-in-this-path file that was fixed earlier but
+        // didn't affect real traffic. Fixed 2026-07-10.
         if ((key === 'account' || key === 'accounts') && 'balance' in request) return;
 
         transformed_request[key] = value;

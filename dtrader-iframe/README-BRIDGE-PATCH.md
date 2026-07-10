@@ -4,13 +4,25 @@ This directory contains the DTrader iframe source (hosted separately at your Ver
 
 ## What was changed
 
-**`src/_common/base/v2-websocket-wrapper.js`** — removed the `symbol` → `underlying_symbol`
-rewrite in `transformV2Request()`. The OTP URL this bridge connects to is the standard
-Deriv WebSocket endpoint, which only ever accepts `symbol` on `proposal` and
-`buy.parameters`. Sending `underlying_symbol` instead gets every proposal/buy request
-rejected with `Input validation failed: Properties not allowed: underlying_symbol`,
-which disables the Over/Under (and all other) trade buttons. Responses already keep
-both field names via `FIELD_ALIASES`, so nothing else needs to change.
+**`src/_common/base/deriv_v2_adapter.js`** — removed the `symbol` → `underlying_symbol`
+rewrite in `transformV2Request()`. This is the actual live send path: `socket_base.js`
+wires it in as `DerivAPIBasic`'s `middleware.requestDataTransformer`, so every outgoing
+request passes through it. The OTP URL this bridge connects to is the standard Deriv
+WebSocket endpoint, which only ever accepts `symbol` on `proposal` and `buy.parameters`.
+Sending `underlying_symbol` instead gets every proposal/buy request rejected with
+`Input validation failed: Properties not allowed: underlying_symbol`, which disables
+the Over/Under (and all other) trade buttons. Responses already keep both field names
+via `FIELD_ALIASES`, so nothing else needs to change.
+
+**`src/_common/base/v2-websocket-wrapper.js`** — same `symbol` → `underlying_symbol` bug,
+fixed identically. `V2WrappedWebSocket` also transforms outgoing requests (it wraps the
+raw `WebSocket` used once the OTP URL is active), so both this file and
+`deriv_v2_adapter.js` needed the fix — patching only one left the bug live.
+
+**`src/api-v2/src/iframe-bridge/deriv-v2-transform.ts`** — same bug in a third,
+TypeScript-sourced copy of this transform (used by a parallel/newer bridge code path).
+Fixed identically for consistency, even though it is not confirmed to be on the hot
+path for this integration.
 
 **`src/_common/base/socket_base.js`** — one surgical edit to `buy()` and `buyAndSubscribe()`.
 
@@ -41,8 +53,11 @@ Build this directory using the existing DTrader build pipeline and deploy to you
 The changed files relative to the original are:
 
 ```
+src/_common/base/deriv_v2_adapter.js
 src/_common/base/v2-websocket-wrapper.js
 src/_common/base/socket_base.js
+src/App/Components/V2RootGate.jsx
+src/api-v2/src/iframe-bridge/deriv-v2-transform.ts
 ```
 
 No new dependencies. No auth changes beyond the field-naming fix above.
