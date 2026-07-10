@@ -34,14 +34,16 @@ function buildDTraderUrl(loginId: string, currency: string): string {
         no_bot:            '1',
         manual_only:       '1',
         hide_bot_controls: 'true',
-        // NOTE: do NOT force `api_version=v2` here. It flips the deployed
-        // DTrader bundle into its internal v2/OTP compatibility mode, which
-        // unconditionally rewrites outgoing `symbol` fields to
-        // `underlying_symbol` before sending to the real Deriv WS — the real
-        // server rejects that ("Input validation failed: Properties not
-        // allowed: underlying_symbol") on every proposal/buy request. That
-        // transform lives inside the cross-origin bundle and can't be
-        // disabled from this URL.
+        // Force v1. getDerivApiVersion() inside the DTrader bundle resolves
+        // as: URL `?api_version` > sessionStorage > localStorage > 'v1'.
+        // An earlier test of `api_version=v2` persisted 'v2' into that
+        // iframe's localStorage (setDerivApiVersion writes to both storages),
+        // and that stuck flag keeps re-activating the buggy v2/OTP path
+        // (which rewrites `symbol` -> `underlying_symbol` and gets rejected
+        // by the real Deriv WS) even after the URL param was removed. The
+        // URL param always wins over storage, so explicitly pinning 'v1'
+        // here overrides the stuck value instead of merely omitting it.
+        api_version:       'v1',
     });
     return `${DTRADER_BASE}?${params.toString()}`;
 }
@@ -73,7 +75,7 @@ const Dtrader = observer(() => {
 
     const src = loginId
         ? buildDTraderUrl(loginId, currency)
-        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under`;
+        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under&api_version=v1`;
 
     return <IframeWrapper src={src} title='DTrader' className='dtrader-container' />;
 });
