@@ -94,49 +94,6 @@ app.post('/api/auth/logout', (_req, res) => {
     res.json({ success: true });
 });
 
-/* ────────────────────────────────────────────
-   GET /api/auth/legacy-tokens
-   Exchanges the PKCE access token for legacy Deriv WebSocket API tokens (a1-xxx).
-   Token source priority:
-     1. deriv_at httpOnly cookie (set by POST /api/auth/token)
-     2. Authorization: Bearer <token> header (NEW_AUTH_token forwarded by client)
-   Returns the raw response from auth.deriv.com/oauth2/legacy/tokens.
-──────────────────────────────────────────── */
-app.get('/api/auth/legacy-tokens', async (req, res) => {
-    const cookieToken = req.cookies[ACCESS_TOKEN_COOKIE];
-    const headerToken = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-    const accessToken = cookieToken || headerToken;
-
-    if (!accessToken) {
-        res.status(401).json({ error: 'No access token available — please complete PKCE login first.' });
-        return;
-    }
-
-    try {
-        const legacyRes = await fetch('https://auth.deriv.com/oauth2/legacy/tokens', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        const raw = await legacyRes.text();
-
-        if (!legacyRes.ok) {
-            res.status(legacyRes.status).json({
-                error: `Legacy token exchange failed (HTTP ${legacyRes.status})`,
-                detail: raw,
-            });
-            return;
-        }
-
-        let legacyData;
-        try { legacyData = JSON.parse(raw); }
-        catch { res.status(502).json({ error: 'Unparseable legacy token response', raw }); return; }
-
-        res.json(legacyData);
-    } catch (err) {
-        res.status(502).json({ error: err.message || 'Legacy token request failed' });
-    }
-});
 
 /* ────────────────────────────────────────────
    Proxy all /api/trading/* calls to Deriv REST.

@@ -1,0 +1,218 @@
+We need to integrate the DTrader tab into the existing project authentication architecture.
+
+Important context:
+
+The project already has a working new authentication system using Deriv OAuth 2.0 PKCE. The existing tabs/components are already working correctly with this new auth flow. Do not introduce the old authentication system back into the project.
+
+The goal is NOT to maintain legacy authentication compatibility.
+
+The goal is:
+
+"Make the DTrader tab behave exactly like the other existing tabs in this project by wiring it into the existing PKCE authentication flow."
+
+Current situation:
+
+* User authentication is handled by the existing PKCE flow.
+* After login, the project already has the authenticated user session.
+* Existing tabs are successfully using this new authentication.
+* DTrader is being added as another tab inside the same application.
+* DTrader should consume the same authenticated state as the rest of the project.
+
+Do NOT create a separate authentication system for DTrader.
+
+Do NOT use:
+
+* old authToken flow
+* accountsList token storage
+* clientAccounts token storage
+* legacy login logic
+* legacy OAuth conversion logic
+* /oauth2/legacy/tokens bridge
+* any code that converts PKCE users into legacy users
+
+The mistake to avoid:
+
+Do not think:
+
+PKCE user → convert to legacy user → open DTrader
+
+That is not the architecture.
+
+The correct architecture is:
+
+User
+|
+v
+Existing PKCE Login
+|
+v
+NEW_AUTH_token
+|
+v
+Existing project authentication state
+|
+v
+DTrader tab
+
+DTrader is simply another feature inside the authenticated application.
+
+---
+
+Implementation requirements:
+
+1. Remove all legacy authentication assumptions from DTrader integration.
+
+The DTrader component should not depend on:
+
+* authToken
+* accountsList
+* clientAccounts
+* old token lookup functions
+* legacy authentication helpers
+
+The DTrader tab should consume the same authentication source that the other working tabs already use.
+
+---
+
+2. Examine how existing tabs obtain authentication.
+
+Find the pattern used by the existing working tabs:
+
+* How do they detect logged-in state?
+* How do they access the current user?
+* How do they get active account information?
+* How do they react after PKCE login?
+
+DTrader should follow that same pattern.
+
+Do not create a new authentication path.
+
+---
+
+3. Keep DTrader as a normal project component.
+
+The structure should be:
+
+Main Application
+
+```
+PKCE Authentication
+        |
+        |
+  Authenticated State
+        |
+```
+
+---
+
+|          |            |
+Tab 1     Tab 2       DTrader
+
+DTrader should be equivalent to the other tabs.
+
+---
+
+4. Review the current DTrader implementation.
+
+Current files:
+
+* Dtrader.tsx
+* dtrader-credentials.ts
+* IframeWrapper
+
+Refactor them so they follow the application's existing authentication design.
+
+The DTrader component should only handle:
+
+* rendering the iframe
+* building the required URL
+* passing the already authenticated user information
+
+It should not handle authentication itself.
+
+---
+
+5. Preserve the existing iframe URL.
+
+The DTrader iframe URL must remain:
+
+https://deriv-dtrader.vercel.app/dtrader
+
+Do not replace the iframe with another implementation.
+
+The purpose is only to correctly wire authentication into the existing project.
+
+---
+
+6. Investigate the required DTrader parameters.
+
+Verify what the iframe requires:
+
+* account identifier
+* currency
+* authentication credential
+
+Then obtain those values from the existing PKCE-authenticated application state.
+
+Do not retrieve them from legacy storage.
+
+---
+
+7. Check for authentication conflicts.
+
+Inspect:
+
+* IframeWrapper
+* postMessage handling
+* any AUTH_TOKEN injection
+* any old token bridge
+
+Ensure nothing overwrites the DTrader authentication after the iframe loads.
+
+The expected behavior:
+
+Application login:
+PKCE succeeds
+
+User opens DTrader tab:
+
+```
+DTrader receives the same authenticated user context
+
+DTrader loads normally
+
+Trading works
+```
+
+---
+
+8. Do not break existing authentication.
+
+The existing PKCE authentication is working correctly.
+
+Do not modify:
+
+* login flow
+* callback handling
+* token storage used by existing tabs
+* working authentication services
+
+Only integrate DTrader into the existing system.
+
+---
+
+Final objective:
+
+After the changes:
+
+A user logs in once using PKCE.
+
+All existing tabs continue working.
+
+The DTrader tab also works using the same authenticated session.
+
+There should be one authentication system:
+
+Deriv OAuth 2.0 PKCE.
+
+No legacy authentication layer should exist in the DTrader integration.
