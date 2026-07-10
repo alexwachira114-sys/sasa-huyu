@@ -32,11 +32,19 @@ const { applyV2AuthToClientStore } = require('../../_common/base/deriv_v2_adapte
 
 const IFRAME_VERSION = process.env.IFRAME_VERSION || '1.0.0';
 
+// Always use the v2 bridge when DTrader is embedded inside another app.
+// Without this, V2RootGate starts as 'ready' (skips bridge init) because
+// isV2Api() is false before the bridge handshake has even begun.
+const _isInIframe = () => {
+    try { return window.self !== window.top; } catch (_) { return true; }
+};
+
 const V2RootGate = ({ children, root_store }) => {
-    const [status, setStatus] = React.useState(isV2Api() ? 'loading' : 'ready');
+    const forceV2 = _isInIframe();
+    const [status, setStatus] = React.useState((isV2Api() || forceV2) ? 'loading' : 'ready');
 
     React.useEffect(() => {
-        if (!isV2Api()) return undefined;
+        if (!isV2Api() && !forceV2) return undefined;
 
         try {
             sessionStorage.removeItem('v2_ws_url');

@@ -39,35 +39,117 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
             });
         }
 
-        // Function to send auth data to iframe
+        // ── Legacy AUTH_TOKEN (non-DTrader iframes: Hyperbot, Diffbot, etc.) ──────
         const sendAuthData = () => {
             const token = getMainAppActiveToken();
             const loginid = getMainAppActiveLoginId();
-            const appId = getAppId(); // Get the current app ID
+            const appId = getAppId();
 
             if (token && loginid && iframe.contentWindow) {
                 try {
-                    // Send auth token, loginid, and appId to iframe
                     iframe.contentWindow.postMessage(
-                        {
-                            type: 'AUTH_TOKEN',
-                            token,
-                            loginid,
-                            appId, // Add appId to the message
-                            timestamp: Date.now(),
-                        },
+                        { type: 'AUTH_TOKEN', token, loginid, appId, timestamp: Date.now() },
                         '*'
                     );
                     console.log(
-                        `🔐 [${title}] Sent auth token to iframe (loginid: ${loginid?.substring(0, 4)}..., appId: ${appId})`
+                        `🔐 [${title}] Sent AUTH_TOKEN to iframe (loginid: ${loginid?.substring(0, 4)}..., appId: ${appId})`
                     );
                 } catch (error) {
                     console.error('Error sending auth data to iframe:', error);
                 }
             } else {
                 console.warn(
-                    `⚠️ [${title}] No auth token available to send (token: ${!!token}, loginid: ${!!loginid}, appId: ${!!appId})`
+                    `⚠️ [${title}] No auth token available (token: ${!!token}, loginid: ${!!loginid})`
                 );
+            }
+        };
+
+        // ── DTrader v2 bridge auth (NewdtraderAuthMsg schema) ────────────────────
+        // DTrader's BridgeClient sends deriv:dtrader:ready on load, then waits for
+        // a message matching isAuthMsg() — which requires this exact shape.
+        // The otpUrl is the standard Deriv WS; proposals work unauthenticated and
+        // buy() is intercepted by our socket_base.js patch before it reaches the WS.
+        const sendV2BridgeAuth = () => {
+            if (!iframe.contentWindow) return;
+
+            const token    = getMainAppActiveToken();
+            const loginid  = client?.loginid || getMainAppActiveLoginId() || '';
+            const currency = client?.currency || 'USD';
+            const appId    = getAppId() || 114292;
+            const otpUrl   = `wss://ws.derivws.com/websockets/v3?app_id=${appId}&l=EN&brand=deriv`;
+
+            // Build accounts array from the MobX client store's account_list.
+            // Falls back to a single-account entry when the list is empty.
+            type RawAcc = { loginid?: string; currency?: string; is_virtual?: number | boolean };
+            const rawList = (client?.account_list as RawAcc[] | undefined) ?? [];
+
+            let accounts = rawList
+                .filter((acc): acc is RawAcc & { loginid: string } => !!acc.loginid)
+                .map(acc => ({
+                    account_id:   acc.loginid,
+                    currency:     acc.currency || 'USD',
+                    account_type: (acc.is_virtual ? 'demo' : 'real') as 'demo' | 'real',
+                    balance:      '0',
+                    group:        'svg',
+                }));
+
+            if (accounts.length === 0 && loginid) {
+                accounts = [{ account_id: loginid, currency, account_type: 'real' as const, balance: '0', group: 'svg' }];
+            }
+
+            // Validity gate — do not post an unusable empty-identity auth message.
+            // Defer until client store is hydrated; DTrader's 30-second bridge
+            // timeout gives us plenty of time.
+            if (!loginid || accounts.length === 0) {
+                console.warn(`⚠️ [${title}] sendV2BridgeAuth: loginid/accounts not ready yet — deferring`);
+                // Retry after the client store has had time to hydrate
+                setTimeout(sendV2BridgeAuth, 800);
+                return;
+            }
+
+            // Strongly-typed bridge message (satisfies NewdtraderAuthMsg isAuthMsg check)
+            const authMsg: {
+                type: 'deriv:dtrader:auth';
+                version: 'v2';
+                auth: { access_token: string; token_type: 'Bearer'; expires_at: number };
+                activeAccountId: string;
+                accounts: Array<{ account_id: string; currency: string; account_type: 'demo' | 'real'; balance: string; group: string }>;
+                otpUrl: string;
+                userProfile: { currency: string; email: string; fullname: string; country: string };
+                clientId: string;
+                apiBase: string;
+                authBase: string;
+                branding: Record<string, string>;
+            } = {
+                type:            'deriv:dtrader:auth',
+                version:         'v2',
+                auth: {
+                    access_token: token || loginid,
+                    token_type:   'Bearer',
+                    expires_at:   Date.now() + 3_600_000, // 1 hour
+                },
+                activeAccountId: loginid,
+                accounts,
+                otpUrl,
+                userProfile: {
+                    currency,
+                    email:    '',
+                    fullname: '',
+                    country:  '',
+                },
+                clientId:  loginid,
+                apiBase:   'https://api.deriv.com',
+                authBase:  'https://oauth.deriv.com',
+                branding:  {},
+            };
+
+            try {
+                iframe.contentWindow.postMessage(authMsg, '*');
+                console.log(
+                    `🔐 [${title}] Sent deriv:dtrader:auth (loginid: ${loginid.substring(0, 4)}..., accounts: ${accounts.length})`
+                );
+            } catch (err) {
+                console.error(`❌ [${title}] Failed to send v2 bridge auth:`, err);
             }
         };
 
@@ -83,10 +165,30 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
 
             if (!event.data || !event.data.type) return;
 
-            // Handle auth requests
+            // Handle auth requests (legacy iframes: Hyperbot, Diffbot, etc.)
             if (event.data.type === 'REQUEST_AUTH') {
                 console.log(`📨 [${title}] Received REQUEST_AUTH from iframe, sending auth token...`);
                 sendAuthData();
+                return;
+            }
+
+            // ── DTrader v2 bridge handshake ─────────────────────────────────────────
+            // DTrader's BridgeClient sends deriv:dtrader:ready on boot and
+            // deriv:dtrader:request-auth whenever it needs a fresh session.
+            // We reply with the NewdtraderAuthMsg that isAuthMsg() accepts.
+            // Security: only accept these from our own iframe contentWindow.
+            if (
+                event.data.type === 'deriv:dtrader:ready' ||
+                event.data.type === 'newdtrader:ready' ||
+                event.data.type === 'deriv:dtrader:request-auth' ||
+                event.data.type === 'newdtrader:request-auth'
+            ) {
+                if (event.source !== iframe?.contentWindow) {
+                    console.warn(`⚠️ [${title}] Bridge message from unexpected source — ignored`);
+                    return;
+                }
+                console.log(`📨 [${title}] DTrader bridge: ${event.data.type} — sending v2 auth`);
+                sendV2BridgeAuth();
                 return;
             }
 
@@ -309,7 +411,8 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
             setHasError(false);
             // Wait a bit for iframe to be ready
             setTimeout(() => {
-                sendAuthData();
+                sendAuthData();       // legacy iframes (Hyperbot, Diffbot, etc.)
+                sendV2BridgeAuth();   // DTrader v2 bridge — stored as pendingAuth if bridge not ready yet
                 // Ensure loading is false
                 setIsLoading(false);
                 // Check if iframe has content
@@ -415,9 +518,10 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
         // Check access after a short delay
         setTimeout(checkIframeAccess, 2000);
 
-        // Send initial auth data after a delay
+        // Send initial auth data after a delay (both legacy and v2 bridge formats)
         setTimeout(() => {
             sendAuthData();
+            sendV2BridgeAuth();
         }, 1000);
 
         // Cleanup
