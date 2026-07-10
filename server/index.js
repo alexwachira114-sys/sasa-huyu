@@ -171,7 +171,7 @@ app.get('/dtrader-proxy', async (req, res) => {
             .replace(/if\s*\(\s*window\.top\s*!==?\s*window\.self\s*\)/g, 'if(false)')
             .replace(/<style[^>]*id=["']antiClickjack["'][^>]*>[\s\S]*?<\/style>/gi, '');
 
-        /* 3 — Inject window.top patch + auth bridge + WS trade interceptor before </head> */
+        /* 3 — Inject window.top patch + auth bridge before </head> */
         const injection = `
 <script>
 /* ── 1. Patch window.top ─────────────────────────────────────────────────────
@@ -184,84 +184,6 @@ app.get('/dtrader-proxy', async (req, res) => {
       configurable: true
     });
   } catch (e) {}
-})();
-
-/* ── 2. WebSocket interceptor ────────────────────────────────────────────────
-   Wraps the native WebSocket constructor so we can read every inbound message
-   without touching the DTrader app's own handlers.
-   When a Deriv API "buy" or settled "proposal_open_contract" arrives we
-   forward a postMessage to the parent so IframeWrapper can record it in the
-   transactions / run_panel stores. */
-(function () {
-  var NativeWS = window.WebSocket;
-  if (!NativeWS) return;
-
-  function PatchedWS(url, protocols) {
-    var ws = protocols !== undefined
-      ? new NativeWS(url, protocols)
-      : new NativeWS(url);
-
-    /* Tap into every inbound message without removing existing listeners */
-    ws.addEventListener('message', function (evt) {
-      try {
-        var data = JSON.parse(evt.data);
-
-        /* ── Buy confirmation → TRADE_PLACED ── */
-        if (data.msg_type === 'buy' && data.buy && !data.error) {
-          var b = data.buy;
-          /* Try to parse contract_type from shortcode e.g. CALL_1HZ100V_... */
-          var contractType = '';
-          try { contractType = (b.shortcode || '').split('_')[0]; } catch(e) {}
-          window.parent.postMessage({
-            type:           'TRADE_PLACED',
-            contract_id:    b.contract_id,
-            transaction_id: b.transaction_id,
-            buy_price:      b.buy_price,
-            underlying:     b.underlying_symbol || '',
-            contract_type:  contractType,
-            currency:       b.currency || '',
-            date_start:     Math.floor(Date.now() / 1000),
-            status:         'open'
-          }, '*');
-        }
-
-        /* ── Settled contract → CONTRACT_EVENT ── */
-        if (
-          data.msg_type === 'proposal_open_contract' &&
-          data.proposal_open_contract &&
-          data.proposal_open_contract.is_sold
-        ) {
-          var poc = data.proposal_open_contract;
-          window.parent.postMessage({
-            type:           'CONTRACT_EVENT',
-            contract_id:    poc.contract_id,
-            transaction_id: poc.transaction_ids && poc.transaction_ids.buy,
-            buy_price:      poc.buy_price,
-            sell_price:     poc.sell_price,
-            profit:         poc.profit,
-            currency:       poc.currency,
-            contract_type:  poc.contract_type,
-            underlying:     poc.underlying,
-            display_name:   poc.display_name,
-            date_start:     poc.date_start,
-            status:         'sold',
-            is_sold:        true
-          }, '*');
-        }
-      } catch (e) { /* ignore non-JSON frames */ }
-    });
-
-    return ws;
-  }
-
-  /* Copy static members so duck-typing checks pass */
-  PatchedWS.prototype    = NativeWS.prototype;
-  PatchedWS.CONNECTING   = NativeWS.CONNECTING;
-  PatchedWS.OPEN         = NativeWS.OPEN;
-  PatchedWS.CLOSING      = NativeWS.CLOSING;
-  PatchedWS.CLOSED       = NativeWS.CLOSED;
-
-  window.WebSocket = PatchedWS;
 })();
 </script>
 <style>
@@ -277,10 +199,11 @@ app.get('/dtrader-proxy', async (req, res) => {
   [class*="SignupButton"] { display: none !important; }
 </style>
 <script>
-/* ── 3. Auth bridge ──────────────────────────────────────────────────────────
+/* ── 2. Auth bridge ──────────────────────────────────────────────────────────
    IframeWrapper posts AUTH_TOKEN (token + loginid + appId) to this iframe.
    We write the credentials into localStorage in the format DTrader reads so
-   it authenticates with the user's real Deriv account. */
+   it authenticates with the user's real Deriv account and places real trades.
+   DTrader handles its own trade history display — no interception needed. */
 (function () {
   function applyAuth(data) {
     try {
