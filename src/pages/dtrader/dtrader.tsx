@@ -34,6 +34,13 @@ function buildDTraderUrl(loginId: string, currency: string): string {
         no_bot:            '1',
         manual_only:       '1',
         hide_bot_controls: 'true',
+        // Forces the deployed DTrader iframe's getDerivApiVersion() to resolve to
+        // 'v2' (it reads `?api_version` from its own URL before anything else).
+        // This is what flips V2RootGate into bridge mode so it accepts our
+        // deriv:dtrader:auth postMessage instead of showing "please log in" —
+        // done here in the URL builder because we cannot edit the iframe's own
+        // deployed bundle from this origin.
+        api_version:       'v2',
     });
     return `${DTRADER_BASE}?${params.toString()}`;
 }
@@ -65,7 +72,7 @@ const Dtrader = observer(() => {
 
     const src = loginId
         ? buildDTraderUrl(loginId, currency)
-        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under`;
+        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under&api_version=v2`;
 
     return <IframeWrapper src={src} title='DTrader' className='dtrader-container' />;
 });
