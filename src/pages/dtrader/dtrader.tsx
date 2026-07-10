@@ -2,86 +2,104 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import IframeWrapper from '@/components/iframe-wrapper';
 import { getAppId } from '@/components/shared/utils/config/config';
-import { getMainAppActiveToken, getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
+import { getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
+
+/**
+ * Resolve a proper Deriv WebSocket API token (a1-xxx) for the given loginId.
+ *
+ * getMainAppActiveToken() is intentionally NOT used here because it returns
+ * the NEW_AUTH_token (PKCE OAuth bearer) for new-auth users, which DTrader
+ * cannot use for the WebSocket `authorize` call — that causes
+ * "Input validation failed: authorize".
+ *
+ * accountsList stores  { loginId: "a1-xxx..." }  which is the correct token.
+ */
+const resolveApiToken = (loginId: string): string | null => {
+    try {
+        const accountsList = JSON.parse(localStorage.getItem('accountsList') || '{}');
+        const token = accountsList[loginId];
+        if (token && token !== 'null') return token;
+    } catch (_) {}
+
+    // Legacy fallback: authToken key used by older auth flow
+    try {
+        const authToken = localStorage.getItem('authToken');
+        if (authToken && authToken !== 'null') return authToken;
+    } catch (_) {}
+
+    return null;
+};
 
 const Dtrader = observer(() => {
     const [iframeSrc, setIframeSrc] = useState<string>('');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-    const buildIframeUrl = useCallback((token: string, loginId: string) => {
-        const clientAccountsStr = localStorage.getItem('clientAccounts') || '{}';
-        const accountsListStr = localStorage.getItem('accountsList') || '{}';
-        let currency = 'USD';
+    const buildIframeUrl = useCallback((loginId: string) => {
+        const token = resolveApiToken(loginId);
 
-        try {
-            const clientAccounts = JSON.parse(clientAccountsStr);
-            const account = clientAccounts[loginId];
-            if (account?.currency) {
-                currency = account.currency;
-            } else {
-                const accountsList = JSON.parse(accountsListStr);
-                const accountInfo = Object.keys(accountsList).find(key => key === loginId);
-                if (accountInfo) {
-                    const accountData = JSON.parse(localStorage.getItem('accountList') || '[]');
-                    const acc = accountData.find((a: any) => a.loginid === loginId);
-                    if (acc?.currency) {
-                        currency = acc.currency;
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error parsing clientAccounts:', error);
+        if (!token) {
+            // No valid API token — load DTrader without auth (it will show login)
+            setIframeSrc(
+                'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
+            );
+            setIsAuthenticated(false);
+            return;
         }
+
+        // Resolve currency from local account stores
+        let currency = 'USD';
+        try {
+            const clientAccounts = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
+            if (clientAccounts[loginId]?.currency) {
+                currency = clientAccounts[loginId].currency;
+            } else {
+                const accountData = JSON.parse(localStorage.getItem('accountList') || '[]');
+                const acc = accountData.find((a: any) => a.loginid === loginId);
+                if (acc?.currency) currency = acc.currency;
+            }
+        } catch (_) {}
 
         const appId = getAppId() || 114292;
 
         const params = new URLSearchParams({
-            acct1: loginId,
-            token1: token,
-            cur1: currency,
-            lang: 'EN',
-            app_id: appId.toString(),
-            chart_type: 'area',
-            interval: '1t',
-            symbol: '1HZ100V',
-            trade_type: 'over_under',
-            hide_bot: '1',
-            bot_disabled: 'true',
-            disable_bot: '1',
-            no_bot: '1',
-            manual_only: '1',
+            acct1:             loginId,
+            token1:            token,
+            cur1:              currency,
+            lang:              'EN',
+            app_id:            appId.toString(),
+            chart_type:        'area',
+            interval:          '1t',
+            symbol:            '1HZ100V',
+            trade_type:        'over_under',
+            hide_bot:          '1',
+            bot_disabled:      'true',
+            disable_bot:       '1',
+            no_bot:            '1',
+            manual_only:       '1',
             hide_bot_controls: 'true',
         });
 
-        const url = `https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`;
-        setIframeSrc(url);
+        setIframeSrc(`https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`);
+        setIsAuthenticated(true);
     }, []);
 
     useEffect(() => {
-        const token = getMainAppActiveToken();
-        const activeLoginId = getMainAppActiveLoginId();
-
-        if (token && activeLoginId) {
-            setIsAuthenticated(true);
-            buildIframeUrl(token, activeLoginId);
+        const loginId = getMainAppActiveLoginId();
+        if (loginId) {
+            buildIframeUrl(loginId);
         } else {
-            setIsAuthenticated(false);
             setIframeSrc(
                 'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
             );
         }
     }, [buildIframeUrl]);
 
+    // Re-check whenever auth state or account changes
     useEffect(() => {
-        const checkAuthAndUpdate = () => {
-            const token = getMainAppActiveToken();
-            const activeLoginId = getMainAppActiveLoginId();
-
-            if (token && activeLoginId) {
-                if (!isAuthenticated) {
-                    setIsAuthenticated(true);
-                }
-                buildIframeUrl(token, activeLoginId);
+        const checkAndUpdate = () => {
+            const loginId = getMainAppActiveLoginId();
+            if (loginId) {
+                buildIframeUrl(loginId);
             } else if (isAuthenticated) {
                 setIsAuthenticated(false);
                 setIframeSrc(
@@ -92,18 +110,18 @@ const Dtrader = observer(() => {
 
         const handleStorageChange = (e: StorageEvent) => {
             if (
+                e.key === 'accountsList' ||
                 e.key === 'authToken' ||
                 e.key === 'active_loginid' ||
                 e.key === 'clientAccounts' ||
-                e.key === 'accountsList' ||
                 e.key === 'show_as_cr'
             ) {
-                checkAuthAndUpdate();
+                checkAndUpdate();
             }
         };
 
         window.addEventListener('storage', handleStorageChange);
-        const interval = setInterval(checkAuthAndUpdate, 2000);
+        const interval = setInterval(checkAndUpdate, 2000);
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
