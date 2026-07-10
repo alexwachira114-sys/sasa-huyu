@@ -5,49 +5,55 @@ import { getAppId } from '@/components/shared/utils/config/config';
 import { getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
 
 /**
- * Resolve a proper Deriv WebSocket API token (a1-xxx) for the given loginId.
- *
- * getMainAppActiveToken() is intentionally NOT used here because it returns
- * NEW_AUTH_token (PKCE OAuth bearer) first for new-auth users — that token
- * is rejected by DTrader's WebSocket authorize call.
- *
- * We try every localStorage key that may hold the real a1-xxx token,
- * falling back through them in order of reliability.
+ * Returns true when the user is on the new PKCE OAuth auth system.
+ * New-auth users have no real a1-xxx Deriv WebSocket API tokens in
+ * localStorage — NewDerivAuth.js stores the loginId as the token
+ * value, which DTrader rejects as "invalid token".
+ */
+const isNewAuthUser = (): boolean => {
+    try {
+        const t = localStorage.getItem('NEW_AUTH_token') || sessionStorage.getItem('NEW_AUTH_token');
+        return !!t && t !== 'null';
+    } catch (_) {
+        return false;
+    }
+};
+
+/**
+ * Resolve a proper Deriv WebSocket API token (a1-xxx) for legacy auth users.
+ * Only called when isNewAuthUser() is false.
  */
 const resolveApiToken = (loginId: string): string | null => {
-    const isApiToken = (t: unknown) =>
-        typeof t === 'string' && t.length > 4 && t !== 'null' && t !== 'undefined';
+    // A real Deriv API token starts with "a1-" and is never equal to the loginId
+    const isRealToken = (t: unknown): t is string =>
+        typeof t === 'string' &&
+        t.startsWith('a1-') &&
+        t !== loginId &&
+        t !== 'null' &&
+        t !== 'undefined';
 
     // 1. accountsList: { loginid: "a1-xxx" }
     try {
         const list = JSON.parse(localStorage.getItem('accountsList') || '{}');
-        // Try exact key, then case-insensitive scan
         const direct = list[loginId];
-        if (isApiToken(direct)) return direct;
+        if (isRealToken(direct)) return direct;
         const key = Object.keys(list).find(k => k.toLowerCase() === loginId.toLowerCase());
-        if (key && isApiToken(list[key])) return list[key];
+        if (key && isRealToken(list[key])) return list[key];
     } catch (_) {}
 
     // 2. clientAccounts: { loginid: { token: "a1-xxx", ... } }
     try {
         const accs = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
-        const acc = accs[loginId] ?? Object.values(accs).find((v: any) =>
-            v?.loginid?.toLowerCase() === loginId.toLowerCase()
+        const acc = accs[loginId] ?? Object.values(accs).find(
+            (v: any) => v?.loginid?.toLowerCase() === loginId.toLowerCase()
         );
-        if (isApiToken((acc as any)?.token)) return (acc as any).token;
+        if (isRealToken((acc as any)?.token)) return (acc as any).token;
     } catch (_) {}
 
-    // 3. client.accounts (used by some legacy flows)
-    try {
-        const accs = JSON.parse(localStorage.getItem('client.accounts') || '{}');
-        const acc = accs[loginId];
-        if (isApiToken(acc?.token)) return acc.token;
-    } catch (_) {}
-
-    // 4. authToken single-token fallback (legacy auth)
+    // 3. authToken single-token fallback
     try {
         const t = localStorage.getItem('authToken');
-        if (isApiToken(t)) return t!;
+        if (isRealToken(t)) return t!;
     } catch (_) {}
 
     return null;
@@ -58,18 +64,26 @@ const Dtrader = observer(() => {
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
     const buildIframeUrl = useCallback((loginId: string) => {
-        const token = resolveApiToken(loginId);
+        const DTRADER_BASE = 'https://deriv-dtrader.vercel.app/dtrader';
+        const CLEAN_URL = `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under`;
 
-        if (!token) {
-            // No valid API token — load DTrader without auth (it will show login)
-            setIframeSrc(
-                'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
-            );
+        // New-auth (PKCE) users have no a1-xxx WebSocket token — passing any
+        // token value causes "token is invalid" in DTrader. Load cleanly instead.
+        if (isNewAuthUser()) {
+            setIframeSrc(CLEAN_URL);
             setIsAuthenticated(false);
             return;
         }
 
-        // Resolve currency from local account stores
+        const token = resolveApiToken(loginId);
+
+        if (!token) {
+            setIframeSrc(CLEAN_URL);
+            setIsAuthenticated(false);
+            return;
+        }
+
+        // Resolve currency
         let currency = 'USD';
         try {
             const clientAccounts = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
@@ -102,7 +116,7 @@ const Dtrader = observer(() => {
             hide_bot_controls: 'true',
         });
 
-        setIframeSrc(`https://deriv-dtrader.vercel.app/dtrader?${params.toString()}`);
+        setIframeSrc(`${DTRADER_BASE}?${params.toString()}`);
         setIsAuthenticated(true);
     }, []);
 
