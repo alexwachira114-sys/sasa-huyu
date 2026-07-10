@@ -83,18 +83,34 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
             type RawAcc = { loginid?: string; currency?: string; is_virtual?: number | boolean };
             const rawList = (client?.account_list as RawAcc[] | undefined) ?? [];
 
+            // Pull real per-account balances from the client store when available
+            // (all_accounts_balance is populated by CoreStoreProvider's balance
+            // subscription), falling back to the active account's own balance,
+            // then '0' if neither is hydrated yet.
+            const allBalances = client?.all_accounts_balance?.accounts;
+
             let accounts = rawList
                 .filter((acc): acc is RawAcc & { loginid: string } => !!acc.loginid)
                 .map(acc => ({
                     account_id:   acc.loginid,
                     currency:     acc.currency || 'USD',
                     account_type: (acc.is_virtual ? 'demo' : 'real') as 'demo' | 'real',
-                    balance:      '0',
+                    balance:      String(
+                        allBalances?.[acc.loginid]?.balance ??
+                        (acc.loginid === loginid ? client?.balance : undefined) ??
+                        '0'
+                    ),
                     group:        'svg',
                 }));
 
             if (accounts.length === 0 && loginid) {
-                accounts = [{ account_id: loginid, currency, account_type: 'real' as const, balance: '0', group: 'svg' }];
+                accounts = [{
+                    account_id:   loginid,
+                    currency,
+                    account_type: 'real' as const,
+                    balance:      String(client?.balance ?? '0'),
+                    group:        'svg',
+                }];
             }
 
             // Validity gate — do not post an unusable empty-identity auth message.
@@ -133,9 +149,11 @@ const IframeWrapper: React.FC<IframeWrapperProps> = observer(({ src, title, clas
                 otpUrl,
                 userProfile: {
                     currency,
-                    email:    '',
-                    fullname: '',
-                    country:  '',
+                    email:    client?.account_settings?.email || '',
+                    fullname: [client?.account_settings?.first_name, client?.account_settings?.last_name]
+                        .filter(Boolean)
+                        .join(' '),
+                    country:  client?.account_settings?.country_code || client?.residence || '',
                 },
                 clientId:  loginid,
                 apiBase:   'https://api.deriv.com',
