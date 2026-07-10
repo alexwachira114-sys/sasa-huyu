@@ -67,15 +67,20 @@ const Dtrader = observer(() => {
         const DTRADER_BASE = 'https://deriv-dtrader.vercel.app/dtrader';
         const CLEAN_URL = `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under`;
 
-        // New-auth (PKCE) users have no a1-xxx WebSocket token — passing any
-        // token value causes "token is invalid" in DTrader. Load cleanly instead.
+        // Pick the best available token:
+        // 1. New-auth users → use NEW_AUTH_token (project's own OAuth token)
+        // 2. Legacy users   → use a1-xxx from accountsList / clientAccounts
+        let token: string | null = null;
+
         if (isNewAuthUser()) {
-            setIframeSrc(CLEAN_URL);
-            setIsAuthenticated(false);
-            return;
+            token =
+                localStorage.getItem('NEW_AUTH_token') ||
+                sessionStorage.getItem('NEW_AUTH_token');
         }
 
-        const token = resolveApiToken(loginId);
+        if (!token) {
+            token = resolveApiToken(loginId);
+        }
 
         if (!token) {
             setIframeSrc(CLEAN_URL);
