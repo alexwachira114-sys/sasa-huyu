@@ -1,0 +1,146 @@
+If your requirement is:
+
+✅ Keep the iframe URL exactly as it is (https://deriv-dtrader.vercel.app/dtrader)
+✅ Keep DTrader as an embedded tab
+✅ Only improve the authentication logic
+✅ You're willing to remove/change token1 handling
+
+then these are the places I'd focus on.
+
+Problem 1 — isNewAuthUser()
+const isNewAuthUser = (): boolean => {
+    try {
+        const t = localStorage.getItem('NEW_AUTH_token') || sessionStorage.getItem('NEW_AUTH_token');
+        return !!t && t !== 'null';
+    } catch (_) {
+        return false;
+    }
+};
+Why it's a problem
+
+This function only answers:
+
+"Is there a PKCE token?"
+
+It does not answer:
+
+"Can DTrader authenticate with this credential?"
+
+Those are different questions.
+
+I'd replace the concept of "new auth user" with "resolve the best available credential."
+
+Problem 2 — Passing NEW_AUTH_token
+
+This is the biggest issue.
+
+if (isNewAuthUser()) {
+    token =
+        localStorage.getItem('NEW_AUTH_token') ||
+        sessionStorage.getItem('NEW_AUTH_token');
+}
+
+Everything you've investigated points to this being incompatible with the current DTrader WebSocket authorize flow.
+
+If NEW_AUTH_token is a JWT, it will eventually become:
+
+token1=eyJhbGc...
+
+and DTrader will try to use it for WebSocket authorization.
+
+That is the core authentication mismatch you've been debugging.
+
+Problem 3 — resolveApiToken()
+const resolveApiToken(loginId)
+
+This function is actually reasonable for legacy users.
+
+The only thing I'd change is its role.
+
+Instead of:
+
+PKCE
+
+↓
+
+resolveApiToken()
+
+I'd have one resolver responsible for all credential sources, with clear information about the credential type.
+
+Problem 4 — buildIframeUrl()
+
+This method currently mixes multiple responsibilities:
+
+finding credentials,
+determining authentication state,
+finding currency,
+building the URL,
+updating React state.
+
+I'd separate those concerns.
+
+Problem 5 — This line
+token1: token,
+
+This is the line I'd make conditional.
+
+Instead of always including token1 when a string exists, only include it when you've confirmed it's a credential DTrader can actually use.
+
+For example, conceptually:
+
+If credential is a valid WebSocket API token
+    include token1
+Else
+    don't include token1
+
+That avoids knowingly sending an unsupported token type.
+
+Problem 6 — Authentication state
+setIsAuthenticated(true);
+
+right after constructing the URL doesn't necessarily mean the embedded DTrader has authenticated successfully.
+
+It only means you've created a URL.
+
+If you later add communication from the iframe (for example via postMessage), you could make this state reflect the iframe's actual session status instead.
+
+Problem 7 — Polling
+setInterval(checkAndUpdate, 2000);
+
+Polling every two seconds works, but if your application already knows when login/account changes occur, reacting to those events is usually preferable to constant polling.
+
+What I'd keep exactly as-is
+DTRADER_BASE
+https://deriv-dtrader.vercel.app/dtrader
+Your chart parameters.
+acct1
+cur1
+app_id
+The iframe itself.
+IframeWrapper.
+
+Those parts are not the source of the authentication issue.
+
+The biggest architectural issue
+
+Everything comes back to this section:
+
+if (isNewAuthUser()) {
+    token = NEW_AUTH_token;
+}
+
+That assumes:
+
+OAuth token
+
+↓
+
+token1
+
+↓
+
+DTrader authorize()
+
+will work.
+
+Based on everything you've tested, that's the assumption I'd remove first.

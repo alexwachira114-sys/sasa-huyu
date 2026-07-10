@@ -1,0 +1,234 @@
+My project is already working correctly. Do not refactor unrelated parts of the application. Do not modify the existing trading logic or authentication that is already working.
+
+The only objective is to make the DTrader tab work for manual trading using Deriv's new PKCE OAuth authentication, while keeping the existing iframe URL.
+
+Current iframe URL:
+
+https://deriv-dtrader.vercel.app/dtrader
+
+Do NOT change this URL.
+
+Current Problem
+
+The DTrader iframe is being loaded with:
+
+acct1=<loginId>
+token1=<token>
+
+The iframe then performs a Deriv WebSocket
+
+authorize(token1)
+
+request.
+
+For legacy users this works because token1 is a real Deriv WebSocket API token:
+
+a1-xxxxxxxxxxxxxxxx
+
+For PKCE users the code passes:
+
+NEW_AUTH_token
+
+which is an OAuth JWT bearer token.
+
+The Deriv WebSocket API rejects this immediately with:
+
+Input validation failed: authorize
+
+because WebSocket authorize does not accept OAuth bearer tokens.
+
+Important
+
+Do NOT attempt to fix this by:
+
+passing NEW_AUTH_token directly
+storing loginId as token
+falling back to invalid tokens
+mixing legacy and PKCE logic
+
+Those approaches have already been tested and do not work.
+
+Current Component Problems
+
+The current DTrader component mixes too many responsibilities.
+
+It currently:
+
+detects auth type
+resolves tokens
+reads localStorage
+resolves currency
+builds iframe URL
+manages authentication state
+polls every 2 seconds
+renders iframe
+
+This should be separated into small reusable services.
+
+Required Architecture
+
+Refactor into something like:
+
+Dtrader.tsx
+
+↓
+
+resolveDTraderCredentials()
+
+↓
+
+resolveCurrency()
+
+↓
+
+buildDTraderIframeUrl()
+
+↓
+
+IframeWrapper
+
+The React component should become very small.
+
+Authentication Requirements
+
+Implement a single credential resolver.
+
+Example:
+
+const credentials = await resolveDTraderCredentials();
+
+This function should support:
+
+PKCE authentication
+future authentication methods
+
+without changing DTrader.tsx.
+
+Remove:
+
+isNewAuthUser()
+
+and
+
+resolveApiToken()
+
+from the component.
+
+PKCE Support
+
+Investigate the existing PKCE implementation already present in this project.
+
+Search for:
+
+OAuthTokenExchangeService
+PKCE login flow
+NEW_AUTH_token
+access_token
+OAuth callback
+account session creation
+token exchange
+authorization services
+
+Determine whether there is already an internal service capable of producing credentials suitable for embedded DTrader.
+
+If such a service exists, integrate it.
+
+If not, identify exactly what is missing.
+
+Do not invent fake tokens.
+
+URL Builder
+
+Create one function only responsible for generating:
+
+https://deriv-dtrader.vercel.app/dtrader?...params
+
+It should never decide authentication.
+
+It only receives:
+
+loginId
+currency
+token
+appId
+
+and builds the URL.
+
+Currency
+
+Move currency lookup into:
+
+resolveCurrency(loginId)
+
+Search:
+
+clientAccounts
+accountList
+
+Fallback:
+
+USD
+Remove Polling
+
+Remove:
+
+setInterval(checkAndUpdate, 2000)
+
+Use:
+
+storage events
+window focus
+authentication state changes
+
+instead.
+
+Error Handling
+
+Instead of silently loading the clean URL after auth failure, expose explicit states.
+
+Example:
+
+AUTHENTICATED
+
+AUTH_REQUIRED
+
+TOKEN_NOT_AVAILABLE
+
+TOKEN_INVALID
+
+PKCE_NOT_SUPPORTED
+
+Display meaningful UI for each state.
+
+Existing Functionality
+
+Do not break:
+
+existing tabs
+bot trading
+websocket trading
+account switching
+balances
+login
+logout
+PKCE authentication
+
+The rest of the application is already working.
+
+Most Important Task
+
+Determine why the embedded DTrader iframe cannot authenticate using the current PKCE session.
+
+Verify whether the project already contains a supported mechanism for embedded DTrader SSO under PKCE.
+
+If yes:
+
+implement it.
+
+If no:
+
+identify the exact missing integration point instead of forcing OAuth tokens into WebSocket authorize.
+
+Do not return guesses.
+
+Trace the authentication flow end-to-end until the actual root cause is identified and implement the correct solution if the project already supports it.

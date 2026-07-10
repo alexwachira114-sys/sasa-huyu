@@ -1,177 +1,109 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import IframeWrapper from '@/components/iframe-wrapper';
-import { getAppId } from '@/components/shared/utils/config/config';
-import { getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/appId';
+import {
+    buildDTraderIframeUrl,
+    resolveDTraderCredentials,
+    type CredentialResult,
+} from './dtrader-credentials';
 
-/**
- * Returns true when the user is on the new PKCE OAuth auth system.
- * New-auth users have no real a1-xxx Deriv WebSocket API tokens in
- * localStorage — NewDerivAuth.js stores the loginId as the token
- * value, which DTrader rejects as "invalid token".
- */
-const isNewAuthUser = (): boolean => {
-    try {
-        const t = localStorage.getItem('NEW_AUTH_token') || sessionStorage.getItem('NEW_AUTH_token');
-        return !!t && t !== 'null';
-    } catch (_) {
-        return false;
-    }
+// ---------------------------------------------------------------------------
+// Auth state
+// ---------------------------------------------------------------------------
+
+type DTraderStatus =
+    | 'LOADING'
+    | 'AUTHENTICATED'
+    | 'AUTH_REQUIRED'
+    | 'TOKEN_NOT_AVAILABLE'
+    /** Reserved for future use (e.g. iframe postMessage feedback on invalid token). */
+    | 'TOKEN_INVALID'
+    | 'PKCE_EXCHANGE_FAILED';
+
+const STATUS_MESSAGES: Record<Exclude<DTraderStatus, 'LOADING' | 'AUTHENTICATED'>, string> = {
+    AUTH_REQUIRED:
+        'Please log in to use DTrader.',
+    TOKEN_NOT_AVAILABLE:
+        'No trading token found for this account. Try logging out and back in.',
+    TOKEN_INVALID:
+        'Your trading token appears to be invalid. Please re-authenticate.',
+    PKCE_EXCHANGE_FAILED:
+        'Could not retrieve trading credentials from Deriv. Please log out and log back in.',
 };
 
-/**
- * Resolve a proper Deriv WebSocket API token (a1-xxx) for legacy auth users.
- * Only called when isNewAuthUser() is false.
- */
-const resolveApiToken = (loginId: string): string | null => {
-    // A real Deriv API token starts with "a1-" and is never equal to the loginId
-    const isRealToken = (t: unknown): t is string =>
-        typeof t === 'string' &&
-        t.startsWith('a1-') &&
-        t !== loginId &&
-        t !== 'null' &&
-        t !== 'undefined';
+// Keys whose changes should trigger a credential re-check
+const WATCHED_STORAGE_KEYS = new Set([
+    'accountsList',
+    'authToken',
+    'active_loginid',
+    'clientAccounts',
+    'show_as_cr',
+    'NEW_AUTH_token',
+]);
 
-    // 1. accountsList: { loginid: "a1-xxx" }
-    try {
-        const list = JSON.parse(localStorage.getItem('accountsList') || '{}');
-        const direct = list[loginId];
-        if (isRealToken(direct)) return direct;
-        const key = Object.keys(list).find(k => k.toLowerCase() === loginId.toLowerCase());
-        if (key && isRealToken(list[key])) return list[key];
-    } catch (_) {}
-
-    // 2. clientAccounts: { loginid: { token: "a1-xxx", ... } }
-    try {
-        const accs = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
-        const acc = accs[loginId] ?? Object.values(accs).find(
-            (v: any) => v?.loginid?.toLowerCase() === loginId.toLowerCase()
-        );
-        if (isRealToken((acc as any)?.token)) return (acc as any).token;
-    } catch (_) {}
-
-    // 3. authToken single-token fallback
-    try {
-        const t = localStorage.getItem('authToken');
-        if (isRealToken(t)) return t!;
-    } catch (_) {}
-
-    return null;
-};
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const Dtrader = observer(() => {
+    const [status, setStatus] = useState<DTraderStatus>('LOADING');
     const [iframeSrc, setIframeSrc] = useState<string>('');
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-    const buildIframeUrl = useCallback((loginId: string) => {
-        const DTRADER_BASE = 'https://deriv-dtrader.vercel.app/dtrader';
-        const CLEAN_URL = `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under`;
+    const refresh = useCallback(async () => {
+        setStatus('LOADING');
 
-        // Pick the best available token:
-        // 1. New-auth users → use NEW_AUTH_token (project's own OAuth token)
-        // 2. Legacy users   → use a1-xxx from accountsList / clientAccounts
-        let token: string | null = null;
+        const result: CredentialResult = await resolveDTraderCredentials();
 
-        if (isNewAuthUser()) {
-            token =
-                localStorage.getItem('NEW_AUTH_token') ||
-                sessionStorage.getItem('NEW_AUTH_token');
-        }
-
-        if (!token) {
-            token = resolveApiToken(loginId);
-        }
-
-        if (!token) {
-            setIframeSrc(CLEAN_URL);
-            setIsAuthenticated(false);
+        if (!result.ok) {
+            if (result.detail) {
+                console.warn('[DTrader] Credential resolution failed:', result.state, result.detail);
+            }
+            // result.state values are a strict subset of DTraderStatus — no cast needed
+            const statusMap = {
+                AUTH_REQUIRED: 'AUTH_REQUIRED',
+                TOKEN_NOT_AVAILABLE: 'TOKEN_NOT_AVAILABLE',
+                PKCE_EXCHANGE_FAILED: 'PKCE_EXCHANGE_FAILED',
+            } as const satisfies Record<typeof result.state, DTraderStatus>;
+            setStatus(statusMap[result.state]);
             return;
         }
 
-        // Resolve currency
-        let currency = 'USD';
-        try {
-            const clientAccounts = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
-            if (clientAccounts[loginId]?.currency) {
-                currency = clientAccounts[loginId].currency;
-            } else {
-                const accountData = JSON.parse(localStorage.getItem('accountList') || '[]');
-                const acc = accountData.find((a: any) => a.loginid === loginId);
-                if (acc?.currency) currency = acc.currency;
-            }
-        } catch (_) {}
-
-        const appId = getAppId() || 114292;
-
-        const params = new URLSearchParams({
-            acct1:             loginId,
-            token1:            token,
-            cur1:              currency,
-            lang:              'EN',
-            app_id:            appId.toString(),
-            chart_type:        'area',
-            interval:          '1t',
-            symbol:            '1HZ100V',
-            trade_type:        'over_under',
-            hide_bot:          '1',
-            bot_disabled:      'true',
-            disable_bot:       '1',
-            no_bot:            '1',
-            manual_only:       '1',
-            hide_bot_controls: 'true',
-        });
-
-        setIframeSrc(`${DTRADER_BASE}?${params.toString()}`);
-        setIsAuthenticated(true);
+        setIframeSrc(buildDTraderIframeUrl(result.credentials));
+        setStatus('AUTHENTICATED');
     }, []);
 
+    // Resolve credentials on mount
     useEffect(() => {
-        const loginId = getMainAppActiveLoginId();
-        if (loginId) {
-            buildIframeUrl(loginId);
-        } else {
-            setIframeSrc(
-                'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
-            );
-        }
-    }, [buildIframeUrl]);
+        refresh();
+    }, [refresh]);
 
-    // Re-check whenever auth state or account changes
+    // Re-resolve on storage changes (cross-tab), window focus, and same-tab auth events.
+    // Note: the browser `storage` event only fires in other tabs/documents, not the same tab
+    // that wrote the key. For same-tab PKCE login NewDerivAuth.js dispatches 'new-system-balance'
+    // via window.dispatchEvent after populating account data — we listen for that too.
     useEffect(() => {
-        const checkAndUpdate = () => {
-            const loginId = getMainAppActiveLoginId();
-            if (loginId) {
-                buildIframeUrl(loginId);
-            } else if (isAuthenticated) {
-                setIsAuthenticated(false);
-                setIframeSrc(
-                    'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under'
-                );
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === null || WATCHED_STORAGE_KEYS.has(e.key)) {
+                refresh();
             }
         };
+        const onFocus = () => refresh();
+        const onNewSystemAuth = () => refresh();
 
-        const handleStorageChange = (e: StorageEvent) => {
-            if (
-                e.key === 'accountsList' ||
-                e.key === 'authToken' ||
-                e.key === 'active_loginid' ||
-                e.key === 'clientAccounts' ||
-                e.key === 'show_as_cr'
-            ) {
-                checkAndUpdate();
-            }
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-        const interval = setInterval(checkAndUpdate, 2000);
-
+        window.addEventListener('storage', onStorage);
+        window.addEventListener('focus', onFocus);
+        // Fired by NewDerivAuth.js (src/auth/NewDerivAuth.js) after PKCE login
+        // sets up accountsList / clientAccounts in the same tab
+        window.addEventListener('new-system-balance', onNewSystemAuth);
         return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            clearInterval(interval);
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener('focus', onFocus);
+            window.removeEventListener('new-system-balance', onNewSystemAuth);
         };
-    }, [isAuthenticated, buildIframeUrl]);
+    }, [refresh]);
 
-    if (!iframeSrc) {
+    // ── Loading ─────────────────────────────────────────────────────────────
+    if (status === 'LOADING') {
         return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
                 <p>Loading DTrader...</p>
@@ -179,6 +111,19 @@ const Dtrader = observer(() => {
         );
     }
 
+    // ── Error states ─────────────────────────────────────────────────────────
+    if (status !== 'AUTHENTICATED') {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+                <p>{STATUS_MESSAGES[status]}</p>
+                <button onClick={refresh} style={{ marginTop: 12 }}>
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    // ── Authenticated ────────────────────────────────────────────────────────
     return <IframeWrapper src={iframeSrc} title='DTrader' className='dtrader-container' />;
 });
 
