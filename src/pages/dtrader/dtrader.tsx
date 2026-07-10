@@ -8,23 +8,46 @@ import { getMainAppActiveLoginId } from '@/external/bot-skeleton/services/api/ap
  * Resolve a proper Deriv WebSocket API token (a1-xxx) for the given loginId.
  *
  * getMainAppActiveToken() is intentionally NOT used here because it returns
- * the NEW_AUTH_token (PKCE OAuth bearer) for new-auth users, which DTrader
- * cannot use for the WebSocket `authorize` call — that causes
- * "Input validation failed: authorize".
+ * NEW_AUTH_token (PKCE OAuth bearer) first for new-auth users — that token
+ * is rejected by DTrader's WebSocket authorize call.
  *
- * accountsList stores  { loginId: "a1-xxx..." }  which is the correct token.
+ * We try every localStorage key that may hold the real a1-xxx token,
+ * falling back through them in order of reliability.
  */
 const resolveApiToken = (loginId: string): string | null => {
+    const isApiToken = (t: unknown) =>
+        typeof t === 'string' && t.length > 4 && t !== 'null' && t !== 'undefined';
+
+    // 1. accountsList: { loginid: "a1-xxx" }
     try {
-        const accountsList = JSON.parse(localStorage.getItem('accountsList') || '{}');
-        const token = accountsList[loginId];
-        if (token && token !== 'null') return token;
+        const list = JSON.parse(localStorage.getItem('accountsList') || '{}');
+        // Try exact key, then case-insensitive scan
+        const direct = list[loginId];
+        if (isApiToken(direct)) return direct;
+        const key = Object.keys(list).find(k => k.toLowerCase() === loginId.toLowerCase());
+        if (key && isApiToken(list[key])) return list[key];
     } catch (_) {}
 
-    // Legacy fallback: authToken key used by older auth flow
+    // 2. clientAccounts: { loginid: { token: "a1-xxx", ... } }
     try {
-        const authToken = localStorage.getItem('authToken');
-        if (authToken && authToken !== 'null') return authToken;
+        const accs = JSON.parse(localStorage.getItem('clientAccounts') || '{}');
+        const acc = accs[loginId] ?? Object.values(accs).find((v: any) =>
+            v?.loginid?.toLowerCase() === loginId.toLowerCase()
+        );
+        if (isApiToken((acc as any)?.token)) return (acc as any).token;
+    } catch (_) {}
+
+    // 3. client.accounts (used by some legacy flows)
+    try {
+        const accs = JSON.parse(localStorage.getItem('client.accounts') || '{}');
+        const acc = accs[loginId];
+        if (isApiToken(acc?.token)) return acc.token;
+    } catch (_) {}
+
+    // 4. authToken single-token fallback (legacy auth)
+    try {
+        const t = localStorage.getItem('authToken');
+        if (isApiToken(t)) return t!;
     } catch (_) {}
 
     return null;
