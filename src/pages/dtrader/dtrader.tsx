@@ -34,16 +34,14 @@ function buildDTraderUrl(loginId: string, currency: string): string {
         no_bot:            '1',
         manual_only:       '1',
         hide_bot_controls: 'true',
-        // Force v1. getDerivApiVersion() inside the DTrader bundle resolves
-        // as: URL `?api_version` > sessionStorage > localStorage > 'v1'.
-        // An earlier test of `api_version=v2` persisted 'v2' into that
-        // iframe's localStorage (setDerivApiVersion writes to both storages),
-        // and that stuck flag keeps re-activating the buggy v2/OTP path
-        // (which rewrites `symbol` -> `underlying_symbol` and gets rejected
-        // by the real Deriv WS) even after the URL param was removed. The
-        // URL param always wins over storage, so explicitly pinning 'v1'
-        // here overrides the stuck value instead of merely omitting it.
-        api_version:       'v1',
+        // Force v2. The deployed DTrader bundle has been patched (see
+        // dtrader-iframe/README-BRIDGE-PATCH.md) to stop rewriting
+        // `symbol` -> `underlying_symbol` in v2-websocket-wrapper.js, so the
+        // v2 bridge-auth path (required for our postMessage AUTH_TOKEN to be
+        // accepted) no longer breaks proposal/buy requests. getDerivApiVersion()
+        // resolves as: URL `?api_version` > sessionStorage > localStorage > 'v1',
+        // so pinning 'v2' here overrides any stale stored value.
+        api_version:       'v2',
     });
     return `${DTRADER_BASE}?${params.toString()}`;
 }
@@ -75,7 +73,7 @@ const Dtrader = observer(() => {
 
     const src = loginId
         ? buildDTraderUrl(loginId, currency)
-        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under&api_version=v1`;
+        : `${DTRADER_BASE}?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under&api_version=v2`;
 
     return <IframeWrapper src={src} title='DTrader' className='dtrader-container' />;
 });

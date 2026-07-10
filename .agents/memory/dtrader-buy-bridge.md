@@ -24,3 +24,8 @@ Added `sendV2BridgeAuth()` that sends the exact `NewdtraderAuthMsg` schema (`typ
 - Parent app changes (`iframe-wrapper.tsx`) are live in Replit dev/deployed app immediately
 - Security: source checks on both sides; validity gate prevents empty-identity auth; 30s bridge timeout
 - Legacy iframes (Hyperbot etc.) still use `AUTH_TOKEN` / `REQUEST_AUTH` path — not affected
+
+## v1/v2 mutual exclusivity + storage stickiness (resolved by patch)
+In the unpatched DTrader bundle, `v1` (no bridge auth, but no errors) and `v2` (bridge auth works, but `v2-websocket-wrapper.js` rewrote `symbol` → `underlying_symbol`, rejected by the real Deriv WS) were mutually exclusive — no URL param alone could get both working auth and working trades.
+**Fix:** patched `v2-websocket-wrapper.js` to stop rewriting `symbol` → `underlying_symbol`, deployed to the DTrader Vercel project. Parent app now pins `api_version=v2` permanently in `dtrader.tsx`.
+**Gotcha:** `setDerivApiVersion()` persists into both `sessionStorage` and `localStorage` on the DTrader origin, so a stale value can override intent — always pin the URL param explicitly (it wins over storage) rather than relying on absence of the param.
