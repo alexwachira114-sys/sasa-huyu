@@ -32,6 +32,9 @@ const STATUS_MESSAGES: Record<Exclude<DTraderStatus, 'LOADING' | 'AUTHENTICATED'
 };
 
 // Keys whose changes should trigger a credential re-check
+const CLEAN_URL =
+    'https://deriv-dtrader.vercel.app/dtrader?chart_type=area&interval=1t&symbol=1HZ100V&trade_type=over_under';
+
 const WATCHED_STORAGE_KEYS = new Set([
     'accountsList',
     'authToken',
@@ -58,13 +61,16 @@ const Dtrader = observer(() => {
             if (result.detail) {
                 console.warn('[DTrader] Credential resolution failed:', result.state, result.detail);
             }
-            // result.state values are a strict subset of DTraderStatus — no cast needed
-            const statusMap = {
-                AUTH_REQUIRED: 'AUTH_REQUIRED',
-                TOKEN_NOT_AVAILABLE: 'TOKEN_NOT_AVAILABLE',
-                PKCE_EXCHANGE_FAILED: 'PKCE_EXCHANGE_FAILED',
-            } as const satisfies Record<typeof result.state, DTraderStatus>;
-            setStatus(statusMap[result.state]);
+            if (result.state === 'AUTH_REQUIRED') {
+                // Not logged in — show login prompt, no iframe
+                setIframeSrc('');
+                setStatus('AUTH_REQUIRED');
+            } else {
+                // Token unavailable or PKCE exchange failed — fall back to clean unauthenticated
+                // URL so the user can still see charts, matching the original behaviour.
+                setIframeSrc(CLEAN_URL);
+                setStatus(result.state);
+            }
             return;
         }
 
@@ -111,19 +117,18 @@ const Dtrader = observer(() => {
         );
     }
 
-    // ── Error states ─────────────────────────────────────────────────────────
-    if (status !== 'AUTHENTICATED') {
+    // ── Not logged in ────────────────────────────────────────────────────────
+    if (status === 'AUTH_REQUIRED') {
         return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
-                <p>{STATUS_MESSAGES[status]}</p>
-                <button onClick={refresh} style={{ marginTop: 12 }}>
-                    Retry
-                </button>
+                <p>{STATUS_MESSAGES['AUTH_REQUIRED']}</p>
             </div>
         );
     }
 
-    // ── Authenticated ────────────────────────────────────────────────────────
+    // ── Authenticated or fallback (token unavailable / PKCE exchange failed) ─
+    // When credentials can't be resolved we still show the iframe with the clean
+    // unauthenticated URL so charts remain visible — matching the original behaviour.
     return <IframeWrapper src={iframeSrc} title='DTrader' className='dtrader-container' />;
 });
 
