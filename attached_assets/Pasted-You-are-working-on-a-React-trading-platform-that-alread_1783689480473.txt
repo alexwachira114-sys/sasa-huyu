@@ -1,0 +1,200 @@
+You are working on a React trading platform that already has Deriv OAuth 2.0 Authorization Code Flow with PKCE implemented.
+
+Your task is to migrate the embedded DTrader tab so it uses the same authentication architecture as the rest of the application.
+
+IMPORTANT:
+Do not create a second authentication system.
+Do not reintroduce legacy token handling.
+Do not convert OAuth tokens into old API tokens.
+Do not use token1 with PKCE access tokens.
+
+Current problem:
+
+The application currently has two incompatible authentication models.
+
+LEGACY FLOW (REMOVE):
+
+Main App
+ |
+ | URL parameters
+ |
+DTrader iframe
+ |
+ | token1
+ |
+DTrader WebSocket authorize(token1)
+ |
+Deriv WebSocket API
+
+This is wrong because token1 expects the old Deriv API token format, while PKCE produces an OAuth access token.
+
+CURRENT PKCE FLOW (KEEP):
+
+User Login
+ |
+Deriv OAuth 2.0 PKCE
+ |
+authorization code exchange
+ |
+OAuth access_token
+ |
+ClientStore/session state
+ |
+IframeWrapper AUTH_TOKEN postMessage
+ |
+Embedded application
+
+
+Deriv documentation reference:
+- OAuth PKCE access tokens are used as OAuth Bearer tokens.
+- WebSocket authorize requires compatible authorization credentials and must not receive an OAuth JWT blindly.
+
+Implementation requirements:
+
+1. Remove all legacy token injection.
+
+Remove:
+
+token1=<access_token>
+
+from the DTrader iframe URL.
+
+The iframe URL must only contain non-sensitive configuration:
+
+Example:
+
+https://deriv-dtrader.vercel.app/dtrader?
+acct1=CRXXXX&
+cur1=USD&
+app_id=XXXXX
+
+No token.
+No OAuth access token in URL.
+No fake API token.
+
+
+2. Keep the existing iframe URL:
+
+Do not change:
+
+https://deriv-dtrader.vercel.app/dtrader
+
+Only remove authentication query parameters.
+
+
+3. Reuse the existing authentication bridge.
+
+The parent application already has:
+
+IframeWrapper
+
+which sends:
+
+window.postMessage({
+    type: "AUTH_TOKEN",
+    token,
+    loginid,
+    appId
+})
+
+The DTrader iframe must listen for this event.
+
+
+4. Update DTrader authentication handling.
+
+Search the DTrader project for:
+
+token1
+
+authorize(
+
+window.location.search
+
+URLSearchParams
+
+Replace the old flow:
+
+const token = params.get("token1");
+api.authorize(token);
+
+
+with:
+
+window.addEventListener("message", event => {
+
+    if(event.data?.type === "AUTH_TOKEN") {
+
+        const {
+            token,
+            loginid,
+            appId
+        } = event.data;
+
+        // initialize PKCE session here
+        // store authenticated state
+        // use OAuth-compatible API flow
+
+    }
+
+});
+
+
+5. Do not modify working authentication in other tabs.
+
+Existing tabs already work with:
+
+AUTH_TOKEN postMessage
+
+The goal is to make DTrader behave exactly like those tabs.
+
+
+6. Remove misleading code/comments.
+
+Remove comments saying:
+
+"token1 is required"
+"SSO params must contain token1"
+"OAuth token should be passed as token1"
+
+Those describe the legacy implementation.
+
+
+7. Final expected architecture:
+
+React Main Application
+
+        |
+        |
+        | PKCE OAuth session
+        |
+        |
+IframeWrapper
+
+        |
+        |
+        | AUTH_TOKEN postMessage
+
+        |
+        |
+DTrader iframe
+
+        |
+        |
+OAuth-compatible Deriv API authentication
+
+
+8. Debug checklist:
+
+After implementation verify:
+
+- Browser URL contains no token1
+- No OAuth JWT is passed through iframe URL
+- DTrader receives AUTH_TOKEN message
+- DTrader does not call authorize() with OAuth JWT
+- Existing tabs continue working
+- Login/logout updates propagate correctly
+- Account switching updates loginid correctly
+
+
+Do not rewrite the entire DTrader application.
+Only replace the authentication boundary so DTrader plugs into the existing PKCE architecture.
