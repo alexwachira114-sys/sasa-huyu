@@ -83,10 +83,14 @@ const assertSufficientDemoBalance = (required_amount: number, source: string) =>
           }
         | undefined;
 
+    // Only enforce when the check method is actually available on the store.
+    // If it is absent (undefined), skip silently — the server will reject invalid buys anyway.
+    if (typeof client_store?.hasSufficientDemoBalance !== 'function') return;
+
     const loginid = client_store?.loginid;
-    if (!client_store?.hasSufficientDemoBalance?.(required_amount, loginid)) {
-        const currency = client_store?.getAccountCurrency?.(loginid) || client_store?.currency || 'USD';
-        const available_balance = Number(client_store?.getDisplayBalanceAmount?.(loginid) ?? 0);
+    if (client_store.hasSufficientDemoBalance(required_amount, loginid) === false) {
+        const currency = client_store.getAccountCurrency?.(loginid) || client_store.currency || 'USD';
+        const available_balance = Number(client_store.getDisplayBalanceAmount?.(loginid) ?? 0);
         throw new InsufficientDemoBalanceError(
             `${source} could not purchase this contract. Insufficient demo balance: available ${formatAmount(
                 available_balance,
@@ -105,6 +109,35 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
 
     const normalized_parameters = normalizeParameters(parameters);
 
+    // ── PKCE / OTP WebSocket path ────────────────────────────────────────────
+    // The OTP WS only accepts `buy: '1'` with parameters inline — it does NOT
+    // accept a proposal-ID-based buy. Mirror speedbot.tsx exactly.
+    if (isNewLoggedIn()) {
+        assertSufficientDemoBalance(price, source);
+        globalObserver.emit('contract.status', { id: 'contract.purchase_sent', data: price });
+
+        const buy_response = await sendViaNewSystemWithPromise({
+            buy: '1',
+            price,
+            parameters: normalized_parameters,
+        });
+        throwApiError(buy_response, source);
+
+        const buy = buy_response?.buy;
+        if (!buy) {
+            throw new Error(`${source} did not receive a buy confirmation.`);
+        }
+
+        globalObserver.emit('contract.status', {
+            id: 'contract.purchase_received',
+            data: buy.transaction_id,
+            buy,
+        });
+        return buy;
+    }
+
+    // ── Legacy OAuth path ────────────────────────────────────────────────────
+    // Proposal first (for accurate ask_price), then buy by proposal ID.
     try {
         const proposal_response = await (api_base.api as any).send({
             proposal: 1,
@@ -120,15 +153,9 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
 
         const ask_price = Number(proposal.ask_price ?? price);
         assertSufficientDemoBalance(ask_price, source);
-        globalObserver.emit('contract.status', {
-            id: 'contract.purchase_sent',
-            data: ask_price,
-        });
+        globalObserver.emit('contract.status', { id: 'contract.purchase_sent', data: ask_price });
 
-        const buy_request = { buy: proposal.id, price: ask_price };
-        const buy_response = isNewLoggedIn()
-            ? await sendViaNewSystemWithPromise(buy_request)
-            : await (api_base.api as any).send(buy_request);
+        const buy_response = await (api_base.api as any).send({ buy: proposal.id, price: ask_price });
         throwApiError(buy_response, source);
 
         const buy = buy_response?.buy;
@@ -138,26 +165,22 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
                 data: buy.transaction_id,
                 buy,
             });
-
             return buy;
         }
     } catch (proposal_error) {
-        if (proposal_error instanceof InsufficientDemoBalanceError) {
-            throw proposal_error;
-        }
+        if (proposal_error instanceof InsufficientDemoBalanceError) throw proposal_error;
         console.warn(`[${source}] Proposal buy failed, retrying with direct buy.`, proposal_error);
     }
 
+    // Legacy fallback: direct buy without proposal
     assertSufficientDemoBalance(price, source);
-    globalObserver.emit('contract.status', {
-        id: 'contract.purchase_sent',
-        data: price,
-    });
+    globalObserver.emit('contract.status', { id: 'contract.purchase_sent', data: price });
 
-    const direct_buy_request = { buy: '1', price, parameters: normalized_parameters };
-    const direct_buy_response = isNewLoggedIn()
-        ? await sendViaNewSystemWithPromise(direct_buy_request)
-        : await (api_base.api as any).send(direct_buy_request);
+    const direct_buy_response = await (api_base.api as any).send({
+        buy: '1',
+        price,
+        parameters: normalized_parameters,
+    });
     throwApiError(direct_buy_response, source);
 
     const buy = direct_buy_response?.buy;
@@ -170,7 +193,6 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
         data: buy.transaction_id,
         buy,
     });
-
     return buy;
 };
 
