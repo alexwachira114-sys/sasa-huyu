@@ -54,6 +54,10 @@ const normalizeParameters = (parameters: TTradeParameters) => {
 };
 
 const ensureAuthorizedForTrading = async () => {
+    // PKCE users are authenticated via the new system — api_base.is_authorized
+    // is irrelevant for them and must not block trading.
+    if (isNewLoggedIn()) return;
+
     if (api_base.is_authorized) return;
 
     await (api_base as any).authorizeAndSubscribe?.();
