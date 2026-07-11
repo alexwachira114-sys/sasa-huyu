@@ -77,7 +77,7 @@ The `package.json` overrides section pins `npm` and `npm-run-path` to newer vers
 
 ## Setup status
 
-Project imported from GitHub and dependencies installed on 2026-07-09 following the steps above (`npm install --legacy-peer-deps --omit=optional` + `npm install @rspack/binding-linux-x64-gnu`). Both workflows (Dev Server, API Server) run cleanly. No secrets have been configured yet — all listed env vars are optional and the app runs with reduced functionality without them.
+Project imported from GitHub and dependencies installed on 2026-07-09, then re-imported and re-installed on 2026-07-11 following the same steps (`npm install --legacy-peer-deps --omit=optional` + `npm install @rspack/binding-linux-x64-gnu` — needed again since `node_modules` isn't carried over on re-import). Both workflows (Dev Server, API Server) run cleanly and the UI verified working in preview. No secrets have been configured yet — all listed env vars are optional and the app runs with reduced functionality without them.
 
 ## User preferences
 
