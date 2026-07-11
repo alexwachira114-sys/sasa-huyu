@@ -1,0 +1,129 @@
+Fix BUY_REQUEST payload mapping for PKCE trading engine
+
+We have successfully wired the DTrader iframe to communicate with the parent application.
+
+The message flow is already working.
+
+Iframe
+    ↓
+BUY_REQUEST
+    ↓
+Parent
+    ↓
+sendViaNewSystemWithPromise(...)
+
+However, trade execution fails with the following validation error:
+
+Input validation failed:
+Properties not allowed:
+underlying_symbol
+
+This means the communication is working, but the payload being forwarded from the iframe does not match the schema expected by our new PKCE trading engine.
+
+Goal
+
+Do NOT work around the validation.
+
+Do NOT remove random properties until the error disappears.
+
+Instead, determine the correct request shape by comparing the iframe payload with the existing working trade implementation.
+
+What I want you to do
+Step 1
+
+Locate where the parent receives:
+
+BUY_REQUEST
+
+Locate the code that eventually calls
+
+sendViaNewSystemWithPromise(...)
+Step 2
+
+Log the complete payload received from the iframe before it is passed into the trading engine.
+
+Example:
+
+console.log("BUY_REQUEST", payload);
+Step 3
+
+Locate an existing component in this project that already executes trades successfully using
+
+sendViaNewSystemWithPromise(...)
+
+Trace exactly what object it sends.
+
+I want the exact request object.
+
+Step 4
+
+Compare both payloads field by field.
+
+Create a mapping table like:
+
+Iframe Payload	PKCE Trading Engine
+underlying_symbol	symbol
+stake	amount
+...	...
+
+Identify:
+
+fields that must be renamed
+fields that must be removed
+fields that must be added
+fields whose values must be transformed
+Step 5
+
+Create a mapping function.
+
+Example:
+
+function mapIframeTradeToPKCE(payload) {
+    return {
+        ...
+    };
+}
+
+The mapping function should produce exactly the same object that the existing working trade component sends.
+
+Do not guess.
+
+Use the existing implementation as the source of truth.
+
+Step 6
+
+Replace
+
+sendViaNewSystemWithPromise(payload);
+
+with
+
+const request = mapIframeTradeToPKCE(payload);
+
+sendViaNewSystemWithPromise(request);
+Constraints
+
+Do NOT modify:
+
+PKCE authentication
+WebSocket connection
+Trading engine
+sendViaNewSystemWithPromise()
+Existing working trade flow
+
+Only adapt the iframe payload.
+
+Important
+
+The validation error
+
+Properties not allowed:
+underlying_symbol
+
+is only the first rejected field.
+
+There may be additional schema mismatches after it is fixed.
+
+Continue comparing the payloads until the mapped request is identical to the request produced by the existing working trade component.
+
+Do not stop after fixing one property.

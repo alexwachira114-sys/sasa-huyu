@@ -25,8 +25,9 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     ELITE_PRIME: 10,    // DOM position 10 in main.tsx
     TRADINGVIEW: 11,    // DOM position 11 in main.tsx
     DERIV_API: 12,      // DOM position 12 in main.tsx
-    DTRADER: 13,        // DOM position 13 in main.tsx
-    SPEEDBOT: 14,
+    DTRADER: 11,        // DOM position 11 in main.tsx (also used as MANUAL_TRADING)
+    MANUAL_TRADING: 11, // Manual trading tab — replaces DTrader at position 11
+    SPEEDBOT: 12,
     // Keep TUTORIAL as a non-active sentinel to avoid index mismatches in legacy checks
     TUTORIAL: 999,
     // Legacy tabs - kept for backward compatibility but redirect to TRADING_BOTS
