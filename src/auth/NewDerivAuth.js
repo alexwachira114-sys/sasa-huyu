@@ -56,13 +56,23 @@ export function sendViaNewSystem(data) {
 /**
  * Convert legacy Deriv API message format to new Options API format.
  *
- * The Deriv WS API (both legacy and OTP/v2) validates `proposal` and
- * `buy.parameters` requests with a `symbol` property — there is no
- * `underlying_symbol` property accepted by the server for these request
- * types ("Input validation failed: Properties not allowed: underlying_symbol").
- * So `symbol` must be passed through unchanged; only the `buy` flag needs
- * to become a string for the OTP WS.
+ * Per Deriv's official `proposal_request` and `buy_request` JSON schemas
+ * (both are `additionalProperties: false`), the symbol field is named
+ * `underlying_symbol` — there is no `symbol` property in either schema.
+ * Sending `symbol` instead trips validation with
+ * "Input validation failed: Properties not allowed: symbol" (and/or a
+ * missing-required-property error for `underlying_symbol`). The rest of
+ * the app (proposal previews, trade builders, etc.) constructs requests
+ * using `symbol`, so we rename it here for every request that goes over
+ * the OTP WebSocket. Also normalizes the `buy` flag to a string.
  */
+function renameSymbolKey(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj
+  if (!('symbol' in obj)) return obj
+  const { symbol, underlying_symbol, ...rest } = obj
+  return { ...rest, underlying_symbol: underlying_symbol ?? symbol }
+}
+
 function convertToNewFormat(data) {
   if (!data || typeof data !== 'object') return data
   const out = Array.isArray(data) ? data.map(convertToNewFormat) : { ...data }
@@ -70,6 +80,15 @@ function convertToNewFormat(data) {
   // buy: integer → string "1"
   if ('buy' in out) {
     out.buy = String(out.buy)
+  }
+
+  // `symbol` → `underlying_symbol` at the top level (e.g. `proposal` requests)…
+  Object.assign(out, renameSymbolKey(out))
+  if ('symbol' in out) delete out.symbol
+
+  // …and inside a nested `parameters` object (e.g. `buy` requests).
+  if (out.parameters && typeof out.parameters === 'object' && !Array.isArray(out.parameters)) {
+    out.parameters = renameSymbolKey(out.parameters)
   }
 
   return out

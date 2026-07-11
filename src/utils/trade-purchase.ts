@@ -21,7 +21,14 @@ class InsufficientDemoBalanceError extends Error {
 
 const throwApiError = (response: any, source: string) => {
     if (response?.error) {
-        throw new Error(response.error.message || `${source} contract purchase failed.`);
+        // Deriv often returns a short top-level message (e.g. "Input validation
+        // failed: parameters") plus the real reason under `error.details`. Surface
+        // both so the UI shows something actionable instead of the generic summary.
+        const detail = response.error.details && typeof response.error.details === 'object'
+            ? Object.values(response.error.details).flat().filter(Boolean).join(' ')
+            : undefined;
+        const base = response.error.message || `${source} contract purchase failed.`;
+        throw new Error(detail && !base.includes(detail) ? `${base}: ${detail}` : base);
     }
 };
 
@@ -47,7 +54,10 @@ const removeUndefinedFields = <T extends Record<string, any>>(fields: T): T =>
 const normalizeParameters = (parameters: TTradeParameters) => {
     const { symbol, underlying_symbol, ...rest } = parameters;
     const normalized_symbol = symbol || underlying_symbol;
-    // Always use `symbol` — the PKCE OTP WebSocket rejects `underlying_symbol`.
+    // Always build with `symbol` — NewDerivAuth's convertToNewFormat() renames it to
+    // `underlying_symbol` (the field the real Deriv proposal/buy schemas require) right
+    // before anything is sent over the OTP WebSocket, and the legacy deriv-api SDK
+    // already accepts `symbol` for OAuth sessions.
     const symbol_field = normalized_symbol ? { symbol: normalized_symbol } : {};
 
     return removeUndefinedFields({ ...rest, ...symbol_field });
