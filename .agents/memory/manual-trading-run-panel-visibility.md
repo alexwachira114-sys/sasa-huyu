@@ -20,3 +20,11 @@ trading tabs so users can see their transaction history).
 tab, check the store-side event wiring first (usually already correct), then check
 `main.tsx`'s per-tab visibility conditions for `RunPanel`/`RunStrategy` — the bug is often
 there, not in the page component itself.
+
+**Second gate inside RunPanel itself:** `main.tsx` only controls whether `<RunPanel />` is
+mounted at all. `run-panel.tsx` has its OWN independent `show_run_panel` allowlist
+(`[BOT_BUILDER, CHART, TRADING_BOTS, ANALYSIS_TOOL, ...].includes(active_tab)`) that returns
+`null` on desktop if the active tab isn't in that array — regardless of what `main.tsx` does.
+Adding a new tab (e.g. `MANUAL_TRADING`) requires updating BOTH: the `main.tsx` exclusion
+list AND this `show_run_panel` array inside `run-panel.tsx`, or the panel silently never
+renders on desktop even though nothing in `main.tsx` is hiding it.
