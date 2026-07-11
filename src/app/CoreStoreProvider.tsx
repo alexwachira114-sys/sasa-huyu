@@ -285,10 +285,20 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
             const data = res.data as TSocketResponseData<'balance'>;
             const { msg_type, error } = data;
 
+            // PKCE/OTP users are never authorized on the legacy `api_base.api`
+            // (deriv-api SDK) connection by design — they authenticate on the
+            // separate new-system WebSocket instead. Any legacy call made on
+            // their behalf (e.g. self-exclusion, website status) will always
+            // come back `AuthorizationRequired` on that connection; that is
+            // expected and must not be treated as "the session is invalid,
+            // log the user out". Only apply this auto-logout to legacy/OAuth
+            // sessions, where an AuthorizationRequired/InvalidToken error on
+            // their one real connection genuinely means the session died.
             if (
-                error?.code === 'AuthorizationRequired' ||
-                error?.code === 'DisabledClient' ||
-                error?.code === 'InvalidToken'
+                !isNewLoggedIn() &&
+                (error?.code === 'AuthorizationRequired' ||
+                    error?.code === 'DisabledClient' ||
+                    error?.code === 'InvalidToken')
             ) {
                 await oAuthLogout();
             }

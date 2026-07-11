@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable } from 'mobx';
+import { isNewLoggedIn } from '@/auth/NewDerivAuth';
 import { api_base } from '@/external/bot-skeleton';
 import { V2GetActiveClientId } from '@/external/bot-skeleton/services/api/appId';
 import { TStores } from '@deriv/stores/types';
@@ -64,6 +65,16 @@ export default class SelfExclusionStore {
     }
 
     async checkRestriction() {
+        // PKCE/OTP users are authenticated on the new system, not on the legacy
+        // `api_base.api` (deriv-api SDK) connection. `api_base.is_authorized` is
+        // set to `true` for them too (a legacy-compat shim so the rest of the app
+        // treats them as logged in), but that legacy WS was never actually
+        // authorized — calling `getSelfExclusion()` on it always comes back with
+        // `AuthorizationRequired`, which used to trigger a real `client.logout()`
+        // any time this ran (e.g. on navigating to a trading tab). Skip it here;
+        // there is no legacy connection to check self-exclusion against for them.
+        if (isNewLoggedIn()) return;
+
         if (api_base.api && api_base.is_authorized && V2GetActiveClientId()) {
             api_base.api
                 .getSelfExclusion()
