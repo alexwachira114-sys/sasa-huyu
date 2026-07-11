@@ -169,15 +169,15 @@ const AppWrapper = observer(() => {
                 </div>
             </div>
             <DesktopWrapper>
-                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'manual_trading' && (
+                {hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && (
                     <div className='main__run-strategy-wrapper'>
-                        {hash[active_tab] !== 'over_under' && hash[active_tab] !== 'smart_trader' && hash[active_tab] !== 'elite_prime' && <RunStrategy />}
+                        {hash[active_tab] !== 'over_under' && hash[active_tab] !== 'smart_trader' && hash[active_tab] !== 'elite_prime' && hash[active_tab] !== 'manual_trading' && <RunStrategy />}
                         <RunPanel />
                     </div>
                 )}
                 <ChartModal />
             </DesktopWrapper>
-            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && hash[active_tab] !== 'manual_trading' && <RunPanel />}</MobileWrapper>
+            <MobileWrapper>{!is_open && hash[active_tab] !== 'strategies' && hash[active_tab] !== 'caxynexus_ai_magic' && hash[active_tab] !== 'trading_bots' && hash[active_tab] !== 'copy_trading' && <RunPanel />}</MobileWrapper>
             <SpeedBotFloatingStop />
             {hash[active_tab] === 'bot_builder' && <CaxynexusAiWidget />}
             <BlocklyIOSPrompt />
