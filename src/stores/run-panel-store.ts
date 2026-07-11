@@ -1073,6 +1073,9 @@ export default class RunPanelStore {
             console.log('[Run Panel] ✅ Contract sold, closing');
             this.is_sell_requested = false;
             this.setContractStage(contract_stages.CONTRACT_CLOSED);
+            // Contract is closed, so it's no longer "open" — without this, has_open_contract
+            // stays true forever for manual trades and permanently disables the Reset button.
+            this.setHasOpenContract(false);
             
             // CRITICAL: Check if target profit is reached and stop bot automatically
             try {
