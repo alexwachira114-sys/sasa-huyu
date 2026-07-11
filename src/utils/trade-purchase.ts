@@ -25,27 +25,39 @@ const throwApiError = (response: any, source: string) => {
     }
 };
 
+const isLegacyOAuthSession = () => {
+    try {
+        const active_loginid = localStorage.getItem('active_loginid');
+        const accounts_list_raw = localStorage.getItem('accountsList');
+        if (!active_loginid || !accounts_list_raw) return false;
+
+        const accounts_list = JSON.parse(accounts_list_raw);
+        return Boolean(accounts_list?.[active_loginid]);
+    } catch {
+        return false;
+    }
+};
+
 const removeUndefinedFields = <T extends Record<string, any>>(fields: T): T =>
     Object.entries(fields).reduce((cleaned, [key, value]) => {
         if (value !== undefined && value !== null && value !== '') cleaned[key as keyof T] = value;
         return cleaned;
     }, {} as T);
 
-/**
- * Normalize trade parameters so that the symbol field is always `symbol`.
- * Both api_base (legacy WS) and the PKCE OTP WS (sendViaNewSystemWithPromise)
- * accept `symbol` — only `underlying_symbol` triggers the OTP schema rejection.
- */
 const normalizeParameters = (parameters: TTradeParameters) => {
     const { symbol, underlying_symbol, ...rest } = parameters;
     const normalized_symbol = symbol || underlying_symbol;
+    // Always use `symbol` — the PKCE OTP WebSocket rejects `underlying_symbol`.
     const symbol_field = normalized_symbol ? { symbol: normalized_symbol } : {};
+
     return removeUndefinedFields({ ...rest, ...symbol_field });
 };
 
 const ensureAuthorizedForTrading = async () => {
     if (api_base.is_authorized) return;
+
     await (api_base as any).authorizeAndSubscribe?.();
+
     if (!api_base.is_authorized) {
         throw new Error('Please log in to your Deriv account before trading.');
     }
@@ -53,7 +65,9 @@ const ensureAuthorizedForTrading = async () => {
 
 const getMoneyDecimals = (currency?: string) => {
     const normalizedCurrency = (currency || '').toUpperCase();
-    return normalizedCurrency === 'BTC' || normalizedCurrency === 'ETH' || normalizedCurrency.includes('USDT') ? 8 : 2;
+    return normalizedCurrency === 'BTC' || normalizedCurrency === 'ETH' || normalizedCurrency.includes('USDT')
+        ? 8
+        : 2;
 };
 
 const formatAmount = (amount: number, currency: string) => `${amount.toFixed(getMoneyDecimals(currency))} ${currency}`;
@@ -80,18 +94,6 @@ const assertSufficientDemoBalance = (required_amount: number, source: string) =>
             )}, required ${formatAmount(required_amount, currency)}.`
         );
     }
-};
-
-/**
- * Send a request through the correct WebSocket channel.
- * PKCE sessions use the OTP WS via sendViaNewSystemWithPromise.
- * Legacy sessions use api_base.api.send() directly.
- */
-const sendRequest = async (request: Record<string, any>) => {
-    if (isNewLoggedIn()) {
-        return sendViaNewSystemWithPromise(request);
-    }
-    return (api_base.api as any).send(request);
 };
 
 export const buyContractForUi = async ({ parameters, price, source }: TBuyContractArgs): Promise<Buy> => {
@@ -123,8 +125,10 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
             data: ask_price,
         });
 
-        // Route buy through PKCE OTP WS for PKCE sessions, api_base otherwise.
-        const buy_response = await sendRequest({ buy: proposal.id, price: ask_price });
+        const buy_request = { buy: proposal.id, price: ask_price };
+        const buy_response = isNewLoggedIn()
+            ? await sendViaNewSystemWithPromise(buy_request)
+            : await (api_base.api as any).send(buy_request);
         throwApiError(buy_response, source);
 
         const buy = buy_response?.buy;
@@ -134,6 +138,7 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
                 data: buy.transaction_id,
                 buy,
             });
+
             return buy;
         }
     } catch (proposal_error) {
@@ -149,11 +154,10 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
         data: price,
     });
 
-    const direct_buy_response = await sendRequest({
-        buy: '1',
-        price,
-        parameters: normalized_parameters,
-    });
+    const direct_buy_request = { buy: '1', price, parameters: normalized_parameters };
+    const direct_buy_response = isNewLoggedIn()
+        ? await sendViaNewSystemWithPromise(direct_buy_request)
+        : await (api_base.api as any).send(direct_buy_request);
     throwApiError(direct_buy_response, source);
 
     const buy = direct_buy_response?.buy;
@@ -193,7 +197,13 @@ const getContractDisplayTick = (
 
 export const getContractSnapshot = (contract: Record<string, any>, fallback: Record<string, any> = {}) => {
     const is_sold = isContractSettled(contract) || Boolean(fallback.is_sold);
-    const entry_spot = getContractDisplayTick(contract, fallback, 'entry_tick_display_value', 'entry_tick', 'entry_spot');
+    const entry_spot = getContractDisplayTick(
+        contract,
+        fallback,
+        'entry_tick_display_value',
+        'entry_tick',
+        'entry_spot'
+    );
     const exit_spot = getContractDisplayTick(contract, fallback, 'exit_tick_display_value', 'exit_tick', 'exit_spot');
 
     return {
@@ -224,6 +234,7 @@ export const getContractSnapshot = (contract: Record<string, any>, fallback: Rec
 
 export const emitContractSoldStatus = (contract: Record<string, any>) => {
     if (!contract?.is_sold) return;
+
     globalObserver.emit('contract.status', {
         id: 'contract.sold',
         data: contract.transaction_ids?.sell,
@@ -311,11 +322,21 @@ export const streamContractUntilSettled = ({
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
         const cleanup = () => {
-            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
-            if (settlementCheckId) { clearInterval(settlementCheckId); settlementCheckId = null; }
-            if (signal) signal.removeEventListener('abort', handleAbort);
-            try { subscription?.unsubscribe?.(); } catch (e) {
-                console.warn(`[${source}] Failed to unsubscribe contract stream.`, e);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            if (settlementCheckId) {
+                clearInterval(settlementCheckId);
+                settlementCheckId = null;
+            }
+            if (signal) {
+                signal.removeEventListener('abort', handleAbort);
+            }
+            try {
+                subscription?.unsubscribe?.();
+            } catch (unsubscribeError) {
+                console.warn(`[${source}] Failed to unsubscribe contract stream.`, unsubscribeError);
             }
             subscription = null;
         };
@@ -327,12 +348,16 @@ export const streamContractUntilSettled = ({
             resolve(value);
         };
 
-        const handleAbort = () => finish(getAbortedContractSnapshot(contractId, fallback));
+        const handleAbort = () => {
+            finish(getAbortedContractSnapshot(contractId, fallback));
+        };
 
         const handleContractUpdate = (contract: Record<string, any>) => {
             if (finished || !contract) return;
+
             const snapshot = getContractSnapshot(contract, fallback);
             onUpdate?.(snapshot, contract);
+
             if (snapshot.is_sold) {
                 emitContractSoldStatus(snapshot);
                 finish(snapshot);
@@ -341,32 +366,45 @@ export const streamContractUntilSettled = ({
 
         const requestProfitTableSnapshot = async (reason: string) => {
             const now = Date.now();
-            if (finished || profitTableRequestInFlight ||
-                (lastProfitTableRecoveryCheck && now - lastProfitTableRecoveryCheck < PROFIT_TABLE_RECOVERY_CHECK_MS)) {
+            if (
+                finished ||
+                profitTableRequestInFlight ||
+                (lastProfitTableRecoveryCheck && now - lastProfitTableRecoveryCheck < PROFIT_TABLE_RECOVERY_CHECK_MS)
+            ) {
                 return;
             }
+
             profitTableRequestInFlight = true;
             lastProfitTableRecoveryCheck = now;
             try {
                 const response = await (api_base.api as any)?.send?.({
-                    profit_table: 1, description: 1, limit: 25, sort: 'DESC',
+                    profit_table: 1,
+                    description: 1,
+                    limit: 25,
+                    sort: 'DESC',
                 });
                 if (response?.error) {
-                    console.warn(`[${source}] Profit table recovery failed for ${contractId} (${reason}).`, response.error);
+                    console.warn(
+                        `[${source}] Profit table recovery failed for ${contractId} (${reason}).`,
+                        response.error
+                    );
                     return;
                 }
+
                 const transaction = response?.profit_table?.transactions?.find(
                     (item: Record<string, any>) => Number(item?.contract_id) === Number(contractId)
                 );
+
                 if (!transaction) return;
+
                 const snapshot = getProfitTableContractSnapshot(transaction, fallback);
                 if (snapshot.is_sold) {
                     onUpdate?.(snapshot, transaction);
                     emitContractSoldStatus(snapshot);
                     finish(snapshot);
                 }
-            } catch (e) {
-                console.warn(`[${source}] Profit table recovery failed for ${contractId} (${reason}).`, e);
+            } catch (profitTableError) {
+                console.warn(`[${source}] Profit table recovery failed for ${contractId} (${reason}).`, profitTableError);
             } finally {
                 profitTableRequestInFlight = false;
             }
@@ -377,15 +415,18 @@ export const streamContractUntilSettled = ({
             snapshotRequestInFlight = true;
             try {
                 const response = await (api_base.api as any)?.send?.({
-                    proposal_open_contract: 1, contract_id: contractId,
+                    proposal_open_contract: 1,
+                    contract_id: contractId,
                 });
                 const contract = response?.proposal_open_contract;
-                if (contract) handleContractUpdate(contract);
+                if (contract) {
+                    handleContractUpdate(contract);
+                }
                 if (!finished && recoveryMode && (!contract || !isContractSettled(contract))) {
                     void requestProfitTableSnapshot(reason);
                 }
-            } catch (e) {
-                console.warn(`[${source}] Contract settlement snapshot failed for ${contractId} (${reason}).`, e);
+            } catch (snapshotError) {
+                console.warn(`[${source}] Contract settlement snapshot failed for ${contractId} (${reason}).`, snapshotError);
                 if (recoveryMode) void requestProfitTableSnapshot(reason);
             } finally {
                 snapshotRequestInFlight = false;
@@ -393,21 +434,35 @@ export const streamContractUntilSettled = ({
         };
 
         const startSettlementPolling = (intervalMs: number) => {
-            if (settlementCheckId) { clearInterval(settlementCheckId); settlementCheckId = null; }
+            if (settlementCheckId) {
+                clearInterval(settlementCheckId);
+                settlementCheckId = null;
+            }
             settlementCheckId = setInterval(() => {
                 void requestSettlementSnapshot(recoveryMode ? 'recovery-watchdog' : 'watchdog');
             }, intervalMs);
         };
 
-        if (signal?.aborted) { handleAbort(); return; }
-        if (signal) signal.addEventListener('abort', handleAbort, { once: true });
+        if (signal?.aborted) {
+            handleAbort();
+            return;
+        }
+
+        if (signal) {
+            signal.addEventListener('abort', handleAbort, { once: true });
+        }
 
         timeoutId = setTimeout(() => {
             if (finished) return;
             recoveryMode = true;
             timeoutId = null;
-            console.warn(`[${source}] Contract settlement is stale for ${contractId}; continuing recovery polling.`);
-            globalObserver.emit('contract.status', { id: 'contract.settlement_recovery', data: contractId });
+            console.warn(
+                `[${source}] Contract settlement is stale for ${contractId}; continuing recovery polling until Deriv returns the sold result.`
+            );
+            globalObserver.emit('contract.status', {
+                id: 'contract.settlement_recovery',
+                data: contractId,
+            });
             startSettlementPolling(Math.max(settlementCheckMs, DEFAULT_SETTLEMENT_RECOVERY_CHECK_MS));
             void requestSettlementSnapshot('timeout-recovery');
         }, timeoutMs);
@@ -416,8 +471,11 @@ export const streamContractUntilSettled = ({
 
         try {
             const observable = (api_base.api as any)?.subscribe?.({
-                proposal_open_contract: 1, contract_id: contractId, subscribe: 1,
+                proposal_open_contract: 1,
+                contract_id: contractId,
+                subscribe: 1,
             });
+
             subscription = safeSubscribe(
                 observable,
                 (data: any) => {
@@ -427,16 +485,18 @@ export const streamContractUntilSettled = ({
                         void requestSettlementSnapshot('stream-error');
                         return;
                     }
-                    handleContractUpdate(data?.proposal_open_contract);
+
+                    const contract = data?.proposal_open_contract;
+                    handleContractUpdate(contract);
                 },
                 streamError => {
                     if (finished) return;
-                    console.warn(`[${source}] Contract stream failed for ${contractId}.`, streamError);
+                    console.warn(`[${source}] Contract stream subscription failed for ${contractId}.`, streamError);
                     void requestSettlementSnapshot('stream-failure');
                 }
             );
-        } catch (e) {
-            console.warn(`[${source}] Could not subscribe to contract stream for ${contractId}.`, e);
+        } catch (subscribeError) {
+            console.warn(`[${source}] Could not subscribe to contract stream for ${contractId}.`, subscribeError);
             void requestSettlementSnapshot('subscribe-failure');
         }
 

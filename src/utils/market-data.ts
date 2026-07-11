@@ -18,7 +18,9 @@ export const MARKET_PIP_SIZE: Record<string, number> = {
 
 export const getMarketPipSize = (symbol: string, fallback = 2) => {
     const api_pip_size = Number((api_base.pip_sizes as Record<string, number | undefined>)?.[symbol]);
+
     if (Number.isFinite(api_pip_size) && api_pip_size >= 0) return api_pip_size;
+
     return MARKET_PIP_SIZE[symbol] ?? fallback;
 };
 
@@ -26,6 +28,7 @@ export const getLastDigitFromQuote = (quote: number, symbol: string, fallback_pi
     const pip_size = getMarketPipSize(symbol, fallback_pip_size);
     const normalized_quote = Number(quote).toFixed(pip_size);
     const digit = normalized_quote.replace(/\D/g, '').slice(-1);
+
     return Number(digit || 0);
 };
 

@@ -1,7 +1,8 @@
 /**
  * Centralized WebSocket handler for safely subscribing to observables.
- * Wraps event listeners in try/catch and logs errors with stack traces.
+ * Wraps event listeners in try/catch and logs errors with stack traces to prevent unhandled exceptions.
  */
+
 export const safeSubscribe = (
     observable: any,
     onData: (data: any) => void,
@@ -26,10 +27,16 @@ export const safeSubscribe = (
             if (onError) {
                 onError(error);
             } else {
-                console.error('[WebSocketHandler] Unhandled stream error:\n', error instanceof Error ? (error as Error).stack : error);
+                console.error(
+                    '[WebSocketHandler] Unhandled stream error:\n',
+                    error instanceof Error ? error.stack : error
+                );
             }
         } catch (err) {
-            console.error('[WebSocketHandler] Exception in onError listener:\n', err instanceof Error ? err.stack : err);
+            console.error(
+                '[WebSocketHandler] Exception in onError listener:\n',
+                err instanceof Error ? err.stack : err
+            );
         }
     };
 
@@ -37,7 +44,10 @@ export const safeSubscribe = (
         try {
             onComplete?.();
         } catch (err) {
-            console.error('[WebSocketHandler] Exception in onComplete listener:\n', err instanceof Error ? err.stack : err);
+            console.error(
+                '[WebSocketHandler] Exception in onComplete listener:\n',
+                err instanceof Error ? err.stack : err
+            );
         }
     };
 
@@ -49,7 +59,10 @@ export const safeSubscribe = (
                 try {
                     if (originalUnsubscribe) originalUnsubscribe();
                 } catch (err) {
-                    console.error('[WebSocketHandler] Exception during unsubscribe:\n', err instanceof Error ? err.stack : err);
+                    console.error(
+                        '[WebSocketHandler] Exception during unsubscribe:\n',
+                        err instanceof Error ? err.stack : err
+                    );
                 }
             },
             ...subscription,
