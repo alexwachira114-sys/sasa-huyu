@@ -3,3 +3,4 @@
 - [DTrader PKCE trading fix](dtrader-pkce-trading.md) — PKCE users need isNewLoggedIn()→NewDTrader, not iframe; V2GetActiveToken() returns null for PKCE; never use loginId as token fallback.
 - [DTrader self-contained trade panel](dtrader-trade-panel.md) — WS dual-path: window._newSystemWS for new auth (convertToNewFormat changes symbol→underlying_symbol), direct wss://ws.derivws.com for legacy; trade-execution-store.ts is the single source of truth.
 - [DTrader BUY bridge](dtrader-buy-bridge.md) — socket_base.js intercepts buy()/buyAndSubscribe() in iframe; parent IframeWrapper handles BUY_REQUEST via sendViaNewSystemWithPromise; source lives in dtrader-iframe/.
+- [OTP WS error swallowing](otp-ws-error-swallowing.md) — sendViaNewSystemWithPromise rejects with a plain object, not Error; any `instanceof Error` gate before it hides the real Deriv error behind a generic message.

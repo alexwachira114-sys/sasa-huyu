@@ -120,11 +120,22 @@ export const buyContractForUi = async ({ parameters, price, source }: TBuyContra
         assertSufficientDemoBalance(price, source);
         globalObserver.emit('contract.status', { id: 'contract.purchase_sent', data: price });
 
-        const buy_response = await sendViaNewSystemWithPromise({
-            buy: '1',
-            price,
-            parameters: normalized_parameters,
-        });
+        let buy_response;
+        try {
+            buy_response = await sendViaNewSystemWithPromise({
+                buy: '1',
+                price,
+                parameters: normalized_parameters,
+            });
+        } catch (sendError: any) {
+            // sendViaNewSystemWithPromise rejects with a plain
+            // { error, echo_req } object, not an Error instance, so the
+            // caller's `instanceof Error` checks would otherwise swallow the
+            // real reason and fall back to a generic message.
+            throw new Error(
+                sendError?.error?.message || sendError?.message || `${source} contract purchase failed.`
+            );
+        }
         throwApiError(buy_response, source);
 
         const buy = buy_response?.buy;
