@@ -285,16 +285,28 @@ const CallbackPage = () => {
     const urlParams = new URLSearchParams(window.location.search)
     const hasCode = urlParams.has('code')
     const hasOldTokens = urlParams.has('token1') || urlParams.has('acct1')
-    
+    const hasError = urlParams.has('error')
+
     if (hasCode && !hasOldTokens) {
       return <NewSystemCallbackHandler />
     }
 
     // OLD SYSTEM: check for legacy PKCE flow (acct1/token1 params)
-    const isPkceFlow = hasCode || urlParams.has('error');
+    const isPkceFlow = hasCode || hasError;
 
     if (isPkceFlow) {
         return <PkceCallbackHandler />;
+    }
+
+    // Landed on /callback with none of the params an OAuth redirect would provide
+    // (e.g. a stale bookmark/history entry, a page refresh after the one-time code
+    // was already consumed, or the browser restoring this URL). There is nothing to
+    // process here, so send the user home instead of mounting the legacy auth-client
+    // <Callback /> component, which immediately renders an "Unexpected error occured"
+    // screen whenever it doesn't find a `code` param.
+    if (!hasCode && !hasOldTokens && !hasError) {
+        window.location.replace('/');
+        return null;
     }
 
     // LEGACY: use old Deriv auth-client Callback component
