@@ -381,8 +381,13 @@ function connect() {
 
         if (data.active_symbols) {
             // Keep only Volatility Indices (exclude Crash/Boom, Step, etc.)
+            // Also exclude Volatility 15 (1s), 30 (1s) and 90 (1s) indices
+            const EXCLUDED_VOLATILITIES = [/Volatility\s*15\s*\(1s\)/i, /Volatility\s*30\s*\(1s\)/i, /Volatility\s*90\s*\(1s\)/i];
             const vols = data.active_symbols.filter(
-                s => s.market === 'synthetic_index' && /Volatility/i.test(s.display_name)
+                s =>
+                    s.market === 'synthetic_index' &&
+                    /Volatility/i.test(s.display_name) &&
+                    !EXCLUDED_VOLATILITIES.some(re => re.test(s.display_name))
             );
 
             // gather decimals from pip if present
