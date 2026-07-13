@@ -9,33 +9,46 @@
     <body>
         <div class="box">
             <h2 id="app-title"></h2>
-            <label id="label-market" for="symbols">Select Market:</label>
-            <select id="symbols"></select>
+            <div class="market-top">
+                <div class="market-select">
+                    <div class="market-select-card">
+                        <label id="label-market" for="symbols">Select Market:</label>
+                        <select id="symbols"></select>
+                    </div>
+                </div>
+                <div class="market-price">
+                    <div class="current-price-card">
+                        <span class="current-price-label">CURRENT PRICE</span>
+                        <div id="price" class="price">—</div>
+                    </div>
+                </div>
+            </div>
 
-            <div class="display">
-                <div id="price" class="price">—</div>
+            <div class="display visually-hidden">
                 <div id="digit" class="digit">—</div>
             </div>
 
             <div class="controls">
-                <label id="label-window" for="ticks-window">Ticks window:</label>
+                <label id="label-window" for="ticks-window">NUMBER OF TICKS</label>
                 <input id="ticks-window" type="number" min="50" max="5000" step="50" value="1000" style="width: 90px" />
                 <span class="hint">(50–5000)</span>
             </div>
 
             <div class="digits-section">
-                <div class="digits-header">
-                    <span id="digits-title">Last 1000 ticks digit distribution</span>
-                    <span id="samples-count" class="samples">0/1000</span>
-                </div>
-                <div id="digits" class="digits"></div>
-                <div class="legend">
-                    <span id="legend-current" class="legend-item"
-                        ><span class="dot dot-current"></span> current digit / most</span
-                    >
-                    <span id="legend-least" class="legend-item"
-                        ><span class="dot dot-least"></span> least frequency</span
-                    >
+                <div class="digits-card">
+                    <div class="digits-header">
+                        <span id="digits-title">Last 1000 ticks digit distribution</span>
+                        <span id="samples-count" class="samples">0/1000</span>
+                    </div>
+                    <div id="digits" class="digits"></div>
+                    <div class="legend">
+                        <span id="legend-current" class="legend-item"
+                            ><span class="dot dot-current"></span> current digit / most</span
+                        >
+                        <span id="legend-least" class="legend-item"
+                            ><span class="dot dot-least"></span> least frequency</span
+                        >
+                    </div>
                 </div>
             </div>
 
@@ -145,6 +158,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- Right spacer leaves space for host run panel when embedded -->
+        <div class="right-spacer"></div>
 
         <script src="script.js"></script>
     </body>

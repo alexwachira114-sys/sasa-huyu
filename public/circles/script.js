@@ -110,7 +110,7 @@ const labelOuEl = document.getElementById('label-ou');
 
     const strings = {
         labelMarket: fromCodes([83, 101, 108, 101, 99, 116, 32, 77, 97, 114, 107, 101, 116, 58]), // "Select Market:"
-        labelWindow: fromCodes([84, 105, 99, 107, 115, 32, 119, 105, 110, 100, 111, 119, 58]), // "Ticks window:"
+        labelWindow: 'NUMBER OF TICKS',
         digitsTitle:
             fromCodes([76, 97, 115, 116, 32]) +
             MAX_SAMPLES +
@@ -216,9 +216,35 @@ const labelOuEl = document.getElementById('label-ou');
     }, 2000);
 })();
 
+// If running inside an iframe (embedded in the main app), mark document so we can remove
+// outer framing (the purple .box) and let the host app use its own framing.
+(function markEmbedded() {
+    if (window.self !== window.top) {
+        const addClass = () => {
+            try {
+                document.documentElement.classList.add('embedded');
+                if (document.body) document.body.classList.add('embedded');
+                // Ask parent to open its run panel (parent may ignore)
+                try {
+                    window.parent.postMessage({ type: 'runPanel', action: 'open' }, '*');
+                } catch (_e) {}
+            } catch (e) {}
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addClass);
+        else addClass();
+    }
+})();
+
 function toFixedWithPip(price, pipSize) {
     const ps = Number.isFinite(pipSize) ? pipSize : 2;
     return Number(price).toFixed(ps);
+}
+
+function formatPriceWithHighlight(price, pipSize) {
+    const str = toFixedWithPip(price, pipSize);
+    const lastChar = str.slice(-1);
+    const prefix = str.slice(0, -1);
+    return `${prefix}<span class="price-last-digit">${lastChar}</span>`;
 }
 
 function extractLastDigit(price, pipSize) {
@@ -233,7 +259,6 @@ function initDigitUI() {
     for (let d = 0; d < 10; d++) {
         const row = document.createElement('div');
         row.className = 'digit-item';
-
         const circle = document.createElement('div');
         circle.className = 'circle';
         circle.dataset.digit = String(d);
@@ -242,12 +267,13 @@ function initDigitUI() {
         const num = document.createElement('div');
         num.className = 'circle-num';
         num.textContent = String(d);
+        content.appendChild(num);
+        circle.appendChild(content);
+
+        // percentage element placed outside the circle (below)
         const pct = document.createElement('div');
         pct.className = 'circle-pct';
         pct.textContent = '0%';
-        content.appendChild(num);
-        content.appendChild(pct);
-        circle.appendChild(content);
 
         // clicking a digit circle sets O/U threshold to that digit
         circle.addEventListener('click', () => {
@@ -256,6 +282,7 @@ function initDigitUI() {
         });
 
         row.appendChild(circle);
+        row.appendChild(pct);
         digitsContainer.appendChild(row);
     }
 }
@@ -431,9 +458,9 @@ function connect() {
                 const meta = symbolMeta.get(currentSymbol);
                 const decimalsOverride = meta?.decimals ?? null;
                 const usedDecimals = decimalsOverride ?? currentPipSize;
-                priceEl.textContent = toFixedWithPip(quote, usedDecimals);
+                priceEl.innerHTML = formatPriceWithHighlight(quote, usedDecimals);
                 const lastDigit = extractLastDigit(quote, usedDecimals);
-                digitEl.textContent = String(lastDigit);
+                if (digitEl) digitEl.textContent = String(lastDigit);
                 pushDigit(lastDigit);
             }
         }

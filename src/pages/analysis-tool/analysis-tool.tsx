@@ -1,13 +1,13 @@
 import React from 'react';
 import IframeWrapper from '@/components/iframe-wrapper';
+import './analysis-tool.scss';
 
-const AnalysisTool: React.FC = () => {
+const AnalysisTool = () => {
     return (
-        <IframeWrapper
-            src='https://api-binarytool-site.vercel.app/'
-            title='Analysis Tool'
-            className='analysis-tool-container'
-        />
+        <div className='dcircles'>
+            {/* Load local copy so styling changes in /public/circles are used during development */}
+            <IframeWrapper src='/circles/index.html' title='Dcircles' className='dcircles-container' />
+        </div>
     );
 };
 
